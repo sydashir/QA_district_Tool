@@ -4,5 +4,9 @@ beautifulsoup4>=4.14
 lxml>=6.1
 pydantic>=2.13
 typer>=0.26
-# M1 adds: phonenumbers (phone check)
+phonenumbers>=9.0   # phone check (M1)
 # Phase 2 adds: anthropic, rapidfuzz
+#
+# The placeholder check imports the REAL extract_acf_tokens from the GeoData Fetcher's
+# services/geo_field_validator.py (read-only, single source of truth). Default path:
+# ~/Documents/workk/district/services — override with GEODATA_SERVICES_DIR.

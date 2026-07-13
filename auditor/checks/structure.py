@@ -1,0 +1,58 @@
+"""Heading-structure check (v1 deterministic).
+
+Scope: **H1–H3 only** — the client says H4/H5 are SEO-irrelevant (CLAUDE.md §7 [j]),
+and the spike's H4/H5 hits were noise. H1-count is unambiguous and ships now; strict
+H2/H3 hierarchy rules are open question #5 (unwritten) and are NOT enforced here.
+
+Flags: multiple <h1>, skipped levels within H1–H3, empty headings, template labels
+leaking into headings (the spike's "Contact Us (Pillar)" / "…-copy" case).
+"""
+from __future__ import annotations
+
+from ..parse import ParsedPage
+from ..report import Finding, Severity
+
+CHECK = "heading_structure"
+
+# Internal template/taxonomy labels that must not surface as user-facing headings.
+_LABEL_MARKERS = ("(pillar)", "[pillar]", "pillar copy", " copy", "(copy)")
+
+
+def run(parsed: ParsedPage, config) -> list[Finding]:
+    findings: list[Finding] = []
+    headings = [(h.level, h.text) for h in parsed.headings if h.level <= 3]
+
+    h1s = [t for lvl, t in headings if lvl == 1]
+    if len(h1s) > 1:
+        findings.append(Finding(
+            url=parsed.url, check=CHECK, severity=Severity.ERROR,
+            issue="multiple <h1>", location="page",
+            snippet=" | ".join(t[:50] for t in h1s[:4]),
+            suggestion="Exactly one H1 per page (client rule [j]).",
+            details={"h1_count": len(h1s)}))
+
+    for lvl, text in headings:
+        if not text.strip():
+            findings.append(Finding(
+                url=parsed.url, check=CHECK, severity=Severity.WARNING,
+                issue="empty heading", location=f"H{lvl}"))
+
+    prev = 0
+    for lvl, text in headings:
+        if prev and lvl > prev + 1:
+            findings.append(Finding(
+                url=parsed.url, check=CHECK, severity=Severity.WARNING,
+                issue=f"skipped level H{prev}->H{lvl}", location=f"H{lvl}",
+                snippet=text[:60]))
+        prev = lvl
+
+    for lvl, text in headings:
+        low = text.lower()
+        if any(m in low for m in _LABEL_MARKERS):
+            findings.append(Finding(
+                url=parsed.url, check=CHECK, severity=Severity.ERROR,
+                issue="template label leaked into heading", location=f"H{lvl}",
+                snippet=text[:80],
+                suggestion="Internal label (e.g. '(Pillar)'/'copy') is rendering as a heading."))
+
+    return findings

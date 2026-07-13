@@ -1,0 +1,89 @@
+"""Phone-number check (v1 deterministic) — net-new; nothing upstream validates phones.
+
+This is the COC bug that started the ticket. Uses the ``phonenumbers`` library (not a
+hand regex). Canonical numbers come from ``config.canonical_phones``.
+
+Flags:
+- ``tel:`` href vs displayed-number MISMATCH (the flagship — a button showing one number
+  that dials another). ERROR.
+- non-canonical numbers (tel: or visible) not in the brand's canonical set. WARNING.
+- malformed ``tel:`` values. WARNING.
+
+Scope / trust caveat (CLAUDE.md §7 [i]): the client says pages use CallTrackingMetrics
+(CTM) DNI, which swaps the *displayed* number client-side via JS. Our static fetch does
+NOT execute JS, so we audit the **hardcoded** ``tel:`` href + server-rendered visible
+text — exactly what [i] asks ("audit the hardcoded target number"). We do NOT see CTM's
+client-side swap; verifying the live displayed number would need a JS-rendering crawl.
+On GL no call-tracking vendor script was detected in static HTML, so GL's tel: values are
+hardcoded and this check is trustworthy for GL's static audit.
+"""
+from __future__ import annotations
+
+import re
+
+import phonenumbers
+from bs4 import BeautifulSoup
+
+from ..parse import ParsedPage
+from ..report import Finding, Severity
+
+CHECK = "phone"
+_HAS_DIGIT = re.compile(r"\d")
+_REGION = "US"
+
+
+def normalize(num: str) -> str | None:
+    """Return E.164 for a valid US number, else None."""
+    try:
+        parsed = phonenumbers.parse(num, _REGION)
+    except phonenumbers.NumberParseException:
+        return None
+    if phonenumbers.is_valid_number(parsed):
+        return phonenumbers.format_number(parsed, phonenumbers.PhoneNumberFormat.E164)
+    return None
+
+
+def run(parsed: ParsedPage, config) -> list[Finding]:
+    findings: list[Finding] = []
+    canonical = {e for e in (normalize(c) for c in config.canonical_phones) if e}
+
+    soup = BeautifulSoup(parsed.raw_html, "lxml")
+    numbers_on_page: set[str] = set()  # E.164, for the non-canonical pass (deduped)
+
+    for a in soup.find_all("a", href=True):
+        href = a["href"].strip()
+        if not href.lower().startswith("tel:"):
+            continue
+        raw = href[4:].strip()
+        tel_e164 = normalize(raw)
+        if tel_e164 is None:
+            findings.append(Finding(
+                url=parsed.url, check=CHECK, severity=Severity.WARNING,
+                issue="malformed tel: number", location=f"tel:{raw}", snippet=raw))
+            continue
+        numbers_on_page.add(tel_e164)
+
+        display = a.get_text(" ", strip=True)
+        disp_e164 = normalize(display) if _HAS_DIGIT.search(display) else None
+        if disp_e164 and disp_e164 != tel_e164:
+            findings.append(Finding(
+                url=parsed.url, check=CHECK, severity=Severity.ERROR,
+                issue="tel: href != displayed number", location=f"tel:{raw}",
+                snippet=f"shows {display!r} but dials {tel_e164}",
+                suggestion="The visible number and the tel: link dial different numbers.",
+                details={"displayed": disp_e164, "tel": tel_e164}))
+
+    # visible numbers not inside a tel: link (phonenumbers matcher is validity-gated)
+    for match in phonenumbers.PhoneNumberMatcher(parsed.visible_text, _REGION):
+        e164 = phonenumbers.format_number(match.number, phonenumbers.PhoneNumberFormat.E164)
+        numbers_on_page.add(e164)
+
+    if canonical:
+        for e164 in sorted(numbers_on_page - canonical):
+            findings.append(Finding(
+                url=parsed.url, check=CHECK, severity=Severity.WARNING,
+                issue="non-canonical phone number", location="page", snippet=e164,
+                suggestion=f"Not in brand canonical set {sorted(canonical)}.",
+                details={"number": e164}))
+
+    return findings
