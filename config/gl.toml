@@ -1,0 +1,25 @@
+# Gratitude Lodge — real values from CLAUDE.md §6.
+# Sitemap confirmed live in the session-1 spike: /sitemap_index.xml (Rank Math),
+# 15 child sitemaps. WP-REST confirmed publicly readable (X-WP-Total pages=3591).
+brand = "GL"
+name = "Gratitude Lodge"
+base_url = "https://www.gratitudelodge.com"
+sitemap_url = "https://www.gratitudelodge.com/sitemap_index.xml"
+canonical_phones = ["844-576-0144", "844-972-2859"]  # SEO target, PPC target
+
+[crawl]
+max_concurrency = 5
+delay_seconds = 0.25
+timeout_seconds = 20.0
+max_retries = 1
+exclude = ["/wp-admin", "?"]
+
+# Enumeration fallback for when a public sitemap is blocked/empty.
+# GL's REST is public (no auth needed); username_env/password_env are used only
+# if those vars are present in the environment (they are not stored in this repo).
+[wp_rest]
+enabled = true
+base_url = "https://www.gratitudelodge.com"
+post_types = ["pages", "posts"]
+username_env = "GL_WP_USER"
+password_env = "GL_WP_PASS"

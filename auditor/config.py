@@ -1,0 +1,78 @@
+"""Brand configuration models (pydantic) and the TOML loader.
+
+One TOML file per brand lives in ``config/`` (e.g. ``config/gl.toml``). Values are
+the real per-brand facts recorded in CLAUDE.md §6.
+"""
+from __future__ import annotations
+
+import tomllib
+from pathlib import Path
+
+from pydantic import BaseModel, Field, field_validator
+
+# The browser-like User-Agent the session-1 spike proved works against GL's
+# Cloudflare without being challenged. Reused verbatim (see spike/gl_spike.py).
+DEFAULT_USER_AGENT = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 DistrictSiteAuditor/0.1"
+)
+
+CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
+
+
+class CrawlRules(BaseModel):
+    """Polite-crawl settings. Defaults are the values the spike proved work on GL."""
+
+    max_concurrency: int = 5
+    delay_seconds: float = 0.25
+    timeout_seconds: float = 20.0
+    max_retries: int = 1
+    user_agent: str = DEFAULT_USER_AGENT
+    # URL substrings to exclude from enumeration (jake_doc crawl.exclude).
+    exclude: list[str] = Field(default_factory=lambda: ["/wp-admin", "?"])
+
+
+class WPRestConfig(BaseModel):
+    """WordPress REST enumeration fallback, used when the public sitemap is
+    blocked/empty. GL's ``/wp-json/wp/v2`` is publicly readable, so auth is
+    optional: Basic (Application-Password) auth is applied only if
+    ``username_env``/``password_env`` are set AND present in the environment.
+    Credentials are never stored in this repo.
+    """
+
+    enabled: bool = True
+    base_url: str  # site root, e.g. https://www.gratitudelodge.com
+    post_types: list[str] = Field(default_factory=lambda: ["pages", "posts"])
+    username_env: str | None = None
+    password_env: str | None = None
+
+
+class BrandConfig(BaseModel):
+    brand: str  # short code, e.g. "GL"
+    name: str  # display name
+    base_url: str
+    sitemap_url: str
+    canonical_phones: list[str]
+    crawl: CrawlRules = Field(default_factory=CrawlRules)
+    wp_rest: WPRestConfig | None = None
+
+    @field_validator("base_url", "sitemap_url")
+    @classmethod
+    def _absolute_http(cls, v: str) -> str:
+        if not v.startswith(("http://", "https://")):
+            raise ValueError(f"URL must be absolute http(s): {v!r}")
+        return v.rstrip("/") if v.endswith("/") and "sitemap" not in v else v
+
+
+def load_brand_config(path: str | Path) -> BrandConfig:
+    p = Path(path)
+    if not p.exists():
+        raise FileNotFoundError(f"brand config not found: {p}")
+    with p.open("rb") as fh:
+        data = tomllib.load(fh)
+    return BrandConfig(**data)
+
+
+def load_brand(brand: str) -> BrandConfig:
+    """Load ``config/<brand>.toml`` by brand code (case-insensitive)."""
+    return load_brand_config(CONFIG_DIR / f"{brand.lower()}.toml")

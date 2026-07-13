@@ -1,0 +1,8 @@
+# District Site Auditor — runtime deps. Target: Python 3.12 (spec); tomllib is stdlib.
+httpx>=0.28
+beautifulsoup4>=4.14
+lxml>=6.1
+pydantic>=2.13
+typer>=0.26
+# M1 adds: phonenumbers (phone check)
+# Phase 2 adds: anthropic, rapidfuzz
