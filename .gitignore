@@ -1,0 +1,28 @@
+# Working memory / session handoff — not shared history. CLAUDE.md IS tracked.
+SESSION_STATE.md
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Auditor runtime artifacts
+cache/
+reports/
+spike/reports/
+*.log
+
+# Secrets / local config
+.env
+.env.*
+!.env.example
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
