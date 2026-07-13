@@ -179,26 +179,129 @@ PPC subdomains `help.rr` / `help.gl` / `gethelp.rr` / `gethelp.gl` are named in 
 
 ---
 
-## 8. Relationship to the GeoData Fetcher & "Check #2"
+## 8. Relationship to the GeoData Fetcher
 
-The existing GeoData Fetcher (`~/Documents/workk/district/`, Streamlit) validates the **source
-gSheet before WP import**. Its **"Check #2 = Geo Variable Consistency"**
-(`services/pre_import_checker.py:492-609`, method `_check_geo_variable_consistency`; one of 7
-numbered checks in `run_all_checks`) is the relevant analog. It extracts variable references from
-template cells and flags any that don't map to a real GeoData column.
+> Evidence-based connect-the-dots pass, verified adversarially against the real code at
+> `~/Documents/workk/district` (all file:line refs are in that repo). Two earlier assumptions were
+> **refuted** and are corrected here: the Fetcher's real output is the **Google Sheet, not
+> WordPress**, and the `.tmp_dd/` files are **independent client docs, not tool exports**.
 
-**The bug the plan refers to** ("currently looks for `{{var}}` instead of `[acf field=var]`") was
-real: it originally matched only `r'\{\{([^}]+)\}\}'` (`pre_import_checker.py:566`), but real
-sheets use the WordPress ACF shortcode `[acf field=var]`, so the check silently passed. It has
-since been **fixed on branch `add/alcoholism-wiring`** — it now also extracts `[acf field=...]`
-via the shared NBSP-tolerant `extract_acf_tokens` helper in
-`services/geo_field_validator.py:56-71` (skip-list: `geo, state, near-in, full_geo, topic, city,
-drug, title`). Stale artifacts remain (docstring `:506`, message `:580` still say `{{}}`).
+### Q1 — What the GeoData Fetcher does, end to end
 
-**Implication for us:** reuse `geo_field_validator.py`'s `ACF_TOKEN_RE` / `extract_acf_tokens`
-logic as the reference for our live-page placeholder check (check #4). The pre-import check
-guards the sheet; ours guards the rendered page — leftover `[acf field=...]` tokens **or**
-empty-slot artifacts on a live page mean the import didn't resolve them.
+It is a **Streamlit app that reads/writes a Google Sheet** — the sheet is its output artifact, **not
+WordPress**. Per-sheet lifecycle (14 tabs; `streamlit_app.py:399-400`):
+
+1. **Geo Data Fetch** (Tab 4 only, no CLI) — `GeoDataService.populate_geo_data`
+   (`services/geo_data_service.py:1882`) reads the brand sheet, pulls facts from local CSVs + Google
+   Places Text Search v1 + Anthropic Claude gap-fill, writes geo columns (~OE–OW) back to the sheet.
+   Fabricates data on empty cells (random facility counts, hardcoded year 2024, addiction-pop =
+   deaths×25).
+2. **Spin / generate ACF-templated content** (Tab 1 or CLI `python main.py generate-acf-content`,
+   `main.py:176`) — `ContentGenerationEngine.generate_content_for_sheet` spins template rows into geo
+   rows via the Anthropic Batch API. **It substitutes only 5 `[acf field=...]` tokens** (`geo,
+   near-in, state, full_geo, topic`) and **deliberately preserves every other `[acf field=...]` token
+   for WordPress to resolve at render** (`docs/_deepdive_sections/90-architecture-dataflow.md:98`).
+   Never reads the geo columns → spin is independent of geo-fetch.
+3. **QA** (Tabs 3/5/6/7/8) — **purely advisory; gates nothing.** Every check writes only borders,
+   notes, and JSON downloads; no downstream code reads a QA result
+   (`docs/_deepdive_sections/90-architecture-dataflow.md:116`).
+4. **Remove formatting** — HTML-sanitizes cell values.
+5. **WP Sync** (Tab 9) — **read-only against WP**: `GET /wp-json/wp/v2/pages` to reconcile IDs, then
+   writes the WP page IDs **back into the sheet** (col T). Does not publish pages.
+6. **Infographic Generator** (Tab 14, newer than the deep-dive) — the one genuine WP **write**: builds
+   a stats PNG per geo row and uploads it to the WP **media library** via `POST /wp-json/wp/v2/media`
+   (`wordpress_service.py:683`). Images only — never page bodies/ACF.
+
+**The actual sheet → live-page import is OUT OF THIS REPO** — done by an external (HWA) team,
+mechanism **unverified** (presumed WP All Import). `create_page`/`update_page` in
+`wordpress_service.py` exist but have **zero callers** repo-wide.
+
+### Q2 — Is it the producer of the pages we audit? (confirmed, with a correction)
+
+**Yes, indirectly.** The Fetcher produces the **sheet content** that becomes the live pages; the
+sheet→WP publish is a separate external step. So auditing the **live pages** catches defects from
+**any** stage: bad spin, unresolved `[acf field=...]` tokens, the external import itself, or manual WP
+edits. Because the Fetcher's own QA **gates nothing**, known-bad content can flow straight through —
+which is exactly why a post-publish live-page auditor is needed. Chain: **Fetcher → sheet →
+(external import) → live page → OUR AUDITOR.**
+
+### Q3 — Provenance of the `.tmp_dd/` files (assumption REFUTED)
+
+**All five are INDEPENDENT Jake/HWA documents — NOT exports of any gSheet the Fetcher connects to.**
+The tool **hardcodes no sheet/doc IDs**; every sheet ID is a runtime user input passed to
+`gspread.open_by_key(sheet_id)` (`services/sheets_service.py:213`, `streamlit_app.py:196`). None of
+the three plan IDs (NAP `1AU_wNukif…`, brand-general `12zpqSAseoh…`, brand-geo `1E6BLBWzJik…`) appear
+in any `.py`/config/`.env` (grep = 0 hits). The tool has **no Google Docs API client**, so the two
+brand-guide `.txt` files physically cannot be tool exports.
+
+- `jake_sites.xlsx` / `jake_sites_tab.csv` = the client NAP/phone workbook, "Sites"/"NAP (Current)" tab.
+- `brand_guide_general.txt` = exported "About the Business"/language Google Doc.
+- `brand_guide_geo.txt` = exported "GEOPAGE BEST PRACTICES" Google Doc.
+- `problem_sheet.csv` = a "Parts to Completion for writers" content export (medium confidence).
+
+**Consequence:** they are point-in-time **2026-07-02 snapshots** of live Google sources. The auditor
+should read those **live** sources itself (its own Sheets connection, using the plan IDs) — there is
+**no connection to inherit** from the Fetcher; it's a shared source-of-truth spreadsheet we connect
+to directly.
+
+### Q4 — What to reuse from `services/` (don't rebuild)
+
+| Need | Reuse | Where | Verdict |
+|---|---|---|---|
+| WP REST + auth | `WordPressService`: App-Password Basic auth `_get_headers` (`:199`), paginated `fetch_all_pages` (`:248`), `get_page_by_id` (`:787`), `test_connection` (`:868`), `SUPPORTED_SITES` (`:82`) | `services/wordpress_service.py` | **reuse-with-adaptation** — blocking `requests`; port auth+pagination to `httpx.AsyncClient` |
+| Google Sheets I/O | `SheetsService`: service-account auth, `open_by_key`, `get_worksheet_data`→DataFrame, rate-limit backoff | `services/sheets_service.py:23,128,210` | **reuse-as-is** for one-shot sheet reads (sync; gspread not thread-safe) |
+| ACF-token detection | `extract_acf_tokens(text)→list`, `ACF_TOKEN_RE` (`:56`), `LENIENT_TOKEN_RE` (`:64`), `ACF_SKIP_TOKENS` (`:71`), `validate_grid` (`:254`) | `services/geo_field_validator.py:74` | **import directly** for check #4 |
+| HTML tag-balance | `HTMLValidator(HTMLParser).validate_html` (stdlib, no deps) | `services/acf_content_checker.py:15,60` | **copy as-is** |
+| Text QA (words/readability/SEO) | `ContentChecker` (pure text) | `services/content_checker.py:10` | copy pure methods |
+| Phase-2 compliance regexes | `ComplianceRule` list + `SOBER_LIVING_RULES` (medical-claim/payment/ownership) | `services/acf_content_checker.py:84`, `config/compliance_rules.py:80` | reuse for the AI/compliance layer |
+| Sheet column map | `sheet_columns.py` (T–AE: page-id/slug/parent/taxonomies) | `config/sheet_columns.py` | reference when reading the sheet |
+| Geo-name allowlist seed | `LOCATION_MAP` (FIPS/lat-lng/radius; city/county/region names) | `scripts/geo_location_mapper.py:33` | seed Phase-2 proper-noun allowlist |
+
+**Build ourselves (nothing reusable):** phone extraction/validation (only a loose detector regex at
+`acf_content_checker.py:146`; use the `phonenumbers` lib); a live **link checker** (none — only a
+format-only `_is_valid_url`); **pydantic config models** (config is plain dicts); a generic
+**JSON/CSV findings writer**.
+
+**High-value discovery — authenticated staging access.** `config/settings.py:33-39` holds Cloudways
+**staging** WP endpoints + App-Password env vars for two brands: **RR** =
+`wordpress-1325662-4849104.cloudwaysapps.com`, **GL** = `wordpress-1325235-4846502.cloudwaysapps.com`
+(`WordPressService.SUPPORTED_SITES` = `renaissance`, `gratitude` only). So we likely already have
+**authenticated WP-REST access** to RR/GL staging — a real mitigation for the crawl-access +
+sitemap-fallback risk (WP REST `/wp/v2/pages` enumerates pages even if a public sitemap is blocked),
+and it fits the client's "audit staging, then re-audit live" flow. The other 7 brands aren't in the
+registry (creds unknown).
+
+### Q5 — All 7 Pre-Import Checker checks (`services/pre_import_checker.py`, `run_all_checks:114-330`, `total_checks=7`)
+
+| # | Name | Method (file:line) | Catches |
+|---|---|---|---|
+| 1 | Missing Media | `_check_missing_media` `:353-490` | white content rows with text but no image/video/gallery (cols HI–OD) — WARNING |
+| 2 | Geo Variable Consistency | `_check_geo_variable_consistency` `:492-609` | `{{var}}`/`[acf field=…]` tokens in geo templates with no matching GeoData column — ERROR (**this is "Check #2"**) |
+| 3 | Slug Validation | `_check_slug_validation` `:611-728` | empty-with-content or non-`^[a-z0-9-]+$` slug (col W) — ERROR |
+| 4 | Missing Page/Parent IDs | `_check_missing_ids` `:730-847` | missing WP Page ID (col T, ERROR) / Parent ID (col X, WARNING) |
+| 5 | Blank Variables (T–AE) | `_check_blank_variables` `:849-966` | blank cells in cols T–AE (id/slug/parent ERROR, else WARNING) |
+| 6 | Blank Content Cells | delegates → `TextContentQA.run_qa_checks` (`text_content_qa.py:97-402`) | empty templated content (ERROR) + markdown-syntax leakage: bold/italic/heading/list/code (ERROR) |
+| 7 | Content Formatting | `_check_content_formatting` `:968-1210` | inline `style=` (WARNING), FAQ/accordion missing `<h3>+<p>` (ERROR), non-list Sources (WARNING) |
+
+**Direct answers (verified):**
+- **Phone numbers — NO check validates them** anywhere. Our phone check is **net-new**.
+- **Heading structure / H1 count — NO** H1-count or hierarchy validation. Only incidental: markdown
+  `#` flagged as leakage (`text_content_qa.py:30`); check #7 requires an `<h3>` inside FAQ blocks. Our
+  heading-structure check is **net-new**.
+- **Brand terms / banned words — NO** word-list/terminology check exists. Net-new (Phase 2).
+- **Overlap:** our "blank/thin" overlaps checks #5/#6 and "meta/url" partially overlaps check #3's
+  slug — **but those run on sheet cells pre-import; ours run on rendered live pages**, a different
+  surface/stage, not duplicated code. Broken-links, phone, and heading-structure have **zero** overlap.
+
+**The Check #2 bug** the plan referenced ("looks for `{{var}}` not `[acf field=var]`") was real —
+originally matched only `r'\{\{([^}]+)\}\}'` (`pre_import_checker.py:566`) — and is **fixed** on branch
+`add/alcoholism-wiring` via `geo_field_validator.extract_acf_tokens` (skip-list `geo, state, near-in,
+full_geo, topic, city, drug, title`). Stale artifacts remain (docstring `:506`, message `:580`).
+
+**Net:** the Pre-Import Checker and our auditor are complementary halves of one QA story — it guards
+the **sheet before the external import**; we guard the **rendered page after it**. Reuse
+`geo_field_validator` for the `[acf field=…]` check; the plan's other v1 checks (links, phone,
+heading structure) are net-new.
 
 ---
 
