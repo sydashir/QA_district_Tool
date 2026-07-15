@@ -343,3 +343,23 @@ heading structure) are net-new.
   skills, GSD skills, WebFetch/WebSearch, Workflow orchestration.
 - Crawl politely: respect the 2a–5a PST window for any real full run; cap concurrency; never
   hammer Cloudways.
+
+---
+
+## 12. Commit & author conventions (standing — do not deviate)
+
+**1. Commit messages: short, lowercase, human.** Under ~50 chars. No body unless something
+genuinely needs explaining. Write like a dev typing fast, not a changelog generator. No emoji, no
+em-dashes, no `M0:`/`M1:` milestone prefixes, no bulleted bodies, no marketing voice. If it reads
+like an AI wrote it, rewrite it.
+
+- Bad: `M1: five deterministic checks + shared normalizer + enumeration reconciliation (GL)`
+- Bad: `Add ARCHITECTURE.md — as-built (M0/M1) + design (M2, multi-brand, Phase 2) + R&D`
+- Good: `add the five checks for GL`
+- Good: `ignore .claude/`
+- Good: `fix cfemail hash instability`
+- Good: `wire NAP sheet for phone canon`
+
+**2. Author is `sydashir <meetashirr@gmail.com>` and nothing else.** No `Co-Authored-By: Claude`
+trailer, no "Generated with Claude Code" footer, no 🤖 line — strip all of it from every commit,
+ever. This is client work under Syed's name.
