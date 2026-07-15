@@ -25,7 +25,7 @@ import phonenumbers
 from bs4 import BeautifulSoup
 
 from ..parse import ParsedPage
-from ..report import Finding, Severity
+from ..report import Finding, Severity, make_fingerprint
 
 CHECK = "phone"
 _HAS_DIGIT = re.compile(r"\d")
@@ -59,6 +59,7 @@ def run(parsed: ParsedPage, config) -> list[Finding]:
         if tel_e164 is None:
             findings.append(Finding(
                 url=parsed.url, check=CHECK, severity=Severity.WARNING,
+                fingerprint=make_fingerprint(CHECK, "malformed", parsed.url, raw),
                 issue="malformed tel: number", location=f"tel:{raw}", snippet=raw))
             continue
         numbers_on_page.add(tel_e164)
@@ -68,6 +69,7 @@ def run(parsed: ParsedPage, config) -> list[Finding]:
         if disp_e164 and disp_e164 != tel_e164:
             findings.append(Finding(
                 url=parsed.url, check=CHECK, severity=Severity.ERROR,
+                fingerprint=make_fingerprint(CHECK, "mismatch", parsed.url, tel_e164),
                 issue="tel: href != displayed number", location=f"tel:{raw}",
                 snippet=f"shows {display!r} but dials {tel_e164}",
                 suggestion="The visible number and the tel: link dial different numbers.",
@@ -82,6 +84,7 @@ def run(parsed: ParsedPage, config) -> list[Finding]:
         for e164 in sorted(numbers_on_page - canonical):
             findings.append(Finding(
                 url=parsed.url, check=CHECK, severity=Severity.WARNING,
+                fingerprint=make_fingerprint(CHECK, "non_canonical", parsed.url, e164),
                 issue="non-canonical phone number", location="page", snippet=e164,
                 suggestion=f"Not in brand canonical set {sorted(canonical)}.",
                 details={"number": e164}))

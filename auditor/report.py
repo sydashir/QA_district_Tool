@@ -16,11 +16,22 @@ class Severity(str, Enum):
     INFO = "info"
 
 
+def make_fingerprint(*parts: object) -> str:
+    """Stable, human-readable identity for a finding across runs — the diff keys on it
+    for new/persisting/resolved. Each check builds it from its INVARIANT (link target,
+    e164, token, heading text, page+subtype), NOT the snippet (which shifts). Parts are
+    whitespace-collapsed and ':'-joined; empty parts are dropped."""
+    return ":".join(
+        " ".join(str(p).split()) for p in parts if p is not None and str(p).strip() != ""
+    )
+
+
 class Finding(BaseModel):
     """One issue found on one page by one check. Emitted by the M1 checks."""
 
     url: str
     check: str  # e.g. "broken_links", "heading_structure", "phone", "blank", "meta"
+    fingerprint: str  # stable cross-run identity (make_fingerprint) — required
     severity: Severity
     issue: str  # short issue type/label
     location: str | None = None  # where on the page (selector / section / link target)

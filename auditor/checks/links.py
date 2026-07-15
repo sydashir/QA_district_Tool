@@ -21,7 +21,7 @@ from urllib.parse import urlparse
 
 import httpx
 
-from ..report import Finding, Severity
+from ..report import Finding, Severity, make_fingerprint
 
 CHECK = "broken_links"
 _CDN_CGI = "/cdn-cgi/"
@@ -111,12 +111,14 @@ async def check_links(pages, client, config, max_links: int | None = None):
             stats["broken"] += 1
             findings.append(Finding(
                 url=sources[0], check=CHECK, severity=Severity.WARNING,
+                fingerprint=make_fingerprint(CHECK, url),  # identity = the target url
                 issue="unreachable (timeout/transport error)", location=url, snippet=err,
                 details={"target": url, "sources": sources}))
         elif code is not None and code >= 400:
             stats["broken"] += 1
             findings.append(Finding(
                 url=sources[0], check=CHECK, severity=Severity.ERROR,
+                fingerprint=make_fingerprint(CHECK, url),  # identity = the target url
                 issue=f"HTTP {code}", location=url, snippet=f"{code} (landed on {final})",
                 suggestion="Broken link — fix or remove.",
                 details={"target": url, "status": code, "final_url": final, "sources": sources}))

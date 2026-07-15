@@ -23,7 +23,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from ..parse import ParsedPage
-from ..report import Finding, Severity
+from ..report import Finding, Severity, make_fingerprint
 
 CHECK = "placeholder"
 
@@ -63,6 +63,7 @@ def run(parsed: ParsedPage, config) -> list[Finding]:
     for name in dict.fromkeys(_extract_acf_tokens()(text)):
         findings.append(Finding(
             url=parsed.url, check=CHECK, severity=Severity.ERROR,
+            fingerprint=make_fingerprint(CHECK, "acf", parsed.url, name),
             issue="unresolved [acf field] token in visible text", location="body",
             snippet=f"[acf field={name}]",
             suggestion="WordPress did not resolve this ACF token on the live page."))
@@ -70,6 +71,7 @@ def run(parsed: ParsedPage, config) -> list[Finding]:
     for token in dict.fromkeys(m.group(0) for m in _CURLY_RE.finditer(text)):
         findings.append(Finding(
             url=parsed.url, check=CHECK, severity=Severity.ERROR,
+            fingerprint=make_fingerprint(CHECK, "curly", parsed.url, token),
             issue="leftover {{var}} token in visible text", location="body",
             snippet=token[:60]))
 

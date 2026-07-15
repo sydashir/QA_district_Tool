@@ -9,7 +9,7 @@ tracked as open question #8; M1 does page-level thin + missing-h1.
 from __future__ import annotations
 
 from ..parse import ParsedPage
-from ..report import Finding, Severity
+from ..report import Finding, Severity, make_fingerprint
 
 CHECK = "blank"
 
@@ -24,12 +24,14 @@ def run(parsed: ParsedPage, config) -> list[Finding]:
     if not any(h.level == 1 for h in parsed.headings):
         findings.append(Finding(
             url=parsed.url, check=CHECK, severity=Severity.ERROR,
+            fingerprint=make_fingerprint(CHECK, "missing_h1", parsed.url),
             issue="missing <h1>", location="page"))
 
     n = len(parsed.visible_text)
     if n < MIN_VISIBLE_CHARS:
         findings.append(Finding(
             url=parsed.url, check=CHECK, severity=Severity.WARNING,
+            fingerprint=make_fingerprint(CHECK, "thin", parsed.url),
             issue="thin content", location="page",
             snippet=parsed.visible_text[:80],
             suggestion=f"Visible text is {n} chars (< {MIN_VISIBLE_CHARS}).",

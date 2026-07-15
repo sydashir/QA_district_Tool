@@ -11,7 +11,7 @@ from . import crawl as C
 from .checks import blank, links, meta, phone, placeholder, structure
 from .config import BrandConfig
 from .parse import ParsedPage, parse_html
-from .report import AuditReport, Finding, PageAudit, Severity
+from .report import AuditReport, Finding, PageAudit, Severity, make_fingerprint
 
 # Per-page checks that operate purely on a ParsedPage.
 _PAGE_CHECKS = (structure, placeholder, phone, blank, meta)
@@ -44,6 +44,7 @@ def reconciliation_finding(config: BrandConfig, recon: dict) -> Finding | None:
         return None
     return Finding(
         url=config.base_url, check="enumeration", severity=Severity.INFO,
+        fingerprint=make_fingerprint("enumeration", "missing_from_sitemap", config.brand),
         issue="live WP pages missing from sitemap", location="site",
         snippet=f"{len(missing)} pages in WP-REST /pages but not in the sitemap",
         suggestion="OPEN QUESTION #8 (decide with Asif): are these in scope to audit? "
@@ -69,6 +70,7 @@ def _cross_page_duplicates(parsed: list[ParsedPage]) -> list[Finding]:
             if len(urls) > 1:
                 findings.append(Finding(
                     url=urls[0], check=check, severity=severity,
+                    fingerprint=make_fingerprint(check, "dup", label, val),
                     issue=f"duplicate {label} across pages", location="head" if check == "meta" else "page",
                     snippet=val[:80], details={"count": len(urls), "pages": urls[:8]}))
 

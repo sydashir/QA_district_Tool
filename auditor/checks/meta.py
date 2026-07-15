@@ -11,7 +11,7 @@ from collections import Counter
 from urllib.parse import urlparse
 
 from ..parse import ParsedPage
-from ..report import Finding, Severity
+from ..report import Finding, Severity, make_fingerprint
 
 CHECK = "meta"
 
@@ -31,12 +31,14 @@ def run(parsed: ParsedPage, config) -> list[Finding]:
     if not parsed.title:
         findings.append(Finding(
             url=parsed.url, check=CHECK, severity=Severity.ERROR,
+            fingerprint=make_fingerprint(CHECK, "missing_title", parsed.url),
             issue="missing meta title", location="head"))
     else:
         n = len(parsed.title)
         if n < TITLE_MIN or n > TITLE_MAX:
             findings.append(Finding(
                 url=parsed.url, check=CHECK, severity=Severity.WARNING,
+                fingerprint=make_fingerprint(CHECK, "title_length", parsed.url),
                 issue="title length out of bounds", location="head",
                 snippet=parsed.title[:90],
                 suggestion=f"Title is {n} chars (target {TITLE_MIN}-{TITLE_MAX}).",
@@ -49,6 +51,7 @@ def run(parsed: ParsedPage, config) -> list[Finding]:
         if repeated:
             findings.append(Finding(
                 url=parsed.url, check=CHECK, severity=Severity.WARNING,
+                fingerprint=make_fingerprint(CHECK, "repeated_segment", parsed.url),
                 issue="repeated segment in title", location="head",
                 snippet=parsed.title[:90],
                 suggestion=f"Title repeats {repeated!r} (likely a doubled brand suffix).",
@@ -57,6 +60,7 @@ def run(parsed: ParsedPage, config) -> list[Finding]:
     if not parsed.meta_description:
         findings.append(Finding(
             url=parsed.url, check=CHECK, severity=Severity.WARNING,
+            fingerprint=make_fingerprint(CHECK, "missing_desc", parsed.url),
             issue="missing meta description", location="head"))
 
     path = urlparse(parsed.url).path.strip("/")
@@ -64,6 +68,7 @@ def run(parsed: ParsedPage, config) -> list[Finding]:
     if slug and not _SLUG_RE.match(slug):
         findings.append(Finding(
             url=parsed.url, check=CHECK, severity=Severity.WARNING,
+            fingerprint=make_fingerprint(CHECK, "malformed_slug", parsed.url),
             issue="malformed slug", location="url", snippet=slug,
             suggestion="Slug should match ^[a-z0-9-]+$."))
 
