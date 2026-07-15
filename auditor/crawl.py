@@ -19,6 +19,7 @@ from pathlib import Path
 import httpx
 
 from .config import BrandConfig, WPRestConfig
+from .parse import stable_markup
 
 _LOC_RE = re.compile(r"<loc>\s*([^<\s]+)\s*</loc>", re.IGNORECASE)
 CACHE_DIR = Path(__file__).resolve().parent.parent / "cache"
@@ -205,6 +206,13 @@ def content_hash(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8", "replace")).hexdigest()
 
 
+def page_hash(html: str) -> str:
+    """Stable per-page hash for the cache/diff — hashes NORMALIZED markup so Cloudflare's
+    per-request cfemail/cdn-cgi rotation doesn't mark every page 'changed' (M0 finding).
+    Single source for both the cache (write_cache) and the M1/M2 PageAudit hash."""
+    return content_hash(stable_markup(html))
+
+
 def cache_path(brand: str) -> Path:
     return CACHE_DIR / brand.lower() / "pages.json"
 
@@ -230,7 +238,7 @@ def write_cache(brand: str, results: list[FetchResult]) -> tuple[Path, int, int]
     for r in results:
         if r.ok:
             cache[r.url] = {
-                "content_hash": content_hash(r.text),
+                "content_hash": page_hash(r.text),
                 "status": r.status,
                 "final_url": r.final_url,
                 "content_length": len(r.text),

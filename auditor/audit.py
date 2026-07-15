@@ -10,7 +10,7 @@ from collections import defaultdict
 from . import crawl as C
 from .checks import blank, links, meta, phone, placeholder, structure
 from .config import BrandConfig
-from .parse import ParsedPage, parse_html, stable_markup
+from .parse import ParsedPage, parse_html
 from .report import AuditReport, Finding, PageAudit, Severity
 
 # Per-page checks that operate purely on a ParsedPage.
@@ -106,7 +106,7 @@ async def run_audit(config: BrandConfig, limit: int | None = None,
             findings.extend(page_findings)
             page_audits.append(PageAudit(
                 url=p.url, final_url=r.final_url, status=r.status, fetched_ok=True,
-                content_hash=C.content_hash(stable_markup(p.raw_html)),  # shared normalizer (M2 diff)
+                content_hash=C.page_hash(p.raw_html),  # single-source stable hash (P5)
                 findings=page_findings))
 
         link_findings, link_stats = await links.check_links(
