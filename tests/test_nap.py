@@ -67,6 +67,22 @@ def test_stale_retired_and_current_wins():
     assert normalize("844-576-0144") not in gl.stale_retired
 
 
+def test_unicode_whitespace_tolerance():
+    # Forward-looking for the live read; the 2026-07-02 snapshot was 100% ASCII in I/BD.
+    # NBSP inside a location name -> single ASCII space; number with NBSP -> still parses.
+    grid = [
+        _row(d="National", e="GL", h="SEO Target", i="844-576-0144"),
+        _row(e="loc", h="GL - Long Beach", i="562 620-5663"),
+    ]
+    gl = nap.parse_nap_grid(grid)["GL"]
+    assert "GL - Long Beach" in gl.per_location
+    assert gl.per_location["GL - Long Beach"] == normalize("562-620-5663")
+    # a brand token carrying a zero-width char (U+FEFF) must still match, or the whole
+    # brand silently vanishes — the Check #2 trap in a whitespace costume.
+    grid2 = [_row(d="National", e="﻿GL​", h="SEO Target", i="844-576-0144")]
+    assert "GL" in nap.parse_nap_grid(grid2)
+
+
 def test_zero_canonical_is_loud_failure():
     """The GeoData Check #2 trap: a brand yielding no canonical number must fail
     loudly, never pass as a silent clean parse."""

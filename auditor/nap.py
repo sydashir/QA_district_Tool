@@ -60,9 +60,23 @@ class NapProblem:
     reason: str
 
 
+_ZERO_WIDTH = "\u200b\u200c\u200d\ufeff"  # zero-width space/joiner/BOM — drop entirely
+
+
+def _norm_ws(s: str) -> str:
+    """Collapse unicode whitespace (incl NBSP U+00A0) to single ASCII spaces and strip
+    zero-width chars. The Fetcher's geo_field_validator went NBSP-tolerant because a
+    Google-Docs-paste artifact silently broke parsing in production once; the live NAP
+    read (D2) may carry the same, so normalize before matching brand tokens / numbers.
+    (The 2026-07-02 snapshot was clean; this is forward-looking insurance.)"""
+    for z in _ZERO_WIDTH:
+        s = s.replace(z, "")
+    return " ".join(s.split())  # str.split() breaks on NBSP too -> collapses + strips
+
+
 def _cell(row, idx: int) -> str:
     if idx < len(row) and row[idx] is not None:
-        return str(row[idx]).strip()
+        return _norm_ws(str(row[idx]))
     return ""
 
 
