@@ -41,11 +41,14 @@ def components(config, checks_dir: Path = CHECKS_DIR) -> dict:
         f = checks_dir.parent / extra
         if f.exists():
             comp[f"src:{extra}"] = _sha(f.read_text(encoding="utf-8"))
-    # nap.py: a PHONE-scoped dependency (the phone check classifies via its parse, P1). Hashed
-    # so a grid-parse edit invalidates phone findings; scoped to phone (not global) in diff.py.
-    nap_f = checks_dir.parent / "nap.py"
-    if nap_f.exists():
-        comp["src:nap.py"] = _sha(nap_f.read_text(encoding="utf-8"))
+    # Scoped deps: modules OUTSIDE checks/ that a check's OUTPUT depends on (the general rule).
+    # nap.py -> phone (classifies via its parse, P1); crawl.py -> enumeration (its enumerate
+    # logic decides the sitemap/REST sets, hence the 845). Hashed here so an edit moves the
+    # version; scoped (not global) to the right check in diff.py so only that check rule-changes.
+    for dep in ("nap.py", "crawl.py"):
+        f = checks_dir.parent / dep
+        if f.exists():
+            comp[f"src:{dep}"] = _sha(f.read_text(encoding="utf-8"))
     # Phone ruler = the canonical VALUES (not their source): an identical-numbers snapshot->live
     # swap is then a no-op for the version. Full NAP value-set when present, else the flat list.
     canon = getattr(config, "canon", None)

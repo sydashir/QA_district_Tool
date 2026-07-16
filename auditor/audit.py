@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import checks_version, crawl as C, diff, writers
-from .checks import blank, links, meta, phone, placeholder, structure
+from .checks import blank, enumeration, links, meta, phone, placeholder, structure
 from .config import BrandConfig
 from .parse import ParsedPage, parse_html
 from .report import AuditReport, Finding, PageAudit, Severity, dedupe_findings, make_fingerprint
@@ -60,29 +60,6 @@ def _project(parsed: ParsedPage, r, config: BrandConfig) -> PageProjection:
         title=parsed.title, meta_description=parsed.meta_description,
         h1_text=next((h.text for h in parsed.headings if h.level == 1), None),
         visible_chars=len(parsed.visible_text), intrinsic_findings=page_findings)
-
-
-async def reconcile_enumeration(client, config: BrandConfig, sitemap_urls: list[str]) -> dict:
-    """Compare the sitemap URL set against WP-REST /wp/v2/pages. The delta
-    ``pages_missing_from_sitemap`` = live WP pages absent from the sitemap (open question #8).
-    ``rest_urls`` is the full live-page set — the diff uses it to tell a page that was REMOVED
-    from a page that merely dropped out of the sitemap (still live)."""
-    wp_pages_only = config.wp_rest.model_copy(update={"post_types": ["pages"]})
-    rest_urls, authed = await C.enumerate_wp_rest(
-        client, wp_pages_only, max_retries=config.crawl.max_retries)
-    rest_urls = C._apply_exclude(rest_urls, config.crawl.exclude)
-
-    sitemap_set = {u.rstrip("/") for u in sitemap_urls}
-    rest_set = {u.rstrip("/") for u in rest_urls}
-    missing = sorted(rest_set - sitemap_set)
-    return {
-        "sitemap_total": len(sitemap_set),
-        "wp_rest_pages_total": len(rest_set),
-        "authed": authed,
-        "pages_missing_from_sitemap": missing,
-        "sitemap_only_count": len(sitemap_set - rest_set),
-        "rest_urls": sorted(rest_set),
-    }
 
 
 def _cross_page_duplicates(projections: list[PageProjection]) -> list[Finding]:
@@ -183,8 +160,8 @@ def write_run(findings: list[Finding], projections: list[PageProjection], *, bra
 
 
 async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile: bool = True,
-                    max_link_probes: int | None = 400, now: str | None = None,
-                    write: bool = True) -> dict:
+                    max_link_probes: int | None = 400, enum_probes: int | None = 0,
+                    now: str | None = None, write: bool = True) -> dict:
     now = now or time.strftime("%Y-%m-%dT%H:%M:%S")
     async with C.make_client(config.crawl) as client:
         sitemap_urls, blocked, child_sitemaps = await C.enumerate_sitemap(
@@ -193,10 +170,7 @@ async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile:
 
         recon = None
         if do_reconcile and config.wp_rest and config.wp_rest.enabled:
-            # The delta is DATA here. The dedicated 845 report (later step) fetches robots
-            # and emits per-page enumeration:missing_from_sitemap:{brand}:{url} with D1
-            # severity; the count summary lives in the rollup — not a single stream finding.
-            recon = await reconcile_enumeration(client, config, sitemap_urls)
+            recon = await enumeration.reconcile(client, config, sitemap_urls)
 
         sample = sitemap_urls[:limit] if limit else sitemap_urls
         fetched = await C.fetch_pages(client, sample, config.crawl)
@@ -214,6 +188,16 @@ async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile:
             projections, client, config, max_links=max_link_probes)
         findings.extend(link_findings)
         findings.extend(_cross_page_duplicates(projections))
+
+        # The 845: per-page enumeration findings for live-but-unsitemapped pages. Robots-only
+        # fetch (NO audit checks — out of scope); goes into the MAIN stream so the diff tracks
+        # each page. enum_probes: 0 = skip (smokes), None = all (baseline), N = cap.
+        enum_stats = None
+        if recon and enum_probes != 0:
+            enum_findings, enum_stats = await enumeration.run(
+                client, config, recon["pages_missing_from_sitemap"], probe_cap=enum_probes)
+            findings.extend(enum_findings)
+
         findings = dedupe_findings(findings)  # one finding per fingerprint across the run
         findings = _collapse_phone(findings)  # site-wide numbers -> one finding each
 
@@ -223,6 +207,8 @@ async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile:
             out_dir = REPORTS_DIR / config.brand.lower() / _stamp(now)
             history = C.CACHE_DIR / config.brand.lower() / "history.json"
             extra = {"pages_enumerated": len(sitemap_urls), "link_stats": link_stats}
+            if enum_stats is not None:  # the 845 bisection (INFO/WARNING/ERROR) for the human view
+                extra["enumeration"] = enum_stats
             if config.canon is not None:  # name the phone-scope limitation IN the report
                 extra["phone_scope_caveat"] = (
                     "Per-location numbers are validated brand-wide, not per-page; a valid number "
@@ -251,5 +237,6 @@ async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile:
             "fetched": len(fetched),
             "fetched_ok": len(ok),
             "page_visible_chars": [p.visible_chars for p in projections],
+            "enum_stats": enum_stats,
             "run": run,
         }

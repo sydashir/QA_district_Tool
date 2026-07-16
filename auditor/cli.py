@@ -60,6 +60,15 @@ def _print_summary(cfg, result) -> None:
         f"cdn_cgi_excluded={ls['cdn_cgi_excluded']} redirects={ls['redirects']}")
 
     run = result.get("run")
+    es = result.get("enum_stats")
+    if es:
+        bisect = {k: es[k] for k in
+                  ("noindex_unsitemapped", "indexable_unsitemapped", "cruft_noindex",
+                   "cruft_indexable", "rest_404") if k in es}
+        typer.echo(
+            f"\nenumeration (the 845): missing={es['missing_total']} probed={es['probed']}  "
+            f"bisection={bisect}  head_reclassified={es['head_reclassified_noindex']}")
+
     if run:
         by_status = dict(run["rollup"].by_status)
         typer.echo(f"\nrun-diff: by_status={by_status}  resolved={len(run['resolved'])}")
@@ -73,6 +82,8 @@ def audit(
     brand: str = typer.Option(..., "--brand", "-b", help="brand code, e.g. gl"),
     limit: int = typer.Option(None, "--limit", "-n", help="cap pages fetched (sample size)"),
     max_link_probes: int = typer.Option(400, "--max-link-probes", help="cap unique links probed"),
+    enum_probes: int = typer.Option(0, "--enum-probes",
+        help="fetch N live-but-unsitemapped pages for the 845 report; 0=skip, -1=all (baseline)"),
     enumerate_only: bool = typer.Option(False, "--enumerate-only", help="list URLs; no fetch"),
     no_checks: bool = typer.Option(False, "--no-checks", help="M0 path: crawl + cache only"),
 ):
@@ -95,8 +106,9 @@ def audit(
                 f"cache: {summary['cache_entries_total']} entries")
         raise typer.Exit()
 
-    result = asyncio.run(
-        auditmod.run_audit(cfg, limit=limit, max_link_probes=max_link_probes))
+    result = asyncio.run(auditmod.run_audit(
+        cfg, limit=limit, max_link_probes=max_link_probes,
+        enum_probes=None if enum_probes == -1 else enum_probes))
     _print_summary(cfg, result)
 
 

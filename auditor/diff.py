@@ -23,7 +23,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from .checks import blank, links, meta, phone, placeholder, structure
+from .checks import blank, enumeration, links, meta, phone, placeholder, structure
 from .checks_version import changed_components
 from .report import Finding, Severity
 
@@ -34,8 +34,11 @@ _GLOBAL_SRC = {"src:parse.py", "src:report.py"}
 # check name (Finding.check) -> the check-version component(s) that drive it.
 _CHECK_COMPONENT: dict[str, set[str]] = {
     m.CHECK: {f"src:{Path(m.__file__).name}"}
-    for m in (blank, links, meta, phone, placeholder, structure)
+    for m in (blank, enumeration, links, meta, phone, placeholder, structure)
 }
+# enumeration output depends on crawl.py's enumerate logic (what's in the sitemap/REST sets) —
+# enumeration-scoped, so a crawl enumerate change rule-changes ONLY the 845 findings.
+_CHECK_COMPONENT["enumeration"] = _CHECK_COMPONENT["enumeration"] | {"src:crawl.py"}
 # phone output also depends on the canonical VALUES and on nap.py's parse (P1) — both
 # phone-scoped (a nap.py edit rule-changes ONLY phone, never other checks).
 _CHECK_COMPONENT["phone"] = _CHECK_COMPONENT["phone"] | {"canonical_phones", "src:nap.py"}
