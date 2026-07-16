@@ -63,8 +63,9 @@ def test_meta_fingerprints():
 
 
 def test_cross_page_dup_fingerprint():
-    p1 = ParsedPage(url="https://x/a/", title="Same Title")
-    p2 = ParsedPage(url="https://x/b/", title="Same Title")
+    # barriers run off compact projections now, not ParsedPage
+    p1 = audit.PageProjection(url="https://x/a/", title="Same Title")
+    p2 = audit.PageProjection(url="https://x/b/", title="Same Title")
     assert "meta:dup:title:same title" in _fps(audit._cross_page_duplicates([p1, p2]))
 
 
@@ -77,7 +78,7 @@ def test_links_fingerprint_is_target():
         async def request(self, method, url, headers=None):
             return _Resp(404, url)
 
-    p = ParsedPage(url=URL, links=[Link(href="/dead", url="https://x/dead")])
+    p = audit.PageProjection(url=URL, link_urls=["https://x/dead"])
     findings, _stats = asyncio.run(links.check_links([p], _Client(), CFG))
     assert any(f.fingerprint == "broken_links:https://x/dead" for f in findings)
 

@@ -62,15 +62,16 @@ async def _head_or_get(client, url):
 
 
 async def check_links(pages, client, config, max_links: int | None = None):
-    # unique target -> source page urls
+    # ``pages`` are compact projections: each has ``.url`` and ``.link_urls`` (the DOM is long
+    # gone by now). unique target -> source page urls
     targets: dict[str, list[str]] = {}
     excluded_cdn = 0
     for page in pages:
-        for link in page.links:
-            if _CDN_CGI in link.url:
+        for url in page.link_urls:
+            if _CDN_CGI in url:
                 excluded_cdn += 1
                 continue
-            targets.setdefault(link.url, []).append(page.url)
+            targets.setdefault(url, []).append(page.url)
 
     unique = list(targets)
     capped = unique[:max_links] if max_links else unique

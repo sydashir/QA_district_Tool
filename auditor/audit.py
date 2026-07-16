@@ -1,13 +1,24 @@
-"""M1 audit orchestrator: enumerate -> reconcile -> fetch -> parse -> run checks.
+"""Audit orchestrator: enumerate -> reconcile -> fetch -> (project + intrinsic checks) ->
+cross-page barriers -> run-diff -> write reports.
 
-Ties the M0 crawl layer to the M1 checks. Emits ``Finding`` objects in memory and
-returns them with run stats. Report *writers* (CSV/JSON) are M2 — not here.
+Memory shape (the point of the projection): a full ``ParsedPage`` carries the whole DOM +
+visible text; holding 2.7k of them at GL cost multiple GB. So each page is parsed, its
+intrinsic checks run, and then it is COLLAPSED to a compact ``PageProjection`` and the
+ParsedPage is dropped. The cross-page barriers (link dedup, duplicate title/desc/H1) run off
+projections, never raw pages. Findings themselves are small and are held.
+
+M2 wiring lives in ``write_run``: annotate every finding in-stream via ``RunDiff`` (first_seen/
+last_seen/status), emit the resolved tail, roll up counters, write JSONL+CSV+summary to a
+timestamped ``reports/<brand>/<stamp>/`` dir, and persist the run history for the next diff.
 """
 from __future__ import annotations
 
+import time
 from collections import defaultdict
+from dataclasses import dataclass, field
+from pathlib import Path
 
-from . import crawl as C
+from . import checks_version, crawl as C, diff, writers
 from .checks import blank, links, meta, phone, placeholder, structure
 from .config import BrandConfig
 from .parse import ParsedPage, parse_html
@@ -16,11 +27,46 @@ from .report import AuditReport, Finding, PageAudit, Severity, dedupe_findings, 
 # Per-page checks that operate purely on a ParsedPage.
 _PAGE_CHECKS = (structure, placeholder, phone, blank, meta)
 
+REPORTS_DIR = Path(__file__).resolve().parent.parent / "reports"
+
+
+@dataclass
+class PageProjection:
+    """Compact per-page residue kept AFTER the ParsedPage is dropped. Carries exactly what the
+    cross-page barriers and the reports need — never the DOM or full text."""
+    url: str
+    final_url: str | None = None
+    status: int | None = None
+    content_hash: str = ""
+    link_urls: list[str] = field(default_factory=list)
+    title: str | None = None
+    meta_description: str | None = None
+    h1_text: str | None = None
+    visible_chars: int = 0
+    intrinsic_findings: list[Finding] = field(default_factory=list)
+
+
+def _project(parsed: ParsedPage, r, config: BrandConfig) -> PageProjection:
+    """Run intrinsic checks and collapse a ParsedPage to a projection. The ParsedPage is
+    expected to be released by the caller right after."""
+    page_findings: list[Finding] = []
+    for mod in _PAGE_CHECKS:
+        page_findings.extend(mod.run(parsed, config))
+    page_findings = dedupe_findings(page_findings)  # collapse identical repeats
+    return PageProjection(
+        url=parsed.url, final_url=r.final_url, status=r.status,
+        content_hash=C.page_hash(parsed.raw_html),  # single-source stable hash (P5)
+        link_urls=[link.url for link in parsed.links],
+        title=parsed.title, meta_description=parsed.meta_description,
+        h1_text=next((h.text for h in parsed.headings if h.level == 1), None),
+        visible_chars=len(parsed.visible_text), intrinsic_findings=page_findings)
+
 
 async def reconcile_enumeration(client, config: BrandConfig, sitemap_urls: list[str]) -> dict:
     """Compare the sitemap URL set against WP-REST /wp/v2/pages. The delta
-    ``pages_missing_from_sitemap`` = live WP pages absent from the sitemap (open
-    question #8). ``sitemap_only_count`` is mostly CPTs/posts (expected, not an issue)."""
+    ``pages_missing_from_sitemap`` = live WP pages absent from the sitemap (open question #8).
+    ``rest_urls`` is the full live-page set — the diff uses it to tell a page that was REMOVED
+    from a page that merely dropped out of the sitemap (still live)."""
     wp_pages_only = config.wp_rest.model_copy(update={"post_types": ["pages"]})
     rest_urls, authed = await C.enumerate_wp_rest(
         client, wp_pages_only, max_retries=config.crawl.max_retries)
@@ -35,15 +81,16 @@ async def reconcile_enumeration(client, config: BrandConfig, sitemap_urls: list[
         "authed": authed,
         "pages_missing_from_sitemap": missing,
         "sitemap_only_count": len(sitemap_set - rest_set),
+        "rest_urls": sorted(rest_set),
     }
 
 
-def _cross_page_duplicates(parsed: list[ParsedPage]) -> list[Finding]:
+def _cross_page_duplicates(projections: list[PageProjection]) -> list[Finding]:
     findings: list[Finding] = []
 
     def dup_by(getter, label, check, severity):
         buckets: dict[str, list[str]] = defaultdict(list)
-        for p in parsed:
+        for p in projections:
             val = getter(p)
             if val:
                 buckets[val.strip().lower()].append(p.url)
@@ -52,19 +99,62 @@ def _cross_page_duplicates(parsed: list[ParsedPage]) -> list[Finding]:
                 findings.append(Finding(
                     url=urls[0], check=check, severity=severity,
                     fingerprint=make_fingerprint(check, "dup", label, val),
-                    issue=f"duplicate {label} across pages", location="head" if check == "meta" else "page",
+                    issue=f"duplicate {label} across pages",
+                    location="head" if check == "meta" else "page",
                     snippet=val[:80], details={"count": len(urls), "pages": urls[:8]}))
 
     dup_by(lambda p: p.title, "title", "meta", Severity.WARNING)
     dup_by(lambda p: p.meta_description, "meta description", "meta", Severity.WARNING)
-    dup_by(
-        lambda p: next((h.text for h in p.headings if h.level == 1), None),
-        "H1", "heading_structure", Severity.WARNING)
+    dup_by(lambda p: p.h1_text, "H1", "heading_structure", Severity.WARNING)
     return findings
 
 
-async def run_audit(config: BrandConfig, limit: int | None = None,
-                    do_reconcile: bool = True, max_link_probes: int | None = 400) -> dict:
+def _stamp(now: str) -> str:
+    """ISO ``2026-07-16T01:15:00`` -> filesystem-safe ``20260716-011500`` (to the second, so
+    back-to-back runs never clobber)."""
+    return now.replace("-", "").replace(":", "").replace("T", "-")[:15]
+
+
+def write_run(findings: list[Finding], projections: list[PageProjection], *, brand: str,
+              base_url: str, now: str, config: BrandConfig, live, out_dir: Path,
+              history_path: Path, extra_meta: dict | None = None) -> dict:
+    """Annotate in-stream, emit the resolved tail, write JSONL+CSV+summary, persist history.
+    Pure w.r.t. the network — unit-tested directly. ``live`` is the WP-REST live-page set (or
+    None); ``audited`` is every URL we actually evaluated this run."""
+    components = checks_version.components(config)
+    prior = diff.load_history(history_path)
+    rd = diff.RunDiff(prior, now, components,
+                      audited={p.url for p in projections}, live=live)
+    for f in findings:
+        rd.annotate(f)
+    resolved = rd.resolved_findings()
+    rows = findings + resolved  # findings small; the DOM was the memory cost, not these
+
+    titles = {p.url: (p.title or "") for p in projections}
+    out_dir = Path(out_dir)
+    writers.write_jsonl(rows, out_dir / "findings.jsonl")
+    writers.write_csv(rows, out_dir / "findings.csv", brand, titles)
+
+    rollup = writers.Rollup()
+    for f in rows:
+        rollup.add(f)
+    # First run has no baseline -> nothing "changed" (an empty prior isn't a ruleset edit).
+    changed = diff.changed_components(rd.prior_components, components) if rd.prior_components else []
+    meta_blob = {
+        "brand": brand, "base_url": base_url, "run_at": now,
+        "pages_audited": len(projections), "changed_components": changed,
+        **(extra_meta or {}),
+    }
+    writers.write_summary(rollup, meta_blob, out_dir / "summary.json")
+    rd.persist(history_path)
+    return {"out_dir": out_dir, "rollup": rollup, "resolved": resolved,
+            "components": components, "changed": changed}
+
+
+async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile: bool = True,
+                    max_link_probes: int | None = 400, now: str | None = None,
+                    write: bool = True) -> dict:
+    now = now or time.strftime("%Y-%m-%dT%H:%M:%S")
     async with C.make_client(config.crawl) as client:
         sitemap_urls, blocked, child_sitemaps = await C.enumerate_sitemap(
             client, config.sitemap_url, max_retries=config.crawl.max_retries)
@@ -80,30 +170,38 @@ async def run_audit(config: BrandConfig, limit: int | None = None,
         sample = sitemap_urls[:limit] if limit else sitemap_urls
         fetched = await C.fetch_pages(client, sample, config.crawl)
         ok = [r for r in fetched if r.ok]
-        parsed = [parse_html(r.text, r.final_url or r.url) for r in ok]
 
-        findings: list[Finding] = []
-        page_audits: list[PageAudit] = []
-        for p, r in zip(parsed, ok):
-            page_findings: list[Finding] = []
-            for mod in _PAGE_CHECKS:
-                page_findings.extend(mod.run(p, config))
-            page_findings = dedupe_findings(page_findings)  # collapse identical repeats
-            findings.extend(page_findings)
-            page_audits.append(PageAudit(
-                url=p.url, final_url=r.final_url, status=r.status, fetched_ok=True,
-                content_hash=C.page_hash(p.raw_html),  # single-source stable hash (P5)
-                findings=page_findings))
+        # Project-and-discard: parse -> intrinsic checks -> compact projection; the ParsedPage
+        # is unreferenced after each iteration and collected, so peak memory is projections
+        # (small) not the DOM of every page at once.
+        projections: list[PageProjection] = []
+        for r in ok:
+            projections.append(_project(parse_html(r.text, r.final_url or r.url), r, config))
 
+        findings: list[Finding] = [f for p in projections for f in p.intrinsic_findings]
         link_findings, link_stats = await links.check_links(
-            parsed, client, config, max_links=max_link_probes)
+            projections, client, config, max_links=max_link_probes)
         findings.extend(link_findings)
-        findings.extend(_cross_page_duplicates(parsed))
+        findings.extend(_cross_page_duplicates(projections))
         findings = dedupe_findings(findings)  # one finding per fingerprint across the run
+
+        run = None
+        if write:
+            live = set(recon["rest_urls"]) if recon else None
+            out_dir = REPORTS_DIR / config.brand.lower() / _stamp(now)
+            history = C.CACHE_DIR / config.brand.lower() / "history.json"
+            run = write_run(
+                findings, projections, brand=config.brand, base_url=config.base_url,
+                now=now, config=config, live=live, out_dir=out_dir, history_path=history,
+                extra_meta={"pages_enumerated": len(sitemap_urls), "link_stats": link_stats})
+            C.write_cache(config.brand, ok)
 
         report = AuditReport(
             brand=config.brand, base_url=config.base_url, enumeration_method="sitemap",
-            pages_enumerated=len(sitemap_urls), pages_fetched=len(parsed), pages=page_audits)
+            pages_enumerated=len(sitemap_urls), pages_fetched=len(projections),
+            pages=[PageAudit(url=p.url, final_url=p.final_url, status=p.status, fetched_ok=True,
+                             content_hash=p.content_hash, findings=p.intrinsic_findings)
+                   for p in projections])
 
         return {
             "report": report,
@@ -114,5 +212,6 @@ async def run_audit(config: BrandConfig, limit: int | None = None,
             "sitemap_blocked": blocked,
             "fetched": len(fetched),
             "fetched_ok": len(ok),
-            "page_visible_chars": [len(p.visible_text) for p in parsed],
+            "page_visible_chars": [p.visible_chars for p in projections],
+            "run": run,
         }

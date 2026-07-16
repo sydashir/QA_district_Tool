@@ -29,6 +29,17 @@ def test_rollup_counts():
     assert d["by_check"]["meta"] == 2 and d["by_check"]["phone"] == 1
 
 
+def test_rollup_counts_by_status():
+    # the demo watches rule_changed vs resolved -> the rollup must expose status counts
+    r = writers.Rollup()
+    r.add(_f(fingerprint="a", status="new"))
+    r.add(_f(fingerprint="b", status="persisting"))
+    r.add(_f(fingerprint="c", status="resolved"))
+    r.add(_f(fingerprint="d", status="rule_changed"))
+    d = r.to_dict()
+    assert d["by_status"] == {"new": 1, "persisting": 1, "resolved": 1, "rule_changed": 1}
+
+
 def test_jsonl_roundtrip_keeps_full_sources(tmp_path):
     fs = [_f(fingerprint="a"),
           _f(check="broken_links", fingerprint="broken_links:https://t/",

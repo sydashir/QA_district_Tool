@@ -32,12 +32,15 @@ class Rollup:
         self.by_severity: Counter = Counter()
         self.by_check: Counter = Counter()
         self.by_check_severity: Counter = Counter()
+        self.by_status: Counter = Counter()  # new/persisting/resolved/rule_changed/page_*
 
     def add(self, f: Finding) -> None:
         self.total += 1
         self.by_severity[f.severity.value] += 1
         self.by_check[f.check] += 1
         self.by_check_severity[(f.check, f.severity.value)] += 1
+        if f.status:
+            self.by_status[f.status] += 1
 
     def to_dict(self) -> dict:
         return {
@@ -45,6 +48,7 @@ class Rollup:
             "by_severity": dict(self.by_severity),
             "by_check": dict(self.by_check),
             "by_check_severity": {f"{c}:{s}": n for (c, s), n in self.by_check_severity.items()},
+            "by_status": dict(self.by_status),
         }
 
 

@@ -59,6 +59,14 @@ def _print_summary(cfg, result) -> None:
         f"broken={ls['broken']} bot_blocked_ignored={ls['bot_blocked_ignored']} "
         f"cdn_cgi_excluded={ls['cdn_cgi_excluded']} redirects={ls['redirects']}")
 
+    run = result.get("run")
+    if run:
+        by_status = dict(run["rollup"].by_status)
+        typer.echo(f"\nrun-diff: by_status={by_status}  resolved={len(run['resolved'])}")
+        if run["changed"]:
+            typer.echo(f"  check-version changed: {run['changed']} -> vanished findings tagged rule_changed")
+        typer.echo(f"reports: {run['out_dir']}")
+
 
 @app.command()
 def audit(
