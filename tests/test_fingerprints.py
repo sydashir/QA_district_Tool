@@ -46,12 +46,25 @@ def test_placeholder_fingerprints(monkeypatch):
 
 
 def test_phone_fingerprints():
-    # tel: dials the retired 800 number; display shows the canonical -> mismatch + non-canonical
+    # tel: dials the retired 800 number; display shows the canonical -> mismatch + RETIRED
+    # (GL's NAP canon lists +18006929850 in stale_retired, so P1 classifies it retired).
     p = ParsedPage(url=URL, raw_html='<a href="tel:+18006929850">(844) 576-0144</a>',
                    visible_text="call (844) 576-0144")
     fps = _fps(phone.run(p, CFG))
     assert "phone:mismatch:https://x/p/:+18006929850" in fps
-    assert "phone:non_canonical:https://x/p/:+18006929850" in fps
+    assert "phone:retired:https://x/p/:+18006929850" in fps
+
+
+def test_phone_classification_buckets():
+    # clean (canonical) -> no finding; retired -> ERROR/retired; unknown -> WARNING/unknown.
+    # +12125551234 is a valid US number in NONE of GL's national/per_location/stale sets ->
+    # exercises the 'unknown' path, which never fires on GL real data (all 5 classify).
+    clean = phone.run(ParsedPage(url=URL, raw_html='<a href="tel:+18445760144">x</a>',
+                                 visible_text=""), CFG)
+    assert [f for f in clean if f.check == "phone"] == []
+    unknown = _fps(phone.run(ParsedPage(url=URL, raw_html='<a href="tel:+12125551234">x</a>',
+                                        visible_text=""), CFG))
+    assert "phone:unknown:https://x/p/:+12125551234" in unknown
 
 
 def test_meta_fingerprints():

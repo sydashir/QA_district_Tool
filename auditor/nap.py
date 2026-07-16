@@ -17,12 +17,15 @@ RR and GL uniquely carry the PPC national on the row AFTER the header (blank E, 
 """
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 
 from pydantic import BaseModel, Field
 
 from .checks.phone import normalize
+
+_log = logging.getLogger(__name__)
 
 # 0-based column indices into a full NAP row.
 COL_E, COL_H, COL_I, COL_BD = 4, 7, 8, 55
@@ -186,3 +189,16 @@ def grid_from_sheet(values) -> list[list]:
 def load_canonical_from_snapshot() -> dict[str, CanonicalNumbers]:
     """Convenience: parse the 2026-07-02 snapshot. Live read is a separate source fn."""
     return parse_nap_grid(grid_from_xlsx())
+
+
+def canon_for(brand: str, loader=load_canonical_from_snapshot) -> CanonicalNumbers | None:
+    """Best-effort per-brand canonical from the NAP snapshot. Returns None (with a loud
+    log) if the snapshot is unavailable/unreadable — the phone check then DEGRADES to the
+    flat ``config.canonical_phones`` (still audits; just loses the stale/unknown split).
+    That degradation is logged, never silent (a silent fallback is the Check #2 trap)."""
+    try:
+        return loader().get(brand.upper())
+    except (FileNotFoundError, OSError, ValueError, KeyError) as e:  # snapshot missing/broken
+        _log.warning("NAP snapshot unavailable for %s (%s); phone check falls back to "
+                     "flat canonical_phones — no stale-retired classification this run", brand, e)
+        return None

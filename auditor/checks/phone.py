@@ -43,9 +43,20 @@ def normalize(num: str) -> str | None:
     return None
 
 
+_SNAP_CAVEAT = "NAP 2026-07-02 snapshot; sheet ID unverified"
+
+
 def run(parsed: ParsedPage, config) -> list[Finding]:
     findings: list[Finding] = []
-    canonical = {e for e in (normalize(c) for c in config.canonical_phones) if e}
+    # NAP-derived ruler (national + per_location = clean; stale_retired = the headline)
+    # when present; else the flat legacy list with no stale/unknown split.
+    canon = getattr(config, "canon", None)
+    if canon is not None:
+        clean = canon.current_set()
+        retired = set(canon.stale_retired)
+    else:
+        clean = {e for e in (normalize(c) for c in config.canonical_phones) if e}
+        retired = set()
 
     soup = BeautifulSoup(parsed.raw_html, "lxml")
     numbers_on_page: set[str] = set()  # E.164, for the non-canonical pass (deduped)
@@ -80,13 +91,31 @@ def run(parsed: ParsedPage, config) -> list[Finding]:
         e164 = phonenumbers.format_number(match.number, phonenumbers.PhoneNumberFormat.E164)
         numbers_on_page.add(e164)
 
-    if canonical:
-        for e164 in sorted(numbers_on_page - canonical):
-            findings.append(Finding(
-                url=parsed.url, check=CHECK, severity=Severity.WARNING,
-                fingerprint=make_fingerprint(CHECK, "non_canonical", parsed.url, e164),
-                issue="non-canonical phone number", location="page", snippet=e164,
-                suggestion=f"Not in brand canonical set {sorted(canonical)}.",
-                details={"number": e164}))
+    brand = getattr(config, "brand", "this brand")
+    if clean or retired:
+        for e164 in sorted(numbers_on_page - clean):
+            if e164 in retired:  # a KNOWN-retired number still live -> the headline
+                findings.append(Finding(
+                    url=parsed.url, check=CHECK, severity=Severity.ERROR,
+                    fingerprint=make_fingerprint(CHECK, "retired", parsed.url, e164),
+                    issue="retired phone number still present", location="page", snippet=e164,
+                    suggestion=f"{e164} is a retired NAP number ({_SNAP_CAVEAT}) — replace "
+                               f"with the current canonical number.",
+                    details={"number": e164, "class": "stale_retired", "source": _SNAP_CAVEAT}))
+            elif canon is not None:  # not clean, not known-retired -> unknown to the NAP
+                findings.append(Finding(
+                    url=parsed.url, check=CHECK, severity=Severity.WARNING,
+                    fingerprint=make_fingerprint(CHECK, "unknown", parsed.url, e164),
+                    issue="unknown phone number (not in NAP)", location="page", snippet=e164,
+                    suggestion=f"{e164} is not in {brand}'s NAP numbers ({_SNAP_CAVEAT}) — "
+                               f"verify it belongs on this brand.",
+                    details={"number": e164, "class": "unknown", "source": _SNAP_CAVEAT}))
+            else:  # legacy flat list (no NAP canon): preserve the original label
+                findings.append(Finding(
+                    url=parsed.url, check=CHECK, severity=Severity.WARNING,
+                    fingerprint=make_fingerprint(CHECK, "non_canonical", parsed.url, e164),
+                    issue="non-canonical phone number", location="page", snippet=e164,
+                    suggestion=f"Not in brand canonical set {sorted(clean)}.",
+                    details={"number": e164}))
 
     return findings

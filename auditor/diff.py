@@ -36,7 +36,9 @@ _CHECK_COMPONENT: dict[str, set[str]] = {
     m.CHECK: {f"src:{Path(m.__file__).name}"}
     for m in (blank, links, meta, phone, placeholder, structure)
 }
-_CHECK_COMPONENT["phone"] = _CHECK_COMPONENT["phone"] | {"canonical_phones"}
+# phone output also depends on the canonical VALUES and on nap.py's parse (P1) — both
+# phone-scoped (a nap.py edit rule-changes ONLY phone, never other checks).
+_CHECK_COMPONENT["phone"] = _CHECK_COMPONENT["phone"] | {"canonical_phones", "src:nap.py"}
 
 
 def load_history(path) -> dict:

@@ -10,6 +10,8 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field, field_validator
 
+from .nap import CanonicalNumbers, canon_for
+
 # The browser-like User-Agent the session-1 spike proved works against GL's
 # Cloudflare without being challenged. Reused verbatim (see spike/gl_spike.py).
 DEFAULT_USER_AGENT = (
@@ -52,9 +54,13 @@ class BrandConfig(BaseModel):
     name: str  # display name
     base_url: str
     sitemap_url: str
-    canonical_phones: list[str]
+    canonical_phones: list[str]  # flat national numbers (TOML); legacy + fallback ruler
     crawl: CrawlRules = Field(default_factory=CrawlRules)
     wp_rest: WPRestConfig | None = None
+    # NAP-derived canonical (national + per_location + stale_retired). Populated by
+    # load_brand from the 2026-07-02 snapshot; None if unavailable. When present, the
+    # phone check classifies clean / stale-retired / unknown instead of flat non-canonical.
+    canon: CanonicalNumbers | None = None
 
     @field_validator("base_url", "sitemap_url")
     @classmethod
@@ -74,5 +80,8 @@ def load_brand_config(path: str | Path) -> BrandConfig:
 
 
 def load_brand(brand: str) -> BrandConfig:
-    """Load ``config/<brand>.toml`` by brand code (case-insensitive)."""
-    return load_brand_config(CONFIG_DIR / f"{brand.lower()}.toml")
+    """Load ``config/<brand>.toml`` by brand code (case-insensitive) and attach the
+    NAP-derived canonical numbers (2026-07-02 snapshot; NAP_SHEET_ID unverified)."""
+    cfg = load_brand_config(CONFIG_DIR / f"{brand.lower()}.toml")
+    cfg.canon = canon_for(cfg.brand)
+    return cfg

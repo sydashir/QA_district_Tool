@@ -32,11 +32,34 @@ def test_check_source_edit_invalidates(tmp_path):
     assert cv.version(c, checks_dir=tmp_path) != v1
 
 
-def test_config_canonical_change_invalidates():
+def test_canon_value_change_invalidates():
+    # Post-P1 the phone ruler is the NAP value-set. Changing it moves the version.
     c = load_brand("gl")
+    assert c.canon is not None  # GL classifies against the snapshot
+    v1 = cv.version(c)
+    c.canon.stale_retired = [*c.canon.stale_retired, "+18885550000"]
+    assert cv.version(c) != v1
+
+
+def test_legacy_canonical_change_invalidates_without_canon():
+    # With no NAP canon, the flat canonical_phones list IS the ruler and still invalidates.
+    c = load_brand("gl")
+    c.canon = None
     v1 = cv.version(c)
     c.canonical_phones = [*c.canonical_phones, "800-000-0000"]
     assert cv.version(c) != v1
+
+
+def test_identical_numbers_different_source_is_noop():
+    # The durability guarantee: an identical-numbers snapshot->live swap hashes the VALUES,
+    # not the source, so the version does NOT move (no baseline churn). Proven by version
+    # equality between the canon path and a flat list of the same numbers.
+    c = load_brand("gl")
+    v_canon = cv.version(c)
+    same_numbers = sorted(c.canon.current_set() | set(c.canon.stale_retired))
+    c.canon = None
+    c.canonical_phones = same_numbers  # "live" source, identical values
+    assert cv.version(c) == v_canon
 
 
 def test_components_are_debuggable():
