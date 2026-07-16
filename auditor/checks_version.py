@@ -1,41 +1,40 @@
 """Derived check-version for cache invalidation.
 
-Cached intrinsic findings are reusable only when the page's content_hash AND this check
-version both match. The version is DERIVED — a hash of the check-relevant config/constants
-plus a manual code version — so a threshold change (e.g. P4's title bound) auto-invalidates
-the cache with no remembering to bump. Crawl timing (delay/concurrency/timeout) is NOT
-included: it doesn't change check output. ``components()`` exposes the raw parts so a run
-can log WHICH component changed on invalidation (no mystery full recomputes).
+FULLY DERIVED — no manual version constant to remember to bump (that omission is exactly
+how GeoData's Check #2 silently passed for months). The version hashes the SOURCE of every
+check module plus the check-relevant config, so any logic OR threshold edit auto-invalidates
+the cache. Crawl timing is excluded — it doesn't affect check output. Over-invalidation (a
+comment/whitespace edit also invalidates) is accepted: a rebuild is one run, and we agreed
+over-invalidation beats silent staleness. ``components()`` / ``changed_components()`` expose
+the per-file hashes so a run can log WHICH check changed on invalidation.
 """
 from __future__ import annotations
 
 import hashlib
 import json
+from pathlib import Path
 
-from .checks import blank, links, meta, phone, structure
-
-# Bump on check LOGIC / regex changes not captured by the value constants below.
-CHECKS_CODE_VERSION = 1
+CHECKS_DIR = Path(__file__).resolve().parent / "checks"
 
 
-def components(config) -> dict:
-    """The check-relevant inputs whose change should invalidate cached findings."""
-    canon = getattr(config, "canonical_phones", None) or []
-    return {
-        "code_version": CHECKS_CODE_VERSION,
-        "meta.title_bounds": [meta.TITLE_MIN, meta.TITLE_MAX],
-        "blank.min_visible_chars": blank.MIN_VISIBLE_CHARS,
-        "structure.label_markers": sorted(structure._LABEL_MARKERS),
-        "links.bot_hostile_hosts": sorted(links.BOT_HOSTILE_HOSTS),
-        "links.cdn_cgi": links._CDN_CGI,
-        "phone.region": phone._REGION,
-        "canonical_phones": sorted(canon),
+def _sha(s: str) -> str:
+    return hashlib.sha256(s.encode("utf-8")).hexdigest()[:12]
+
+
+def components(config, checks_dir: Path = CHECKS_DIR) -> dict:
+    """Everything whose change should invalidate cached findings: each check module's
+    source, plus the check-relevant config (which lives outside the source)."""
+    comp = {
+        f"src:{p.name}": _sha(p.read_text(encoding="utf-8"))
+        for p in sorted(checks_dir.glob("*.py"))
     }
+    comp["canonical_phones"] = sorted(getattr(config, "canonical_phones", None) or [])
+    return comp
 
 
-def version(config) -> str:
-    blob = json.dumps(components(config), sort_keys=True, default=str)
-    return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:12]
+def version(config, checks_dir: Path = CHECKS_DIR) -> str:
+    blob = json.dumps(components(config, checks_dir), sort_keys=True, default=str)
+    return _sha(blob)
 
 
 def changed_components(old: dict, new: dict) -> list[str]:
