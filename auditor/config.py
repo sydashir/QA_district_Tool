@@ -49,6 +49,17 @@ class WPRestConfig(BaseModel):
     password_env: str | None = None
 
 
+class Thresholds(BaseModel):
+    """Per-brand tunable check thresholds. Hashed as a CONFIG component (not source), so a
+    per-brand tune moves only that brand's check-version — no cross-brand churn (the same
+    pattern as canonical_phones). Only title bounds live here today; other constants move
+    here when a brand actually needs a divergent value (P4 / ARCHITECTURE §B). Defaults are
+    the generic values; per-brand TOML overrides (GL: title_max = 88)."""
+
+    title_min: int = 15
+    title_max: int = 70
+
+
 class BrandConfig(BaseModel):
     brand: str  # short code, e.g. "GL"
     name: str  # display name
@@ -57,6 +68,7 @@ class BrandConfig(BaseModel):
     canonical_phones: list[str]  # flat national numbers (TOML); legacy + fallback ruler
     crawl: CrawlRules = Field(default_factory=CrawlRules)
     wp_rest: WPRestConfig | None = None
+    thresholds: Thresholds = Field(default_factory=Thresholds)
     # NAP-derived canonical (national + per_location + stale_retired). Populated by
     # load_brand from the 2026-07-02 snapshot; None if unavailable. When present, the
     # phone check classifies clean / stale-retired / unknown instead of flat non-canonical.

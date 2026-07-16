@@ -27,6 +27,11 @@ _TITLE_SEP_RE = re.compile(r"\s*\|\s*|\s+[-–—]\s+")
 
 def run(parsed: ParsedPage, config) -> list[Finding]:
     findings: list[Finding] = []
+    # Per-brand title bounds (P4): hashed as a CONFIG component, so a per-brand tune doesn't
+    # churn other brands. Module constants are the fallback for configs without thresholds.
+    th = getattr(config, "thresholds", None)
+    tmin = th.title_min if th is not None else TITLE_MIN
+    tmax = th.title_max if th is not None else TITLE_MAX
 
     if not parsed.title:
         findings.append(Finding(
@@ -35,13 +40,13 @@ def run(parsed: ParsedPage, config) -> list[Finding]:
             issue="missing meta title", location="head"))
     else:
         n = len(parsed.title)
-        if n < TITLE_MIN or n > TITLE_MAX:
+        if n < tmin or n > tmax:
             findings.append(Finding(
                 url=parsed.url, check=CHECK, severity=Severity.WARNING,
                 fingerprint=make_fingerprint(CHECK, "title_length", parsed.url),
                 issue="title length out of bounds", location="head",
                 snippet=parsed.title[:90],
-                suggestion=f"Title is {n} chars (target {TITLE_MIN}-{TITLE_MAX}).",
+                suggestion=f"Title is {n} chars (target {tmin}-{tmax}).",
                 details={"title_chars": n}))
 
         # Sharp, low-FP finding hiding inside the length noise: a segment (e.g. the

@@ -39,6 +39,9 @@ _CHECK_COMPONENT: dict[str, set[str]] = {
 # phone output also depends on the canonical VALUES and on nap.py's parse (P1) — both
 # phone-scoped (a nap.py edit rule-changes ONLY phone, never other checks).
 _CHECK_COMPONENT["phone"] = _CHECK_COMPONENT["phone"] | {"canonical_phones", "src:nap.py"}
+# meta output depends on the per-brand title bounds (P4) — config-scoped to meta, so a
+# per-brand threshold tune rule-changes only that brand's meta findings.
+_CHECK_COMPONENT["meta"] = _CHECK_COMPONENT["meta"] | {"title_bounds"}
 
 
 def load_history(path) -> dict:

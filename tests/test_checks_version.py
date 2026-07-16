@@ -62,6 +62,21 @@ def test_identical_numbers_different_source_is_noop():
     assert cv.version(c) == v_canon
 
 
+def test_title_bounds_change_invalidates_only_meta():
+    # P4: a per-brand title-bound tune moves ONLY the title_bounds config component (scoped
+    # to meta in diff.py), not any check source -> no cross-brand, no cross-check churn.
+    c = load_brand("gl")
+    comp1 = cv.components(c)
+    v1 = cv.version(c)
+    c.thresholds.title_max = 100
+    assert cv.version(c) != v1
+    assert cv.changed_components(comp1, cv.components(c)) == ["title_bounds"]
+
+
+def test_gl_config_carries_approved_title_max():
+    assert load_brand("gl").thresholds.title_max == 88  # P4 approved GL ruler
+
+
 def test_components_are_debuggable():
     c = load_brand("gl")
     comp = cv.components(c)

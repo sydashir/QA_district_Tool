@@ -55,6 +55,18 @@ def test_phone_fingerprints():
     assert "phone:retired:https://x/p/:+18006929850" in fps
 
 
+def test_title_bounds_come_from_config():
+    # P4: an 80-char title flags under title_max=70 but NOT under GL's 88 -> the ruler is
+    # per-brand config, not a module constant.
+    from auditor.config import Thresholds
+    p = ParsedPage(url=URL, title="x" * 80, meta_description="d" * 50)
+    c = load_brand("gl")
+    c.thresholds = Thresholds(title_max=70)
+    assert any("meta:title_length" in fp for fp in _fps(meta.run(p, c)))
+    c.thresholds = Thresholds(title_max=88)
+    assert not any("meta:title_length" in fp for fp in _fps(meta.run(p, c)))
+
+
 def test_phone_classification_buckets():
     # clean (canonical) -> no finding; retired -> ERROR/retired; unknown -> WARNING/unknown.
     # +12125551234 is a valid US number in NONE of GL's national/per_location/stale sets ->

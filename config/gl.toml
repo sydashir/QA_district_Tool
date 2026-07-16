@@ -7,6 +7,10 @@ base_url = "https://www.gratitudelodge.com"
 sitemap_url = "https://www.gratitudelodge.com/sitemap_index.xml"
 canonical_phones = ["844-576-0144", "844-972-2859"]  # SEO target, PPC target
 
+# GL titles run 70-80 chars; 88 is the approved GL ruler (P4). Default is 70 for other brands.
+[thresholds]
+title_max = 88
+
 [crawl]
 max_concurrency = 5
 delay_seconds = 0.25
