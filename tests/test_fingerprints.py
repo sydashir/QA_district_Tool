@@ -89,6 +89,16 @@ def test_dedupe_collapses_by_fingerprint():
     assert {f.fingerprint for f in dedupe_findings([a, a2, b])} == {"fp:1", "fp:2"}
 
 
+def test_dedupe_keeps_and_warns_on_different_content(caplog):
+    # same fingerprint, DIFFERENT content = scheme flaw, not a duplicate -> keep both, warn loud
+    a = Finding(url="u", check="c", fingerprint="fp:x", severity=Severity.WARNING, issue="problem A")
+    b = Finding(url="u", check="c", fingerprint="fp:x", severity=Severity.ERROR, issue="problem B")
+    with caplog.at_level("WARNING"):
+        out = dedupe_findings([a, b])
+    assert len(out) == 2  # both kept — never silently dropped
+    assert any("collision" in r.getMessage() for r in caplog.records)
+
+
 def test_skipped_twice_is_one_identity():
     # the real limit=50 collision: two identical H1->H3 skips (same text) on one page ->
     # same fingerprint, byte-identical, collapses to one. A DIFFERENT problem would differ.

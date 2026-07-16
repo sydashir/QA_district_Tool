@@ -5,9 +5,13 @@ severity rollup, run-diff) are M2 and are intentionally NOT implemented here yet
 """
 from __future__ import annotations
 
+import json
+import logging
 from enum import Enum
 
 from pydantic import BaseModel, Field
+
+_log = logging.getLogger(__name__)
 
 
 class Severity(str, Enum):
@@ -63,14 +67,31 @@ class AuditReport(BaseModel):
 
 
 def dedupe_findings(findings: list[Finding]) -> list[Finding]:
-    """Collapse findings that share a fingerprint — the same identity emitted twice (e.g.
-    the identical skipped-level pattern occurring twice on one page). Keeps first occurrence.
-    Fingerprints are designed unique per DISTINCT problem, so a collapse only ever merges
-    byte-identical repeats; a differing collision would be a scheme flaw to fix, not hide."""
-    seen: dict[str, Finding] = {}
+    """Collapse only IDENTICAL repeats — same fingerprint AND same content (e.g. the same
+    skipped-level pattern emitted twice on one page). Same fingerprint but DIFFERENT content is
+    NOT a duplicate: it's the fingerprint scheme failing to distinguish two real problems. We
+    KEEP all of them and log LOUDLY — never silently drop, that's the Check #2 pathology (a
+    mechanism quietly passing over something it didn't expect)."""
+    groups: dict[str, list[Finding]] = {}
+    order: list[str] = []
     for f in findings:
-        seen.setdefault(f.fingerprint, f)
-    return list(seen.values())
+        if f.fingerprint not in groups:
+            groups[f.fingerprint] = []
+            order.append(f.fingerprint)
+        groups[f.fingerprint].append(f)
+
+    out: list[Finding] = []
+    for fp in order:
+        group = groups[fp]
+        variants = {json.dumps(f.model_dump(mode="json"), sort_keys=True) for f in group}
+        if len(variants) == 1:
+            out.append(group[0])  # identical repeats -> collapse silently
+        else:
+            _log.warning(
+                "fingerprint collision: %r maps to %d DIFFERENT findings — scheme flaw, "
+                "keeping all (fix the fingerprint, don't drop)", fp, len(variants))
+            out.extend(group)  # keep all -> surface it, never silently drop
+    return out
 
 
 # --- M2: report writers (CSV/JSON, severity rollup, run-diff) live here. ---
