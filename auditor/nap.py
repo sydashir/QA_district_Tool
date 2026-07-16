@@ -166,6 +166,23 @@ def grid_from_xlsx(path: str | Path = NAP_SNAPSHOT, tab: str = NAP_TAB) -> list[
     return rows
 
 
+def grid_from_sheet(values) -> list[list]:
+    """Shape live-sheet values (e.g. a gspread ``worksheet.get_all_values()``) into the
+    SAME padded rows as ``grid_from_xlsx``. Written now, before the live read exists, on
+    purpose: the gspread FETCH lives outside this module (needs creds, D2) and passes its
+    values in here, so the snapshot->live swap is a loader CALL — never an edit to this
+    parse module. An edit here would move the phone check-version and churn the baseline
+    (the whole reason P1 lands before the baseline run)."""
+    rows: list[list] = []
+    width = COL_BD + 1
+    for r in values:
+        row = list(r)
+        if len(row) < width:
+            row += [None] * (width - len(row))
+        rows.append(row)
+    return rows
+
+
 def load_canonical_from_snapshot() -> dict[str, CanonicalNumbers]:
     """Convenience: parse the 2026-07-02 snapshot. Live read is a separate source fn."""
     return parse_nap_grid(grid_from_xlsx())

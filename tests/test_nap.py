@@ -83,6 +83,21 @@ def test_unicode_whitespace_tolerance():
     assert "GL" in nap.parse_nap_grid(grid2)
 
 
+def test_grid_from_sheet_shapes_ragged_values():
+    # live-sheet values (gspread get_all_values) come as ragged rows of str; grid_from_sheet
+    # pads to full width so parse_nap_grid reads the same as the xlsx path — no parse edit
+    # needed when the live source lands.
+    values = [  # 0-based cols D=3, E=4, H=7, I=8; ragged (len 9 << 56) to test padding
+        ["", "", "", "National", "GL", "", "", "SEO Target", "844-576-0144"],
+        ["", "", "", "", "GL LB", "", "", "GL - Long Beach", "562-620-5663"],
+    ]
+    rows = nap.grid_from_sheet(values)
+    assert all(len(r) == nap.COL_BD + 1 for r in rows)
+    gl = nap.parse_nap_grid(rows)["GL"]
+    assert gl.national[0].number == normalize("844-576-0144")
+    assert gl.per_location["GL - Long Beach"] == normalize("562-620-5663")
+
+
 def test_zero_canonical_is_loud_failure():
     """The GeoData Check #2 trap: a brand yielding no canonical number must fail
     loudly, never pass as a silent clean parse."""
