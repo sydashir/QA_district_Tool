@@ -23,11 +23,16 @@ def _sha(s: str) -> str:
 
 def components(config, checks_dir: Path = CHECKS_DIR) -> dict:
     """Everything whose change should invalidate cached findings: each check module's
-    source, plus the check-relevant config (which lives outside the source)."""
+    source, the GLOBAL sources that shape check output/fingerprints (parse.py builds
+    visible_text; report.py builds fingerprints), plus the check-relevant config."""
     comp = {
         f"src:{p.name}": _sha(p.read_text(encoding="utf-8"))
         for p in sorted(checks_dir.glob("*.py"))
     }
+    for extra in ("parse.py", "report.py"):  # global: affect all checks
+        f = checks_dir.parent / extra
+        if f.exists():
+            comp[f"src:{extra}"] = _sha(f.read_text(encoding="utf-8"))
     comp["canonical_phones"] = sorted(getattr(config, "canonical_phones", None) or [])
     return comp
 
