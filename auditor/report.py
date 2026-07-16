@@ -42,6 +42,10 @@ class Finding(BaseModel):
     snippet: str | None = None  # evidence snippet
     suggestion: str | None = None  # suggested fix
     details: dict = Field(default_factory=dict)
+    # Populated by the in-stream run-diff (auditor/diff.py), not the checks.
+    first_seen: str | None = None
+    last_seen: str | None = None
+    status: str | None = None  # "new" | "persisting" | "resolved"
 
 
 class PageAudit(BaseModel):

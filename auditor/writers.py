@@ -20,7 +20,7 @@ from .report import Finding
 
 CSV_COLUMNS = [
     "brand", "page_url", "page_title", "check", "issue", "severity",
-    "location", "snippet", "suggestion", "source_count", "first_seen", "last_seen",
+    "location", "snippet", "suggestion", "source_count", "status", "first_seen", "last_seen",
 ]
 
 
@@ -71,8 +71,9 @@ def _row(f: Finding, brand: str, titles: dict) -> dict:
         "snippet": f.snippet or "",
         "suggestion": f.suggestion or "",
         "source_count": str(len(sources)) if sources else "",
-        "first_seen": "",  # filled by the diff step
-        "last_seen": "",
+        "status": f.status or "",
+        "first_seen": f.first_seen or "",  # filled in-stream by RunDiff
+        "last_seen": f.last_seen or "",
     }
 
 
