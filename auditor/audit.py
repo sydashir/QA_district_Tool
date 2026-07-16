@@ -109,6 +109,37 @@ def _cross_page_duplicates(projections: list[PageProjection]) -> list[Finding]:
     return findings
 
 
+# Phone classification findings whose identity is the NUMBER, not the page — collapsed
+# site-wide like broken_links (identity=target). mismatch/malformed stay per-page (they're
+# element-specific and low-volume).
+_PHONE_COLLAPSE = {"retired", "unknown", "non_canonical"}
+
+
+def _collapse_phone(findings: list[Finding]) -> list[Finding]:
+    """A wrong number on 3,591 pages is ONE fix, not 3,591 rows. Collapse each
+    (classification, number) to a single finding carrying every source page — same shape as
+    broken_links, so the CSV writer flattens it (page_url + source_count) and the diff tracks
+    the number site-wide (fix the global element -> it resolves once, not 3,591 times)."""
+    keep: list[Finding] = []
+    groups: dict[tuple[str, str], list[Finding]] = {}
+    for f in findings:
+        parts = f.fingerprint.split(":")
+        if f.check == "phone" and len(parts) >= 2 and parts[1] in _PHONE_COLLAPSE:
+            e164 = (f.details or {}).get("number") or parts[-1]
+            groups.setdefault((parts[1], e164), []).append(f)
+        else:
+            keep.append(f)
+    for (cls, e164), fs in groups.items():
+        rep = fs[0]
+        sources = sorted({f.url for f in fs})
+        keep.append(Finding(
+            url=sources[0], check="phone", severity=rep.severity,
+            fingerprint=make_fingerprint("phone", cls, e164),  # identity = the number, site-wide
+            issue=rep.issue, location="page", snippet=e164, suggestion=rep.suggestion,
+            details={**(rep.details or {}), "sources": sources, "page_count": len(sources)}))
+    return keep
+
+
 def _stamp(now: str) -> str:
     """ISO ``2026-07-16T01:15:00`` -> filesystem-safe ``20260716-011500`` (to the second, so
     back-to-back runs never clobber)."""
@@ -184,6 +215,7 @@ async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile:
         findings.extend(link_findings)
         findings.extend(_cross_page_duplicates(projections))
         findings = dedupe_findings(findings)  # one finding per fingerprint across the run
+        findings = _collapse_phone(findings)  # site-wide numbers -> one finding each
 
         run = None
         if write:

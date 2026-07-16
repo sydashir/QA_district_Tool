@@ -19,6 +19,42 @@ def _f(fp, url="https://x/a/", check="meta", issue="i"):
     return Finding(url=url, check=check, fingerprint=fp, severity=Severity.WARNING, issue=issue)
 
 
+def _phone(cls, url, e164, sev=Severity.ERROR):
+    return Finding(url=url, check="phone", severity=sev,
+                   fingerprint=f"phone:{cls}:{url}:{e164}", issue="retired phone number",
+                   location="page", snippet=e164, details={"number": e164, "class": cls})
+
+
+def test_collapse_phone_site_wide_number_is_one_finding():
+    # same retired number on 3 pages -> ONE finding carrying all 3 sources (broken_links shape)
+    fs = [_phone("retired", f"https://x/p{i}/", "+18006929850") for i in range(3)]
+    fs.append(_f("meta:x", check="meta"))  # non-phone passes through untouched
+    out = audit._collapse_phone(fs)
+    phone = [f for f in out if f.check == "phone"]
+    assert len(phone) == 1
+    f = phone[0]
+    assert f.fingerprint == "phone:retired:+18006929850"  # identity = number, no url
+    assert f.details["sources"] == ["https://x/p0/", "https://x/p1/", "https://x/p2/"]
+    assert f.details["page_count"] == 3
+    assert any(f.check == "meta" for f in out)
+
+
+def test_collapse_phone_distinct_numbers_stay_separate():
+    fs = [_phone("retired", "https://x/a/", "+18006929850"),
+          _phone("unknown", "https://x/a/", "+12125551234", sev=Severity.WARNING)]
+    out = audit._collapse_phone(fs)
+    assert {f.fingerprint for f in out} == {
+        "phone:retired:+18006929850", "phone:unknown:+12125551234"}
+
+
+def test_collapse_leaves_mismatch_per_page():
+    # mismatch is element-specific -> NOT collapsed
+    fs = [Finding(url="https://x/a/", check="phone", severity=Severity.ERROR,
+                  fingerprint="phone:mismatch:https://x/a/:+18006929850", issue="mismatch")]
+    out = audit._collapse_phone(fs)
+    assert out[0].fingerprint == "phone:mismatch:https://x/a/:+18006929850"
+
+
 def _run(findings, tmp_path, now, hist, sub, live={"https://x/a/"}):
     return audit.write_run(
         findings, PROJ, brand="GL", base_url="https://x", now=now, config=CFG,
