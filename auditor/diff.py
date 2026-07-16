@@ -8,10 +8,14 @@ status new|persisting).
 
 RESOLVED findings — prior fingerprints not seen this run — are only knowable at the end and
 are emitted as a reconstructed tail. But a finding can vanish for reasons that are NOT a fix:
-- the CHECK changed (threshold/logic edit) -> it was un-flagged by a moved ruler, not fixed
-  -> status ``stale_ruleset`` (never claim a fix to a client that didn't happen).
-- the PAGE was removed -> status ``page_removed`` (a bigger event than "bug fixed", not a win).
+- the CHECK (or a global source) changed (threshold/logic edit) -> it was un-flagged by a moved
+  ruler, not fixed -> status ``rule_changed`` (never claim a fix to a client that didn't happen).
+- the PAGE isn't live anymore -> status ``page_removed`` (a bigger event than "bug fixed").
+- the page LEFT OUR SCOPE (still live, dropped from the sitemap so we stopped auditing it) ->
+  status ``page_unsitemapped`` — NOT a resolution; the finding is still out there, unseen.
 - otherwise -> genuine ``resolved``.
+Scope is judged by the AUDITED set (pages we actually evaluated) and liveness by the WP-REST
+LIVE set — never by sitemap membership, which conflates "in the sitemap" with "live".
 History is small (fingerprints + dates + a few fields), not pages.
 """
 from __future__ import annotations
@@ -48,15 +52,18 @@ def load_history(path) -> dict:
 class RunDiff:
     """Annotate findings in-stream and classify resolved. ``now`` is injected (no wall-clock
     in the logic) so runs are reproducible. ``components`` is this run's check-version
-    components; ``enumerated`` is the set of live page URLs this run (limit-independent)."""
+    components; ``audited`` is the set of URLs actually evaluated this run (the honest "did we
+    look?" signal); ``live`` is the WP-REST live-page set used to split gone vs unsitemapped
+    (optional — absent it, we never claim removal)."""
 
-    def __init__(self, prior: dict, now: str, components: dict, enumerated=None) -> None:
+    def __init__(self, prior: dict, now: str, components: dict, audited=None, live=None) -> None:
         prior = prior or {}
         self.prior_findings: dict = prior.get("findings", {})
         self.prior_components: dict = prior.get("components", {})
         self.now = now
         self.components = components
-        self.enumerated = {u.rstrip("/") for u in (enumerated or ())}
+        self.audited = {u.rstrip("/") for u in (audited or ())}  # pages EVALUATED this run
+        self.live = None if live is None else {u.rstrip("/") for u in live}  # WP-REST live set
         self.seen: set[str] = set()
         self.history: dict[str, dict] = {}
 
@@ -74,13 +81,19 @@ class RunDiff:
         return f
 
     def _resolved_status(self, rec: dict, changed: set[str]) -> str:
-        if changed & _GLOBAL_SRC:
-            return "stale_ruleset"
-        if _CHECK_COMPONENT.get(rec.get("check"), set()) & changed:
-            return "stale_ruleset"
-        if rec.get("url", "").rstrip("/") not in self.enumerated:
-            return "page_removed"
-        return "resolved"
+        url = rec.get("url", "").rstrip("/")
+        if url not in self.audited:
+            # We did NOT evaluate this page this run -> its finding vanished because we stopped
+            # LOOKING, not because it was fixed. "Audited" (evaluated) is the honest signal, not
+            # sitemap membership: a page that goes noindex drops from the sitemap while still
+            # serving its broken link (the ~845 live-but-unsitemapped GL pages). So confirm
+            # removal against the WP-REST LIVE set, never against the sitemap.
+            if self.live is not None and url not in self.live:
+                return "page_removed"       # confirmed gone: not in the live site
+            return "page_unsitemapped"      # still live (or liveness unknown) — left our scope
+        if (changed & _GLOBAL_SRC) or (_CHECK_COMPONENT.get(rec.get("check"), set()) & changed):
+            return "rule_changed"           # re-evaluated, but a moved ruler un-flagged it
+        return "resolved"                   # evaluated, ruler unchanged -> a genuine fix
 
     def resolved_findings(self) -> list[Finding]:
         changed = set(changed_components(self.prior_components, self.components))
