@@ -11,7 +11,7 @@ from . import crawl as C
 from .checks import blank, links, meta, phone, placeholder, structure
 from .config import BrandConfig
 from .parse import ParsedPage, parse_html
-from .report import AuditReport, Finding, PageAudit, Severity, make_fingerprint
+from .report import AuditReport, Finding, PageAudit, Severity, dedupe_findings, make_fingerprint
 
 # Per-page checks that operate purely on a ParsedPage.
 _PAGE_CHECKS = (structure, placeholder, phone, blank, meta)
@@ -36,25 +36,6 @@ async def reconcile_enumeration(client, config: BrandConfig, sitemap_urls: list[
         "pages_missing_from_sitemap": missing,
         "sitemap_only_count": len(sitemap_set - rest_set),
     }
-
-
-def reconciliation_finding(config: BrandConfig, recon: dict) -> Finding | None:
-    missing = recon["pages_missing_from_sitemap"]
-    if not missing:
-        return None
-    return Finding(
-        url=config.base_url, check="enumeration", severity=Severity.INFO,
-        fingerprint=make_fingerprint("enumeration", "missing_from_sitemap", config.brand),
-        issue="live WP pages missing from sitemap", location="site",
-        snippet=f"{len(missing)} pages in WP-REST /pages but not in the sitemap",
-        suggestion="OPEN QUESTION #8 (decide with Asif): are these in scope to audit? "
-                   "Default: audit sitemap-scope only until decided.",
-        details={
-            "count": len(missing),
-            "sample": missing[:15],
-            "sitemap_total": recon["sitemap_total"],
-            "wp_rest_pages_total": recon["wp_rest_pages_total"],
-        })
 
 
 def _cross_page_duplicates(parsed: list[ParsedPage]) -> list[Finding]:
@@ -89,10 +70,12 @@ async def run_audit(config: BrandConfig, limit: int | None = None,
             client, config.sitemap_url, max_retries=config.crawl.max_retries)
         sitemap_urls = C._apply_exclude(sitemap_urls, config.crawl.exclude)
 
-        recon = recon_finding = None
+        recon = None
         if do_reconcile and config.wp_rest and config.wp_rest.enabled:
+            # The delta is DATA here. The dedicated 845 report (later step) fetches robots
+            # and emits per-page enumeration:missing_from_sitemap:{brand}:{url} with D1
+            # severity; the count summary lives in the rollup — not a single stream finding.
             recon = await reconcile_enumeration(client, config, sitemap_urls)
-            recon_finding = reconciliation_finding(config, recon)
 
         sample = sitemap_urls[:limit] if limit else sitemap_urls
         fetched = await C.fetch_pages(client, sample, config.crawl)
@@ -105,6 +88,7 @@ async def run_audit(config: BrandConfig, limit: int | None = None,
             page_findings: list[Finding] = []
             for mod in _PAGE_CHECKS:
                 page_findings.extend(mod.run(p, config))
+            page_findings = dedupe_findings(page_findings)  # collapse identical repeats
             findings.extend(page_findings)
             page_audits.append(PageAudit(
                 url=p.url, final_url=r.final_url, status=r.status, fetched_ok=True,
@@ -115,8 +99,7 @@ async def run_audit(config: BrandConfig, limit: int | None = None,
             parsed, client, config, max_links=max_link_probes)
         findings.extend(link_findings)
         findings.extend(_cross_page_duplicates(parsed))
-        if recon_finding:
-            findings.append(recon_finding)
+        findings = dedupe_findings(findings)  # one finding per fingerprint across the run
 
         report = AuditReport(
             brand=config.brand, base_url=config.base_url, enumeration_method="sitemap",

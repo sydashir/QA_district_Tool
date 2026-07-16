@@ -62,5 +62,16 @@ class AuditReport(BaseModel):
     pages: list[PageAudit] = Field(default_factory=list)
 
 
+def dedupe_findings(findings: list[Finding]) -> list[Finding]:
+    """Collapse findings that share a fingerprint — the same identity emitted twice (e.g.
+    the identical skipped-level pattern occurring twice on one page). Keeps first occurrence.
+    Fingerprints are designed unique per DISTINCT problem, so a collapse only ever merges
+    byte-identical repeats; a differing collision would be a scheme flaw to fix, not hide."""
+    seen: dict[str, Finding] = {}
+    for f in findings:
+        seen.setdefault(f.fingerprint, f)
+    return list(seen.values())
+
+
 # --- M2: report writers (CSV/JSON, severity rollup, run-diff) live here. ---
 # Intentionally not implemented in M0.

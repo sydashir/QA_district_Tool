@@ -11,6 +11,7 @@ from auditor import audit
 from auditor.checks import blank, links, meta, phone, placeholder, structure
 from auditor.config import load_brand
 from auditor.parse import Heading, Link, ParsedPage
+from auditor.report import Finding, Severity, dedupe_findings
 
 CFG = load_brand("gl")
 URL = "https://x/p/"
@@ -79,3 +80,24 @@ def test_links_fingerprint_is_target():
     p = ParsedPage(url=URL, links=[Link(href="/dead", url="https://x/dead")])
     findings, _stats = asyncio.run(links.check_links([p], _Client(), CFG))
     assert any(f.fingerprint == "broken_links:https://x/dead" for f in findings)
+
+
+def test_dedupe_collapses_by_fingerprint():
+    a = Finding(url="u", check="c", fingerprint="fp:1", severity=Severity.WARNING, issue="x")
+    a2 = Finding(url="u", check="c", fingerprint="fp:1", severity=Severity.WARNING, issue="x")
+    b = Finding(url="u", check="c", fingerprint="fp:2", severity=Severity.WARNING, issue="y")
+    assert {f.fingerprint for f in dedupe_findings([a, a2, b])} == {"fp:1", "fp:2"}
+
+
+def test_skipped_twice_is_one_identity():
+    # the real limit=50 collision: two identical H1->H3 skips (same text) on one page ->
+    # same fingerprint, byte-identical, collapses to one. A DIFFERENT problem would differ.
+    p = ParsedPage(url=URL, headings=[
+        Heading(1, "Title"), Heading(3, "Repeated"),
+        Heading(1, "Title2"), Heading(3, "Repeated")])
+    raw = structure.run(p, CFG)
+    skips = [f for f in raw if ":skipped:" in f.fingerprint]
+    assert len(skips) == 2 and skips[0].fingerprint == skips[1].fingerprint
+    assert (skips[0].issue, skips[0].location) == (skips[1].issue, skips[1].location)  # identical
+    deduped = dedupe_findings(raw)
+    assert len(deduped) == len({f.fingerprint for f in raw})  # unique fingerprints after dedupe
