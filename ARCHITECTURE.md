@@ -157,14 +157,27 @@ model. Design:
   header list as a brand-agnostic blocklist. Brand grouping is **positional** (forward-fill the last
   brand token in col E) — encode that, don't assume a brand column.
 - **Classification the phone check emits** (replaces bare "non-canonical"): each found number →
-  **clean** (matches national or the page's location number), **stale-retired** (matches col BD → an
+  **clean** (matches national or a per_location number), **stale-retired** (matches col BD → an
   ERROR: a retired number still live), or **unknown** (not in any set → WARNING for review).
-- **This is what turns GL's noise into signal.** §C1 shows **800-692-9850 is GL's OLD "Newport Beach"
-  number** — the site-wide flag M1 produced is a *real stale-number finding*, and the 949/562 numbers
-  are GL's *current* per-location numbers (→ clean). The check needs page-tier awareness (national page
-  → match national; geo page → match that location) — deferred to when the sheet is wired.
-- **Freshness caveat:** the `.tmp_dd` copy is a 2026-07-02 snapshot (CLAUDE.md §8 Q3). The auditor
-  reads the **live** sheet each run, not the snapshot. Decision D2 (live-read vs cached-snapshot).
+- **This is what turns GL's noise into signal.** §C1 shows **800-692-9850 is GL's OLD number** — the
+  site-wide flag M1 produced is a *real stale-number finding*, and the 949/562 numbers are GL's
+  *current* per-location numbers (→ clean).
+- **As-built (P1, `23dfac6`/`43f9653`):** the phone check classifies against the NAP snapshot
+  (`nap.canon_for`), collapses each site-wide number to ONE finding (identity = number, sources =
+  pages — the broken_links shape), and `nap.py` is a phone-scoped check-version component. On the GL
+  250-sample this cut 489 undifferentiated flags → ~250 stale-retired (real) + 239 clean/suppressed.
+- **KNOWN LIMITATION — per-location numbers are validated BRAND-WIDE, not per-page.** A per_location
+  number is treated as clean anywhere on the brand, so **a valid number rendered on the wrong
+  location's page (e.g. Long Beach's 562 on an Orange County page) will NOT be flagged.** The full fix
+  needs a page→location map (slug/geo inference — §C1/`LOCATION_MAP`), which is not a cheap/reliable
+  add today (most pages aren't location pages; city→location-number isn't 1:1; the auditor doesn't
+  read the sheet's geo columns yet). Named and deferred, not forgotten — a limitation we've named is
+  honest; one we've forgotten is the Check #2 trap. This caveat also ships in the report (summary.json
+  `phone_scope_caveat`).
+- **Freshness caveat:** the classification uses the **2026-07-02 snapshot** (`NAP_SHEET_ID` UNVERIFIED),
+  carried in every finding's suggestion and in summary.json. The live-sheet read (D2) swaps
+  `grid_from_xlsx` → `grid_from_sheet` with **no parse edit** (so no phone check-version churn); an
+  identical-numbers swap is a version no-op because the ruler hashes canonical VALUES, not the source.
 
 ### B4. Phase-2 AI layer — bolts on, never contaminates v1
 

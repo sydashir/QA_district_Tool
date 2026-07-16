@@ -222,10 +222,16 @@ async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile:
             live = set(recon["rest_urls"]) if recon else None
             out_dir = REPORTS_DIR / config.brand.lower() / _stamp(now)
             history = C.CACHE_DIR / config.brand.lower() / "history.json"
+            extra = {"pages_enumerated": len(sitemap_urls), "link_stats": link_stats}
+            if config.canon is not None:  # name the phone-scope limitation IN the report
+                extra["phone_scope_caveat"] = (
+                    "Per-location numbers are validated brand-wide, not per-page; a valid number "
+                    "rendered on the wrong location's page is NOT flagged. Canonical from the NAP "
+                    "2026-07-02 snapshot; NAP_SHEET_ID unverified.")
             run = write_run(
                 findings, projections, brand=config.brand, base_url=config.base_url,
                 now=now, config=config, live=live, out_dir=out_dir, history_path=history,
-                extra_meta={"pages_enumerated": len(sitemap_urls), "link_stats": link_stats})
+                extra_meta=extra)
             C.write_cache(config.brand, ok)
 
         report = AuditReport(

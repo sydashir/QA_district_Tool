@@ -98,6 +98,16 @@ def test_second_run_persists_and_resolves(tmp_path):
     assert statuses == {"fp1": "persisting", "fp2": "resolved"}
 
 
+def test_extra_meta_reaches_summary(tmp_path):
+    # the phone-scope caveat (and any run meta) must land in summary.json for the client
+    out = audit.write_run(
+        [_f("fp1")], PROJ, brand="GL", base_url="https://x", now="2026-07-16T01:00:00",
+        config=CFG, live=None, out_dir=tmp_path / "r1", history_path=tmp_path / "h.json",
+        extra_meta={"phone_scope_caveat": "validated brand-wide, not per-page"})
+    s = json.loads((tmp_path / "r1" / "summary.json").read_text())
+    assert s["phone_scope_caveat"] == "validated brand-wide, not per-page"
+
+
 def test_history_only_keeps_seen_fingerprints(tmp_path):
     hist = tmp_path / "history.json"
     _run([_f("fp1"), _f("fp2")], tmp_path, "2026-01-01T00:00:00", hist, "r1")
