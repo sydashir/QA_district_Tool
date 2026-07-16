@@ -21,6 +21,7 @@ History is small (fingerprints + dates + a few fields), not pages.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 from .checks import blank, enumeration, links, meta, phone, placeholder, structure
@@ -119,9 +120,13 @@ class RunDiff:
 
     def persist(self, path) -> None:
         """History = this run's check-version components + only fingerprints seen this run
-        (resolved drop out; if one reappears later it's 'new' again)."""
+        (resolved drop out; if one reappears later it's 'new' again). Written ATOMICALLY
+        (temp + os.replace) so a mid-write crash can never leave a truncated history that a
+        later run would silently diff against — a poisoned baseline is worse than none."""
         p = Path(path)
         p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(
+        tmp = p.with_suffix(p.suffix + ".tmp")
+        tmp.write_text(
             json.dumps({"components": self.components, "findings": self.history},
                        indent=2, sort_keys=True), encoding="utf-8")
+        os.replace(tmp, p)  # atomic on POSIX

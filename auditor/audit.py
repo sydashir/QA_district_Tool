@@ -13,6 +13,8 @@ timestamped ``reports/<brand>/<stamp>/`` dir, and persist the run history for th
 """
 from __future__ import annotations
 
+import os
+import shutil
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -138,11 +140,6 @@ def write_run(findings: list[Finding], projections: list[PageProjection], *, bra
     resolved = rd.resolved_findings()
     rows = findings + resolved  # findings small; the DOM was the memory cost, not these
 
-    titles = {p.url: (p.title or "") for p in projections}
-    out_dir = Path(out_dir)
-    writers.write_jsonl(rows, out_dir / "findings.jsonl")
-    writers.write_csv(rows, out_dir / "findings.csv", brand, titles)
-
     rollup = writers.Rollup()
     for f in rows:
         rollup.add(f)
@@ -153,8 +150,20 @@ def write_run(findings: list[Finding], projections: list[PageProjection], *, bra
         "pages_audited": len(projections), "changed_components": changed,
         **(extra_meta or {}),
     }
-    writers.write_summary(rollup, meta_blob, out_dir / "summary.json")
-    rd.persist(history_path)
+
+    # Write the whole report into a .partial dir, persist history atomically, THEN atomically
+    # promote the dir. A crash mid-write leaves a visibly-incomplete "<stamp>.partial" dir (never
+    # a real-looking authoritative report) and no history — so a re-run starts clean, not poisoned.
+    titles = {p.url: (p.title or "") for p in projections}
+    out_dir = Path(out_dir)
+    staging = out_dir.with_name(out_dir.name + ".partial")
+    if staging.exists():
+        shutil.rmtree(staging)
+    writers.write_jsonl(rows, staging / "findings.jsonl")
+    writers.write_csv(rows, staging / "findings.csv", brand, titles)
+    writers.write_summary(rollup, meta_blob, staging / "summary.json")
+    rd.persist(history_path)               # atomic (temp + os.replace)
+    os.replace(staging, out_dir)           # atomic promote: partial -> authoritative
     return {"out_dir": out_dir, "rollup": rollup, "resolved": resolved,
             "components": components, "changed": changed}
 
@@ -206,7 +215,12 @@ async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile:
             live = set(recon["rest_urls"]) if recon else None
             out_dir = REPORTS_DIR / config.brand.lower() / _stamp(now)
             history = C.CACHE_DIR / config.brand.lower() / "history.json"
-            extra = {"pages_enumerated": len(sitemap_urls), "link_stats": link_stats}
+            extra = {"pages_enumerated": len(sitemap_urls), "link_stats": link_stats,
+                     # completeness signal: a run where many pages failed to fetch (e.g. Cloudflare
+                     # started blocking mid-crawl) would persist a thin history. No hard threshold
+                     # (the baseline calibrates the healthy rate) — but surface it for eyeballing.
+                     "crawl": {"fetched": len(fetched), "fetched_ok": len(ok),
+                               "sitemap_blocked": blocked}}
             if enum_stats is not None:  # the 845 bisection (INFO/WARNING/ERROR) for the human view
                 extra["enumeration"] = enum_stats
             if config.canon is not None:  # name the phone-scope limitation IN the report

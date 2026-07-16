@@ -98,6 +98,19 @@ def test_second_run_persists_and_resolves(tmp_path):
     assert statuses == {"fp1": "persisting", "fp2": "resolved"}
 
 
+def test_write_is_atomic_no_partial_residue(tmp_path):
+    # on success the report is promoted from <stamp>.partial to <stamp>, leaving no partial dir
+    # or .tmp history behind (a crash mid-write would leave the .partial, never a real report).
+    hist = tmp_path / "history.json"
+    out = tmp_path / "20260101-000000"
+    audit.write_run([_f("fp1")], PROJ, brand="GL", base_url="https://x",
+                    now="2026-07-16T01:00:00", config=CFG, live=None, out_dir=out,
+                    history_path=hist)
+    assert out.exists() and (out / "findings.jsonl").exists()
+    assert not out.with_name(out.name + ".partial").exists()
+    assert not hist.with_suffix(".json.tmp").exists()
+
+
 def test_extra_meta_reaches_summary(tmp_path):
     # the phone-scope caveat (and any run meta) must land in summary.json for the client
     out = audit.write_run(
