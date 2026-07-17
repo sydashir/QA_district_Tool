@@ -18,6 +18,7 @@ RR and GL uniquely carry the PPC national on the row AFTER the header (blank E, 
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -189,6 +190,40 @@ def grid_from_sheet(values) -> list[list]:
 def load_canonical_from_snapshot() -> dict[str, CanonicalNumbers]:
     """Convenience: parse the 2026-07-02 snapshot. Live read is a separate source fn."""
     return parse_nap_grid(grid_from_xlsx())
+
+
+# Global crisis-hotline columns in the NAP header row (Poison Control, SAMHSA, Lifeline, RAINN).
+THIRD_PARTY_COLS = (100, 101, 102, 103)
+
+
+def _strip_paren_decode(raw: str) -> str:
+    """'1-800-662-HELP (4357)' -> '1-800-662-HELP' — drop the parenthetical keypad decode so the
+    vanity part normalizes (normalize() converts HELP->4357 itself)."""
+    return re.sub(r"\s*\([\d\s\-]+\)\s*$", "", raw).strip()
+
+
+def third_party_hotlines(grid) -> set[str]:
+    """Global known third-party hotlines from the NAP header row (cols 100-103). A rehab site
+    listing Poison Control / SAMHSA / Lifeline / RAINN is EXPECTED behaviour the client has
+    documented — NOT an unknown-number defect. Source-agnostic like ``parse_nap_grid``."""
+    out: set[str] = set()
+    row = grid[0] if grid else []
+    for c in THIRD_PARTY_COLS:
+        if c < len(row):
+            n = normalize(_strip_paren_decode(_norm_ws(str(row[c] or ""))))
+            if n:
+                out.add(n)
+    return out
+
+
+def load_third_party(loader=grid_from_xlsx) -> set[str]:
+    """Best-effort global third-party hotline set from the snapshot. Empty on failure (the
+    phone check then just classifies those numbers 'unknown' — visible, not silently wrong)."""
+    try:
+        return third_party_hotlines(loader())
+    except (FileNotFoundError, OSError, ValueError, KeyError) as e:
+        _log.warning("NAP third-party hotlines unavailable (%s)", e)
+        return set()
 
 
 def canon_for(brand: str, loader=load_canonical_from_snapshot) -> CanonicalNumbers | None:

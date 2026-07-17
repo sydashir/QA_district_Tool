@@ -56,6 +56,7 @@ def components(config, checks_dir: Path = CHECKS_DIR) -> dict:
         comp["canonical_phones"] = sorted(canon.current_set() | set(canon.stale_retired))
     else:
         comp["canonical_phones"] = sorted(getattr(config, "canonical_phones", None) or [])
+    comp["third_party"] = sorted(getattr(config, "third_party", None) or [])  # phone-scoped ruler
     # Per-brand title bounds (P4) — a CONFIG component keyed to meta, so a per-brand tune
     # moves only that brand's version, never RR's. Absent on non-BrandConfig test configs.
     th = getattr(config, "thresholds", None)

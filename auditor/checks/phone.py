@@ -33,7 +33,8 @@ _REGION = "US"
 
 
 def normalize(num: str) -> str | None:
-    """Return E.164 for a valid US number, else None."""
+    """Return E.164 for a valid US number, else None. Converts vanity letters (keypad
+    T-A-L-K -> 8255), same as a phone dialing tel:1-800-273-TALK."""
     try:
         parsed = phonenumbers.parse(num, _REGION)
     except phonenumbers.NumberParseException:
@@ -41,6 +42,23 @@ def normalize(num: str) -> str | None:
     if phonenumbers.is_valid_number(parsed):
         return phonenumbers.format_number(parsed, phonenumbers.PhoneNumberFormat.E164)
     return None
+
+
+# Vanity toll-free numbers with letters (e.g. 1-800-273-TALK). PhoneNumberMatcher (used on
+# visible text) does NOT convert letters, while the tel: path (normalize) does — so we scan
+# for vanity tokens explicitly to keep the two extraction paths in agreement.
+_VANITY_RE = re.compile(r"\b1?[\s.\-]?8\d\d[\s.\-]?[\dA-Za-z]{3}[\s.\-]?[\dA-Za-z]{4}\b")
+
+
+def _vanity_numbers(text: str) -> set[str]:
+    out: set[str] = set()
+    for m in _VANITY_RE.finditer(text):
+        tok = m.group(0)
+        if any(ch.isalpha() for ch in tok):  # only vanity; pure-digit numbers -> the Matcher
+            n = normalize(tok)
+            if n:
+                out.add(n)
+    return out
 
 
 _SNAP_CAVEAT = "NAP 2026-07-02 snapshot; sheet ID unverified"
@@ -57,6 +75,7 @@ def run(parsed: ParsedPage, config) -> list[Finding]:
     else:
         clean = {e for e in (normalize(c) for c in config.canonical_phones) if e}
         retired = set()
+    third_party = getattr(config, "third_party", None) or set()  # expected hotlines, not defects
 
     soup = BeautifulSoup(parsed.raw_html, "lxml")
     numbers_on_page: set[str] = set()  # E.164, for the non-canonical pass (deduped)
@@ -90,6 +109,7 @@ def run(parsed: ParsedPage, config) -> list[Finding]:
     for match in phonenumbers.PhoneNumberMatcher(parsed.visible_text, _REGION):
         e164 = phonenumbers.format_number(match.number, phonenumbers.PhoneNumberFormat.E164)
         numbers_on_page.add(e164)
+    numbers_on_page |= _vanity_numbers(parsed.visible_text)  # align visible path with tel:
 
     brand = getattr(config, "brand", "this brand")
     if clean or retired:
@@ -102,6 +122,14 @@ def run(parsed: ParsedPage, config) -> list[Finding]:
                     suggestion=f"{e164} is a retired NAP number ({_SNAP_CAVEAT}) — replace "
                                f"with the current canonical number.",
                     details={"number": e164, "class": "stale_retired", "source": _SNAP_CAVEAT}))
+            elif e164 in third_party:  # Poison Control / SAMHSA / Lifeline / RAINN -> expected
+                findings.append(Finding(
+                    url=parsed.url, check=CHECK, severity=Severity.INFO,
+                    fingerprint=make_fingerprint(CHECK, "third_party", parsed.url, e164),
+                    issue="known third-party hotline", location="page", snippet=e164,
+                    suggestion=f"{e164} is a documented third-party crisis hotline ({_SNAP_CAVEAT})"
+                               f" — expected on the page, not a defect.",
+                    details={"number": e164, "class": "third_party", "source": _SNAP_CAVEAT}))
             elif canon is not None:  # not clean, not known-retired -> unknown to the NAP
                 findings.append(Finding(
                     url=parsed.url, check=CHECK, severity=Severity.WARNING,

@@ -67,6 +67,16 @@ def test_title_bounds_come_from_config():
     assert not any("meta:title_length" in fp for fp in _fps(meta.run(p, c)))
 
 
+def test_third_party_hotline_is_info_not_unknown():
+    # Poison Control on a page is EXPECTED (client-documented), not an unknown-number defect.
+    assert "+18002221222" in CFG.third_party
+    p = ParsedPage(url=URL, raw_html="", visible_text="In an emergency call 1-800-222-1222")
+    fs = [f for f in phone.run(p, CFG) if f.check == "phone"]
+    assert len(fs) == 1
+    assert fs[0].details["class"] == "third_party" and fs[0].severity is Severity.INFO
+    assert "third_party" in fs[0].fingerprint
+
+
 def test_phone_classification_buckets():
     # clean (canonical) -> no finding; retired -> ERROR/retired; unknown -> WARNING/unknown.
     # +12125551234 is a valid US number in NONE of GL's national/per_location/stale sets ->

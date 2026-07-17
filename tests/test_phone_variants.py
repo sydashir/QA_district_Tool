@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from auditor.checks.phone import normalize
+from auditor.checks.phone import _vanity_numbers, normalize
 
 
 @pytest.mark.parametrize("variant,expected", [
@@ -24,9 +24,9 @@ def test_mangled_variants_locked(variant, expected):
     assert normalize(variant) == expected
 
 
-@pytest.mark.skip(reason="vanity conversion (TALK->8255) pending Syed's ruling; assert after the fix")
-def test_vanity_pending():
-    # Today normalize() converts vanity letters (keypad T-A-L-K -> 8255) but the visible-text
-    # PhoneNumberMatcher path does NOT — the two extraction paths disagree. Once the fix lands
-    # (convert in both paths), un-skip and assert they agree here.
+def test_vanity_both_paths_agree():
+    # ruled: convert in BOTH paths. tel: (normalize) and visible (_vanity_numbers) must agree.
     assert normalize("1-800-273-TALK") == "+18002738255"
+    assert _vanity_numbers("Call the Lifeline at 1-800-273-TALK today") == {"+18002738255"}
+    # pure-digit numbers are left to the Matcher (no double-handling)
+    assert _vanity_numbers("call 1-800-222-1222") == set()
