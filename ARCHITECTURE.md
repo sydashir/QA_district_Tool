@@ -226,6 +226,77 @@ re-runs (changed blocks only, via §B1 diff) are a small fraction. Verify with `
 sample before committing (do not ship on these estimates). **Verdict: Phase 2 is affordable; block
 dedup is what makes it comfortable, and it is a go on cost.**
 
+### B5. Cache-skip / incremental runs — design pass (no code; decisions needed)
+
+**The correction that reframed this:** the compact projection *cannot* serve a check-version bump —
+recomputing structure/phone/placeholder needs page content (full headings, `raw_html`, `visible_text`)
+the projection deliberately drops. Persisting content to fix that = the multi-GB problem the whole
+architecture avoids. So "cache everything, refetch nothing" was never on the table. What *is* on the
+table is narrower and honest.
+
+**Live probe result (drives the whole design):** GL returns **no `ETag`** but a **`Last-Modified`** on
+every page, and a conditional GET (`If-Modified-Since`) returns **`304`** (Cloudflare+WP honors it,
+`cf-cache-status` HIT and MISS both). A 304 is headers-only — **change detection is server-provided and
+near-free; we don't download-and-hash to know a page changed.** This supersedes content-hash as the skip
+signal *where the host supports it* (content_hash stays as the report/diff key + fallback + a cross-check).
+
+**Q1 — what's actually cacheable, and what invalidates it:**
+
+| Item | Cacheable? | Invalidated by |
+|---|---|---|
+| `link_urls` (which links a page contains) | **Yes** | page content change (304→200) |
+| `title` / `meta_description` / `h1_text` (dup-barrier inputs) | **Yes** | page content change |
+| `content_hash`, `Last-Modified`, `status`, `final_url` | **Yes** | page content change / server |
+| Intrinsic findings (structure/meta/phone/blank/placeholder) | **Yes, but** reusable only if page unchanged **AND** that check's version unchanged | content change **or** check-version bump (two invalidators) |
+| Enumeration set (sitemap vs REST = the 845) | **No — recompute** (cheap: ~16 sitemap + paginated REST). We *want* to recompute; detecting drift is the check's job | n/a |
+| **Link liveness** (probe 200/404) | **No — fundamentally not** (extrinsic; a target rots on its own schedule) | time — must re-probe every run |
+
+The load-bearing line: **link *targets* are cacheable; link *liveness* is not.** And intrinsic findings
+carry *two* invalidators, so they're only reusable when both hold.
+
+**Q2 — link-rot cadence (real, not fake):** a **link-only run** = read cached `link_urls` across all pages,
+dedupe, probe each — **zero page fetches**. That's ~3,959 probes vs a full crawl, genuinely cheap, viable
+weekly. Limit: it re-probes *known* targets only, so it catches **rot** of existing links, not **new**
+links added since the last crawl. So the pairing is: full crawl finds new links + rot; link-only catches
+rot fast between crawls.
+
+**Q3 — conditional GET vs content-hash: 304 wins on GL (probed).** Incremental = conditional GET all pages;
+`304` (+ same check-version) → reuse cached projection; `200` → re-parse+check. Risks to note, not ignore:
+(a) `cf-cache-status: HIT` means Cloudflare may serve a cached `Last-Modified` — a 304 could say "unchanged"
+if Cloudflare hasn't refreshed though the origin changed; but we audit the **live (Cloudflare-served)** page,
+so that version is arguably the truth. (b) `Last-Modified` semantic reliability (does it actually move on a
+content edit?) needs one confirmation on a known-edited page before we trust it as the sole signal —
+belt-and-suspenders: keep `content_hash` and periodically re-hash to catch a lying `Last-Modified`.
+
+**Q4 — run taxonomy (three modes, genuinely different cost, not over-structuring):**
+1. **Full crawl** — GET all, full checks + enumeration + link probe. Finds everything incl. new pages/links. The baseline + periodic ground-truth.
+2. **Incremental** — conditional GET all; `304`+same-version → reuse cached projection; `200` → re-check; re-run enumeration (cheap); re-probe links. "What changed since last run."
+3. **Link-only** — probe cached targets, no page fetch. Cheapest; catches rot; misses new links.
+A **check-version bump forces mode 1** (bodies needed; the 304 shortcut is invalid for the changed check).
+
+**Q5 — Jake's cadence is the question that decides whether we build ANY of this.** If the tool runs
+**monthly / on-demand-before-launch** (the likely shape for content QA), incrementality is **not needed** —
+~5,000 polite requests once a month is nothing, and the correct design is "the full crawl *is* the tool;
+YAGNI the cache-skip." If it runs **nightly**, incrementality matters and modes 2–3 earn their keep. The
+design hinges on this **a lot** — it's the difference between building three run-modes and building none.
+**This is an escalation for Syed → Jake, not a guess.**
+
+**Decisions needed (in order):**
+1. **Jake's cadence** (escalation). If monthly/on-demand → build none of B5; the re-baseline just persists the
+   light projection below for optional future use and we stop. If nightly → build modes 2–3.
+2. **Re-baseline cache schema (my recommendation):** persist the **light projection** —
+   `{content_hash, last_modified, status, final_url, link_urls, title, meta_description, h1_text}` —
+   **but NOT `intrinsic_findings`.** This is forward-compatible for *both* incremental (via `Last-Modified`/304)
+   and link-only (via `link_urls`), stays small, and avoids the stale-findings trap (caching findings with no
+   read-side version check is the "partial persist worse than none" case). Findings-cache only if we commit to
+   mode-2 nightly. Confirm the schema.
+3. **`Last-Modified` reliability**: accept `content_hash` as the cross-check, or hold for a confirmation probe
+   on a known-recently-edited page first?
+
+**Does this design need the baseline's output?** No — it's driven by the 304 probe (done) + code analysis +
+Jake's cadence (escalation). The only empirical input (`Last-Modified` reliability) is a 2-page probe, not a
+full crawl. So design-first (option 2) holds; the re-baseline then persists the approved schema.
+
 ---
 
 ## PART C — R&D (evidence behind Part B)
