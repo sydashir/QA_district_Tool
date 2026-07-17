@@ -67,6 +67,15 @@ def test_title_bounds_come_from_config():
     assert not any("meta:title_length" in fp for fp in _fps(meta.run(p, c)))
 
 
+def test_encoded_tel_is_decoded_then_classified():
+    # a retired number hidden behind %20 must be caught as RETIRED, not buried as "malformed" —
+    # and the encoding itself is kept as its own finding (both).
+    p = ParsedPage(url=URL, raw_html='<a href="tel:%20800-692-9850">call</a>', visible_text="")
+    fps = _fps(phone.run(p, CFG))
+    assert f"phone:encoded_tel:{URL}:%20800-692-9850" in fps   # the encoding defect
+    assert f"phone:retired:{URL}:+18006929850" in fps          # the number behind it, classified
+
+
 def test_third_party_hotline_is_info_not_unknown():
     # Poison Control on a page is EXPECTED (client-documented), not an unknown-number defect.
     assert "+18002221222" in CFG.third_party

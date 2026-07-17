@@ -20,6 +20,7 @@ hardcoded and this check is trustworthy for GL's static audit.
 from __future__ import annotations
 
 import re
+import urllib.parse
 
 import phonenumbers
 from bs4 import BeautifulSoup
@@ -85,12 +86,20 @@ def run(parsed: ParsedPage, config) -> list[Finding]:
         if not href.lower().startswith("tel:"):
             continue
         raw = href[4:].strip()
-        tel_e164 = normalize(raw)
+        decoded = urllib.parse.unquote(raw)
+        if decoded != raw:  # URL-encoded tel: — a formatting defect the client documents; keep
+            findings.append(Finding(  # this AND the number's own classification below (both)
+                url=parsed.url, check=CHECK, severity=Severity.WARNING,
+                fingerprint=make_fingerprint(CHECK, "encoded_tel", parsed.url, raw),
+                issue="tel: href has URL-encoded characters", location=f"tel:{raw}", snippet=raw,
+                suggestion=f"tel: href is URL-encoded ({raw!r}); it dials {decoded!r} — "
+                           f"clean the encoding.", details={"raw": raw, "decoded": decoded}))
+        tel_e164 = normalize(decoded)  # classify the number BEHIND the encoding, not the raw
         if tel_e164 is None:
             findings.append(Finding(
                 url=parsed.url, check=CHECK, severity=Severity.WARNING,
-                fingerprint=make_fingerprint(CHECK, "malformed", parsed.url, raw),
-                issue="malformed tel: number", location=f"tel:{raw}", snippet=raw))
+                fingerprint=make_fingerprint(CHECK, "malformed", parsed.url, decoded),
+                issue="malformed tel: number", location=f"tel:{raw}", snippet=decoded))
             continue
         numbers_on_page.add(tel_e164)
 
