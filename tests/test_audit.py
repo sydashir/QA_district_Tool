@@ -102,7 +102,7 @@ def test_collapse_headings_by_template():
     assert len(collapsed) == 1
     assert collapsed[0].details["page_count"] == 3
     assert "Rehab near City0" in collapsed[0].snippet          # representative H1 carried
-    assert "one template fix" in collapsed[0].suggestion
+    assert "template fix" in collapsed[0].suggestion.lower()
     # the lone /contact-us multi_h1 kept per-page; meta passed through
     assert any(f.fingerprint == "heading_structure:multi_h1:https://x/contact-us" for f in out)
     assert any(f.check == "meta" for f in out)

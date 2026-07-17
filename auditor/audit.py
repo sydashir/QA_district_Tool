@@ -202,8 +202,9 @@ def _collapse_headings(findings: list[Finding]) -> list[Finding]:
             fingerprint=make_fingerprint("heading_structure", subtype, "template", template),
             issue=f"{rep.issue}: {len(sources)} pages of one template", location=template,
             snippet=example,
-            suggestion=f"{len(sources)} pages under {template} share this heading defect (e.g. "
-                       f"{example[:60]!r}) — one template fix. H1 text varies by page.",
+            suggestion=f"{len(sources)} pages under {template} render duplicate H1s in the HTML "
+                       f"(e.g. {example[:50]!r}; text varies by page) — ONE template fix. Low "
+                       f"priority: violates the one-H1 standard + DOM bloat, not an SEO penalty.",
             details={"class": subtype, "template": template, "h1_example": example,
                      "page_count": len(sources), "sources": sources}))
     return keep

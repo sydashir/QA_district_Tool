@@ -25,11 +25,14 @@ def run(parsed: ParsedPage, config) -> list[Finding]:
     h1s = [t for lvl, t in headings if lvl == 1]
     if len(h1s) > 1:
         findings.append(Finding(
-            url=parsed.url, check=CHECK, severity=Severity.ERROR,
+            url=parsed.url, check=CHECK, severity=Severity.WARNING,
             fingerprint=make_fingerprint(CHECK, "multi_h1", parsed.url),
             issue="multiple <h1>", location="page",
             snippet=" | ".join(t[:50] for t in h1s[:4]),
-            suggestion="Exactly one H1 per page (client rule [j]).",
+            # NOT an SEO penalty (Google permits multiple H1s, confirmed 2026); harm is the
+            # one-H1 standard [j] + DOM bloat -> low priority.
+            suggestion="Violates the one-H1-per-page standard [j] and adds DOM bloat. Not an "
+                       "SEO penalty (Google permits multiple H1s) — low priority.",
             details={"h1_count": len(h1s)}))
 
     for lvl, text in headings:
