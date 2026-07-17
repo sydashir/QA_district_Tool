@@ -21,6 +21,7 @@ import time
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
+from urllib.parse import urlparse
 
 from . import checks_version, crawl as C, diff, writers
 from .checks import blank, enumeration, links, meta, phone, placeholder, structure
@@ -162,6 +163,52 @@ def write_projection_cache(brand: str, projections: list[PageProjection]) -> tup
     return path, len(cache)
 
 
+# Heading defects that are TEMPLATE-driven walls — collapse by URL-template so 1,095 pages of
+# one Elementor geo-template read as one "fix the template" finding, not 1,095 identical rows.
+# Only multi_h1 (validated: one template per url-shape, spot-checked on the 1,095-page group).
+_HEADING_COLLAPSE = {"multi_h1"}
+
+
+def _url_template(url: str) -> str:
+    """Template signature = first path segment + depth. Pages of the same section+depth share a
+    page-builder template (measured: 2,010 multi-H1 pages -> 49 templates; the biggest, 1,095
+    pages under /drug-rehab depth-6, confirmed one Elementor template by spot-check)."""
+    segs = [s for s in urlparse(url).path.split("/") if s]
+    section = segs[0] if segs else "(root)"
+    return f"/{section}/*  (depth {len(segs)})"
+
+
+def _collapse_headings(findings: list[Finding]) -> list[Finding]:
+    """Collapse template-driven heading walls by (subtype, URL-template): identity = the template,
+    sources = the pages, and a REPRESENTATIVE H1 text carried so the finding says WHAT to look at
+    ('… render "FMLA Rehab near Westminster" ×N') not just a count. Lone pages stay per-page."""
+    keep: list[Finding] = []
+    groups: dict[tuple[str, str], list[Finding]] = {}
+    for f in findings:
+        parts = f.fingerprint.split(":")
+        if f.check == "heading_structure" and len(parts) >= 2 and parts[1] in _HEADING_COLLAPSE:
+            groups.setdefault((parts[1], _url_template(f.url)), []).append(f)
+        else:
+            keep.append(f)
+    for (subtype, template), fs in groups.items():
+        if len(fs) == 1:  # a single page under this template -> nothing to collapse
+            keep.append(fs[0])
+            continue
+        rep = fs[0]
+        sources = sorted({f.url for f in fs})
+        example = rep.snippet or ""
+        keep.append(Finding(
+            url=sources[0], check="heading_structure", severity=rep.severity,
+            fingerprint=make_fingerprint("heading_structure", subtype, "template", template),
+            issue=f"{rep.issue}: {len(sources)} pages of one template", location=template,
+            snippet=example,
+            suggestion=f"{len(sources)} pages under {template} share this heading defect (e.g. "
+                       f"{example[:60]!r}) — one template fix. H1 text varies by page.",
+            details={"class": subtype, "template": template, "h1_example": example,
+                     "page_count": len(sources), "sources": sources}))
+    return keep
+
+
 def _stamp(now: str) -> str:
     """ISO ``2026-07-16T01:15:00`` -> filesystem-safe ``20260716-011500`` (to the second, so
     back-to-back runs never clobber)."""
@@ -256,6 +303,7 @@ async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile:
 
         findings = dedupe_findings(findings)  # one finding per fingerprint across the run
         findings = _collapse_phone(findings)  # site-wide numbers -> one finding each
+        findings = _collapse_headings(findings)  # template-driven multi-H1 -> one per template
 
         run = None
         if write:

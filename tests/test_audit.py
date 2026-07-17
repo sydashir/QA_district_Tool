@@ -84,6 +84,30 @@ def test_collapse_phone_distinct_numbers_stay_separate():
         "phone:retired:+18006929850", "phone:unknown:+12125551234"}
 
 
+def _mh1(url, snippet="A | B"):
+    return Finding(url=url, check="heading_structure", severity=Severity.ERROR,
+                   fingerprint=f"heading_structure:multi_h1:{url}", issue="multiple <h1>",
+                   snippet=snippet, details={"h1_count": 3})
+
+
+def test_collapse_headings_by_template():
+    # 3 pages of the same section+depth template -> ONE finding carrying all sources + a
+    # representative H1; a lone page of another template stays per-page.
+    fs = [_mh1(f"https://x/drug-rehab/a/b/c/city{i}", f"Rehab near City{i} | Rehab near City{i}")
+          for i in range(3)]
+    fs.append(_mh1("https://x/contact-us"))  # different template, single page -> stays
+    fs.append(_f("meta:x", check="meta"))     # non-heading passes through
+    out = audit._collapse_headings(fs)
+    collapsed = [f for f in out if f.details.get("class") == "multi_h1" and "template" in f.details]
+    assert len(collapsed) == 1
+    assert collapsed[0].details["page_count"] == 3
+    assert "Rehab near City0" in collapsed[0].snippet          # representative H1 carried
+    assert "one template fix" in collapsed[0].suggestion
+    # the lone /contact-us multi_h1 kept per-page; meta passed through
+    assert any(f.fingerprint == "heading_structure:multi_h1:https://x/contact-us" for f in out)
+    assert any(f.check == "meta" for f in out)
+
+
 def test_collapse_leaves_mismatch_per_page():
     # mismatch is element-specific -> NOT collapsed
     fs = [Finding(url="https://x/a/", check="phone", severity=Severity.ERROR,
