@@ -31,7 +31,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from .. import crawl as C
-from ..report import Finding, Severity, make_fingerprint
+from ..report import Finding, Severity, canonical_url, make_fingerprint
 
 CHECK = "enumeration"
 
@@ -68,6 +68,11 @@ def classify(url: str, brand: str, *, ok: bool, status, html: str) -> Finding:
     the LOCKED D1 rules; noindex here is META-only (the indexable set is HEAD-refined in run())."""
     cruft = is_cruft(url)
     if not ok:  # in WP-REST but not reachable publicly -> integrity bug, called out separately
+        if status is None:  # transport failure / timeout — we COULDN'T fetch it, not a real 404
+            return _finding(
+                url, brand, Severity.WARNING, "in WP-REST but could not be fetched (timeout/transport)",
+                "rest_unreachable", "Indexed in WP-REST but the fetch failed (timeout/transport) — "
+                "not a confirmed 404; re-check.", status=None, cruft=cruft)
         return _finding(
             url, brand, Severity.WARNING, f"in WP-REST but returns HTTP {status} publicly",
             "rest_404", "Integrity bug: indexed in WP-REST but not publicly reachable — "
@@ -93,6 +98,31 @@ def classify(url: str, brand: str, *, ok: bool, status, html: str) -> Finding:
         url, brand, Severity.INFO, "noindex page missing from sitemap",
         "noindex_unsitemapped", "Noindexed and unsitemapped (likely intentional) — inventory "
         "to confirm intent.", noindex=True, cruft=False)
+
+
+def sitemap_unreachable(results, brand: str) -> list[Finding]:
+    """Findings for SITEMAP pages that failed to fetch — in audit scope but unauditable. A page
+    listed in the sitemap that 404s or won't load is exactly what a QA tool should catch; today
+    they're silently dropped by the ``ok`` filter. Identity is fixed per (brand, url) regardless
+    of the transient status, so a page flapping 404<->timeout keeps one identity in the diff."""
+    out: list[Finding] = []
+    for r in results:
+        url = canonical_url(r.url)
+        if r.status is None:  # transport/timeout — couldn't fetch (maybe transient)
+            sev, issue, cls = (Severity.WARNING,
+                               "sitemap page could not be fetched (timeout/transport)",
+                               "sitemap_unreachable")
+        else:  # a real HTTP error on a sitemapped page -> a dead link the sitemap advertises
+            sev, issue, cls = (Severity.ERROR,
+                               f"sitemap page returns HTTP {r.status}", "sitemap_dead")
+        out.append(Finding(
+            url=url, check=CHECK, severity=sev,
+            fingerprint=make_fingerprint(CHECK, "sitemap_unreachable", brand, url),
+            issue=issue, location=url, snippet=url,
+            suggestion="Listed in the sitemap but not reachable — fix the page or remove it "
+                       "from the sitemap.",
+            details={"class": cls, "status": r.status}))
+    return out
 
 
 async def _head_noindex(client, url: str) -> bool:

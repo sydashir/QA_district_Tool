@@ -25,7 +25,8 @@ from . import checks_version, crawl as C, diff, writers
 from .checks import blank, enumeration, links, meta, phone, placeholder, structure
 from .config import BrandConfig
 from .parse import ParsedPage, parse_html
-from .report import AuditReport, Finding, PageAudit, Severity, dedupe_findings, make_fingerprint
+from .report import (AuditReport, Finding, PageAudit, Severity, canonical_url,
+                     dedupe_findings, make_fingerprint)
 
 # Per-page checks that operate purely on a ParsedPage.
 _PAGE_CHECKS = (structure, placeholder, phone, blank, meta)
@@ -46,14 +47,6 @@ def select_sample(urls: list[str], limit: int | None, head: bool = False) -> lis
     if head:
         return urls[:limit]
     return sorted(random.Random(_SAMPLE_SEED).sample(urls, limit))
-
-
-def canonical_url(url: str) -> str:
-    """Page IDENTITY normalization: the requested URL with any trailing slash stripped. Single
-    source of truth so fingerprints, the audited set, the cache, and the run-diff all key a page
-    the same way — a redirect changes the landing URL but must NOT change identity (else the page
-    churns new/resolved between runs for no real reason)."""
-    return url.rstrip("/")
 
 
 @dataclass
@@ -208,6 +201,7 @@ async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile:
         sample = select_sample(sitemap_urls, limit, head=head_sample)
         fetched = await C.fetch_pages(client, sample, config.crawl)
         ok = [r for r in fetched if r.ok]
+        failed = [r for r in fetched if not r.ok]  # sitemapped but unfetchable -> real findings
 
         # Project-and-discard: parse -> intrinsic checks -> compact projection; the ParsedPage
         # is unreferenced after each iteration and collected, so peak memory is projections
@@ -219,6 +213,7 @@ async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile:
             projections.append(_project(parsed, r, config))
 
         findings: list[Finding] = [f for p in projections for f in p.intrinsic_findings]
+        findings.extend(enumeration.sitemap_unreachable(failed, config.brand))  # the dropped 7
         link_findings, link_stats = await links.check_links(
             projections, client, config, max_links=max_link_probes)
         findings.extend(link_findings)

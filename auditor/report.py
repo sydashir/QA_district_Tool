@@ -30,6 +30,14 @@ def make_fingerprint(*parts: object) -> str:
     )
 
 
+def canonical_url(url: str) -> str:
+    """Page IDENTITY normalization: the requested URL with any trailing slash stripped. Single
+    source of truth so fingerprints, the audited set, the cache, and the run-diff all key a page
+    the same way — a redirect changes the landing URL but must NOT change identity (else the page
+    churns new/resolved between runs for no real reason)."""
+    return url.rstrip("/")
+
+
 class Finding(BaseModel):
     """One issue found on one page by one check. Emitted by the M1 checks."""
 

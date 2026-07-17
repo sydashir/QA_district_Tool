@@ -57,6 +57,25 @@ def test_rest_404_is_separate_warning():
     assert f.details["status"] == 404
 
 
+def test_rest_none_is_unreachable_not_404():
+    # a transport failure (status=None) is "couldn't fetch", NOT a public 404 (wrong claim)
+    f = _cls("https://x/timeout/", ok=False, status=None, html="")
+    assert f.details["class"] == "rest_unreachable" and "could not be fetched" in f.issue
+
+
+def test_sitemap_unreachable_findings():
+    results = [
+        FetchResult(url="https://x/dead/", status=404, final_url="https://x/dead/", text="", error=None),
+        FetchResult(url="https://x/timeout/", status=None, final_url=None, text="", error="Timeout"),
+    ]
+    by = {f.url: f for f in E.sitemap_unreachable(results, "GL")}
+    assert by["https://x/dead"].severity is Severity.ERROR
+    assert by["https://x/dead"].details["class"] == "sitemap_dead"
+    assert by["https://x/dead"].fingerprint == "enumeration:sitemap_unreachable:GL:https://x/dead"
+    assert by["https://x/timeout"].severity is Severity.WARNING
+    assert by["https://x/timeout"].details["class"] == "sitemap_unreachable"
+
+
 @pytest.mark.parametrize("url,cruft", [
     ("https://x/page-copy/", True),
     ("https://x/page-delete/", True),
