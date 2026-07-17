@@ -297,6 +297,17 @@ design hinges on this **a lot** — it's the difference between building three r
 Jake's cadence (escalation). The only empirical input (`Last-Modified` reliability) is a 2-page probe, not a
 full crawl. So design-first (option 2) holds; the re-baseline then persists the approved schema.
 
+**`last_modified` is more than a cache key — it's a future FINDING (flagged, not v1).** A rehab facility page
+whose `Last-Modified` is years old is *stale content on a healthcare SEO site whose entire business is those
+pages ranking*. So `last_modified` earns its place in the projection regardless of which cadence Jake picks —
+even if cache-skip is never built, a "stale content" check reads it. Out of v1 scope; noted here so it isn't
+rediscovered later.
+
+**Status:** design decided (Syed) — cadence **held pending Jake** (may make cache-skip moot); schema = **light
+projection** (persisted by the re-baseline via `audit.write_projection_cache`, no findings); `Last-Modified`
+trusted for 304-skip with `content_hash` as the periodic cross-check. No skip/read logic built until cadence
+is known.
+
 ---
 
 ## PART C — R&D (evidence behind Part B)

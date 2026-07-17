@@ -32,6 +32,7 @@ class FetchResult:
     final_url: str | None
     text: str
     error: str | None
+    last_modified: str | None = None  # response Last-Modified (304-skip signal + future stale check)
 
     @property
     def ok(self) -> bool:
@@ -196,8 +197,9 @@ async def fetch_pages(client, urls, crawl) -> list[FetchResult]:
     async def one(u):
         async with sem:
             await asyncio.sleep(crawl.delay_seconds)
-            status, final, text, err, _h = await _request(client, u, max_retries=crawl.max_retries)
-            return FetchResult(u, status, final, text or "", err)
+            status, final, text, err, h = await _request(client, u, max_retries=crawl.max_retries)
+            lm = h.get("last-modified") if h else None
+            return FetchResult(u, status, final, text or "", err, last_modified=lm)
 
     return await asyncio.gather(*(one(u) for u in urls))
 

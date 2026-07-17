@@ -13,6 +13,7 @@ timestamped ``reports/<brand>/<stamp>/`` dir, and persist the run history for th
 """
 from __future__ import annotations
 
+import json
 import os
 import random
 import shutil
@@ -57,6 +58,7 @@ class PageProjection:
     final_url: str | None = None
     status: int | None = None
     content_hash: str = ""
+    last_modified: str | None = None
     link_urls: list[str] = field(default_factory=list)
     title: str | None = None
     meta_description: str | None = None
@@ -75,6 +77,7 @@ def _project(parsed: ParsedPage, r, config: BrandConfig) -> PageProjection:
     return PageProjection(
         url=parsed.url, final_url=r.final_url, status=r.status,
         content_hash=C.page_hash(parsed.raw_html),  # single-source stable hash (P5)
+        last_modified=r.last_modified,
         link_urls=[link.url for link in parsed.links],
         title=parsed.title, meta_description=parsed.meta_description,
         h1_text=next((h.text for h in parsed.headings if h.level == 1), None),
@@ -134,6 +137,29 @@ def _collapse_phone(findings: list[Finding]) -> list[Finding]:
             issue=rep.issue, location="page", snippet=e164, suggestion=rep.suggestion,
             details={**(rep.details or {}), "sources": sources, "page_count": len(sources)}))
     return keep
+
+
+def write_projection_cache(brand: str, projections: list[PageProjection]) -> tuple[Path, int]:
+    """Persist the LIGHT projection per page (B5 approved schema): change-detection keys
+    (content_hash, last_modified, status, final_url) + barrier inputs (link_urls, title,
+    meta_description, h1_text). NOT intrinsic_findings — caching those with no read-side version
+    check is the stale-findings trap. Unused until Jake's cadence is known; captured now so a
+    future incremental/link-only run needs no extra full crawl. Written atomically."""
+    path = C.cache_path(brand)
+    cache = C.load_cache(brand)
+    now = time.strftime("%Y-%m-%dT%H:%M:%S")
+    for p in projections:
+        cache[p.url] = {
+            "content_hash": p.content_hash, "last_modified": p.last_modified,
+            "status": p.status, "final_url": p.final_url, "link_urls": p.link_urls,
+            "title": p.title, "meta_description": p.meta_description, "h1_text": p.h1_text,
+            "fetched_at": now,
+        }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps(cache, indent=2, sort_keys=True), encoding="utf-8")
+    os.replace(tmp, path)
+    return path, len(cache)
 
 
 def _stamp(now: str) -> str:
@@ -253,7 +279,7 @@ async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile:
                 findings, projections, brand=config.brand, base_url=config.base_url,
                 now=now, config=config, live=live, out_dir=out_dir, history_path=history,
                 extra_meta=extra)
-            C.write_cache(config.brand, ok)
+            write_projection_cache(config.brand, projections)  # B5 light projection (no findings)
 
         report = AuditReport(
             brand=config.brand, base_url=config.base_url, enumeration_method="sitemap",

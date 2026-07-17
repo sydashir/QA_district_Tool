@@ -135,6 +135,28 @@ def test_second_run_persists_and_resolves(tmp_path):
     assert statuses == {"fp1": "persisting", "fp2": "resolved"}
 
 
+def test_projection_cache_persists_light_schema_no_findings(tmp_path, monkeypatch):
+    # B5: cache stores change-detection keys + barrier inputs, never intrinsic_findings.
+    from auditor import crawl as C
+    monkeypatch.setattr(C, "CACHE_DIR", tmp_path)
+    projs = [audit.PageProjection(
+        url="https://x/a", content_hash="h1", last_modified="Fri, 17 Jul 2026 00:00:00 GMT",
+        status=200, final_url="https://x/a/", link_urls=["https://t/1"], title="A",
+        meta_description="d", h1_text="H",
+        intrinsic_findings=[_f("should-not-be-cached")])]
+    path, n = audit.write_projection_cache("GL", projs)
+    entry = json.loads(path.read_text())["https://x/a"]
+    assert entry["last_modified"] == "Fri, 17 Jul 2026 00:00:00 GMT"
+    assert entry["link_urls"] == ["https://t/1"] and entry["h1_text"] == "H"
+    assert "intrinsic_findings" not in entry and "findings" not in entry  # the trap avoided
+
+
+def test_fetchresult_carries_last_modified():
+    from auditor.crawl import FetchResult
+    r = FetchResult("u", 200, "u", "html", None, last_modified="Fri, 17 Jul 2026 00:00:00 GMT")
+    assert r.last_modified == "Fri, 17 Jul 2026 00:00:00 GMT" and r.ok
+
+
 def test_write_is_atomic_no_partial_residue(tmp_path):
     # on success the report is promoted from <stamp>.partial to <stamp>, leaving no partial dir
     # or .tmp history behind (a crash mid-write would leave the .partial, never a real report).
