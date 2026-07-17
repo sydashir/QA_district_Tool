@@ -19,6 +19,28 @@ def _f(fp, url="https://x/a/", check="meta", issue="i"):
     return Finding(url=url, check=check, fingerprint=fp, severity=Severity.WARNING, issue=issue)
 
 
+def test_select_sample_seeded_random_reproducible_and_representative():
+    urls = [f"https://x/{i}" for i in range(1000)]
+    a = audit.select_sample(urls, 50)
+    b = audit.select_sample(urls, 50)
+    assert a == b                      # reproducible across runs (fixed seed) -> diffable
+    assert a != urls[:50]              # NOT first-N -> kills the structural skew
+    # representative: spread across the whole range, not clustered at the head
+    idxs = [int(u.rsplit("/", 1)[1]) for u in a]
+    assert max(idxs) > 800 and min(idxs) < 200
+
+
+def test_select_sample_head_is_first_n():
+    urls = [f"https://x/{i}" for i in range(1000)]
+    assert audit.select_sample(urls, 10, head=True) == urls[:10]
+
+
+def test_select_sample_no_limit_returns_all():
+    urls = [f"https://x/{i}" for i in range(5)]
+    assert audit.select_sample(urls, None) == urls
+    assert audit.select_sample(urls, 99) == urls
+
+
 def test_canonical_url_strips_trailing_slash():
     assert audit.canonical_url("https://x/page/") == "https://x/page"
     assert audit.canonical_url("https://x/page") == "https://x/page"

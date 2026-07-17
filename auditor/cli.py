@@ -81,9 +81,12 @@ def _print_summary(cfg, result) -> None:
 def audit(
     brand: str = typer.Option(..., "--brand", "-b", help="brand code, e.g. gl"),
     limit: int = typer.Option(None, "--limit", "-n", help="cap pages fetched (sample size)"),
-    max_link_probes: int = typer.Option(400, "--max-link-probes", help="cap unique links probed"),
+    max_link_probes: int = typer.Option(400, "--max-link-probes",
+        help="cap unique links probed; -1 = all (baseline)"),
     enum_probes: int = typer.Option(0, "--enum-probes",
         help="fetch N live-but-unsitemapped pages for the 845 report; 0=skip, -1=all (baseline)"),
+    head: bool = typer.Option(False, "--head",
+        help="sample the FIRST-N sitemap urls (skewed by page type; debugging only) vs seeded-random"),
     enumerate_only: bool = typer.Option(False, "--enumerate-only", help="list URLs; no fetch"),
     no_checks: bool = typer.Option(False, "--no-checks", help="M0 path: crawl + cache only"),
 ):
@@ -107,7 +110,8 @@ def audit(
         raise typer.Exit()
 
     result = asyncio.run(auditmod.run_audit(
-        cfg, limit=limit, max_link_probes=max_link_probes,
+        cfg, limit=limit, head_sample=head,
+        max_link_probes=None if max_link_probes == -1 else max_link_probes,
         enum_probes=None if enum_probes == -1 else enum_probes))
     _print_summary(cfg, result)
 

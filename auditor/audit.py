@@ -14,6 +14,7 @@ timestamped ``reports/<brand>/<stamp>/`` dir, and persist the run history for th
 from __future__ import annotations
 
 import os
+import random
 import shutil
 import time
 from collections import defaultdict
@@ -30,6 +31,21 @@ from .report import AuditReport, Finding, PageAudit, Severity, dedupe_findings, 
 _PAGE_CHECKS = (structure, placeholder, phone, blank, meta)
 
 REPORTS_DIR = Path(__file__).resolve().parent.parent / "reports"
+
+
+_SAMPLE_SEED = 0xD15  # fixed -> the sampled subset is reproducible across runs (for diffing)
+
+
+def select_sample(urls: list[str], limit: int | None, head: bool = False) -> list[str]:
+    """Pick ``limit`` URLs to audit. DEFAULT is seeded-random across the WHOLE sitemap:
+    representative AND reproducible. First-N (``head=True``) is skewed — sitemaps are ordered by
+    page type, so the first N is one cohort (that skew misled heading 98-vs-73, n=25 alphabetical,
+    and the 400 links — three times, same root cause). First-N stays only for debugging a prefix."""
+    if not limit or limit >= len(urls):
+        return urls
+    if head:
+        return urls[:limit]
+    return sorted(random.Random(_SAMPLE_SEED).sample(urls, limit))
 
 
 def canonical_url(url: str) -> str:
@@ -178,7 +194,7 @@ def write_run(findings: list[Finding], projections: list[PageProjection], *, bra
 
 async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile: bool = True,
                     max_link_probes: int | None = 400, enum_probes: int | None = 0,
-                    now: str | None = None, write: bool = True) -> dict:
+                    head_sample: bool = False, now: str | None = None, write: bool = True) -> dict:
     now = now or time.strftime("%Y-%m-%dT%H:%M:%S")
     async with C.make_client(config.crawl) as client:
         sitemap_urls, blocked, child_sitemaps = await C.enumerate_sitemap(
@@ -189,7 +205,7 @@ async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile:
         if do_reconcile and config.wp_rest and config.wp_rest.enabled:
             recon = await enumeration.reconcile(client, config, sitemap_urls)
 
-        sample = sitemap_urls[:limit] if limit else sitemap_urls
+        sample = select_sample(sitemap_urls, limit, head=head_sample)
         fetched = await C.fetch_pages(client, sample, config.crawl)
         ok = [r for r in fetched if r.ok]
 
