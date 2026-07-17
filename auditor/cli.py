@@ -56,7 +56,8 @@ def _print_summary(cfg, result) -> None:
     ls = result["link_stats"]
     typer.echo(
         f"\nlink stats: unique={ls['unique_targets']} probed={ls['probed']} "
-        f"broken={ls['broken']} bot_blocked_ignored={ls['bot_blocked_ignored']} "
+        f"broken={ls['broken']} unverified_external={ls['unverified']} "
+        f"malformed={ls['malformed']} staging={ls['staging']} "
         f"cdn_cgi_excluded={ls['cdn_cgi_excluded']} redirects={ls['redirects']}")
 
     run = result.get("run")

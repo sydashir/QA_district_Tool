@@ -103,9 +103,10 @@ def test_links_fingerprint_is_target():
         async def request(self, method, url, headers=None):
             return _Resp(404, url)
 
-    p = audit.PageProjection(url=URL, link_urls=["https://x/dead"])
+    # external host with a real TLD (a 404 -> broken; identity = the bare target url)
+    p = audit.PageProjection(url=URL, link_urls=["https://dead.example.com/gone"])
     findings, _stats = asyncio.run(links.check_links([p], _Client(), CFG))
-    assert any(f.fingerprint == "broken_links:https://x/dead" for f in findings)
+    assert any(f.fingerprint == "broken_links:https://dead.example.com/gone" for f in findings)
 
 
 def test_dedupe_collapses_by_fingerprint():
