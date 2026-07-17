@@ -19,6 +19,21 @@ def _f(fp, url="https://x/a/", check="meta", issue="i"):
     return Finding(url=url, check=check, fingerprint=fp, severity=Severity.WARNING, issue=issue)
 
 
+def test_canonical_url_strips_trailing_slash():
+    assert audit.canonical_url("https://x/page/") == "https://x/page"
+    assert audit.canonical_url("https://x/page") == "https://x/page"
+
+
+def test_identity_is_requested_url_links_resolve_against_final():
+    # a page requested at /old/ that redirects to /new/: identity must be the REQUESTED url
+    # (so the diff, keyed on requested, stays stable), but relative links resolve against FINAL.
+    from auditor.parse import parse_html
+    html = '<html><body><a href="child">c</a></body></html>'
+    p = parse_html(html, page_url="https://x/old", base_url="https://x/new/")
+    assert p.url == "https://x/old"                       # identity = requested
+    assert p.links[0].url == "https://x/new/child"        # links resolve against final
+
+
 def _phone(cls, url, e164, sev=Severity.ERROR):
     return Finding(url=url, check="phone", severity=sev,
                    fingerprint=f"phone:{cls}:{url}:{e164}", issue="retired phone number",

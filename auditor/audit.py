@@ -32,6 +32,14 @@ _PAGE_CHECKS = (structure, placeholder, phone, blank, meta)
 REPORTS_DIR = Path(__file__).resolve().parent.parent / "reports"
 
 
+def canonical_url(url: str) -> str:
+    """Page IDENTITY normalization: the requested URL with any trailing slash stripped. Single
+    source of truth so fingerprints, the audited set, the cache, and the run-diff all key a page
+    the same way — a redirect changes the landing URL but must NOT change identity (else the page
+    churns new/resolved between runs for no real reason)."""
+    return url.rstrip("/")
+
+
 @dataclass
 class PageProjection:
     """Compact per-page residue kept AFTER the ParsedPage is dropped. Carries exactly what the
@@ -190,7 +198,9 @@ async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile:
         # (small) not the DOM of every page at once.
         projections: list[PageProjection] = []
         for r in ok:
-            projections.append(_project(parse_html(r.text, r.final_url or r.url), r, config))
+            # identity = requested URL (canonical); links resolve against the final/landing URL
+            parsed = parse_html(r.text, page_url=canonical_url(r.url), base_url=r.final_url or r.url)
+            projections.append(_project(parsed, r, config))
 
         findings: list[Finding] = [f for p in projections for f in p.intrinsic_findings]
         link_findings, link_stats = await links.check_links(

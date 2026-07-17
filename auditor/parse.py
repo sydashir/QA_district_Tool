@@ -72,12 +72,19 @@ def stable_markup(html: str) -> str:
     return str(strip_volatile(BeautifulSoup(html, "lxml")))
 
 
-def parse_html(html: str, page_url: str) -> ParsedPage:
+def parse_html(html: str, page_url: str, base_url: str | None = None) -> ParsedPage:
     """Parse rendered HTML into the extraction primitives the M1 checks consume.
 
     Links + headings + title + meta are read from the full document; ``visible_text``
     is taken *after* ``strip_volatile`` so scans never see script/style/cfemail bytes.
+
+    ``page_url`` is the page's IDENTITY (the requested/enumerated URL — what fingerprints,
+    the cache, and the run-diff all key on). ``base_url`` is the URL to resolve relative
+    links against (the FINAL/landing URL after redirects); defaults to ``page_url``. Splitting
+    them keeps identity stable across redirects while resolving links against where the page
+    actually lives.
     """
+    base_url = base_url or page_url
     soup = BeautifulSoup(html, "lxml")
 
     title = soup.title.get_text(strip=True) if soup.title else None
@@ -95,7 +102,7 @@ def parse_html(html: str, page_url: str) -> ParsedPage:
         href = a["href"].strip()
         if href.startswith(("mailto:", "tel:", "javascript:", "#")):
             continue
-        absu = urljoin(page_url, href).split("#")[0]
+        absu = urljoin(base_url, href).split("#")[0]
         if not absu.lower().startswith("http") or absu in seen:
             continue
         seen.add(absu)
