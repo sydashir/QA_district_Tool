@@ -46,10 +46,13 @@ def run(parsed: ParsedPage, config) -> list[Finding]:
     for lvl, text in headings:
         if prev and lvl > prev + 1:
             findings.append(Finding(
-                url=parsed.url, check=CHECK, severity=Severity.WARNING,
+                url=parsed.url, check=CHECK, severity=Severity.INFO,
                 fingerprint=make_fingerprint(CHECK, "skipped", parsed.url, f"H{prev}->H{lvl}", text),
                 issue=f"skipped level H{prev}->H{lvl}", location=f"H{lvl}",
-                snippet=text[:60]))
+                snippet=text[:60],
+                # minor: breaks the assistive-tech heading outline slightly. Not a real barrier
+                # (screen readers still navigate) and not an SEO factor -> INFO, best-practice nit.
+                suggestion="Heading level skipped — a minor document-outline nit, not a barrier."))
         prev = lvl
 
     for lvl, text in headings:

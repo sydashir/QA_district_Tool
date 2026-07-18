@@ -106,13 +106,25 @@ def run(parsed: ParsedPage, config) -> list[Finding]:
         display = a.get_text(" ", strip=True)
         disp_e164 = normalize(display) if _HAS_DIGIT.search(display) else None
         if disp_e164 and disp_e164 != tel_e164:
-            findings.append(Finding(
-                url=parsed.url, check=CHECK, severity=Severity.ERROR,
-                fingerprint=make_fingerprint(CHECK, "mismatch", parsed.url, tel_e164),
-                issue="tel: href != displayed number", location=f"tel:{raw}",
-                snippet=f"shows {display!r} but dials {tel_e164}",
-                suggestion="The visible number and the tel: link dial different numbers.",
-                details={"displayed": disp_e164, "tel": tel_e164}))
+            if tel_e164 in retired:  # dials a DEAD line — no call-routing story makes this OK -> ERROR
+                findings.append(Finding(
+                    url=parsed.url, check=CHECK, severity=Severity.ERROR,
+                    fingerprint=make_fingerprint(CHECK, "dials_retired", parsed.url, tel_e164),
+                    issue="click-to-call dials a retired number", location=f"tel:{raw}",
+                    snippet=f"shows {display!r} but dials RETIRED {tel_e164}",
+                    suggestion=f"The button dials {tel_e164}, a retired number ({_SNAP_CAVEAT}) — "
+                               f"customers reach a dead line. Fix the tel: target.",
+                    details={"displayed": disp_e164, "tel": tel_e164, "class": "dials_retired"}))
+            else:  # displayed != dialed but the dialed line is LIVE -> likely call-tracking; a QUESTION
+                findings.append(Finding(
+                    url=parsed.url, check=CHECK, severity=Severity.WARNING,
+                    fingerprint=make_fingerprint(CHECK, "display_dial_mismatch", parsed.url, tel_e164),
+                    issue="displayed number differs from the click-to-call target", location=f"tel:{raw}",
+                    snippet=f"shows {display!r} but dials {tel_e164}",
+                    suggestion=f"Shows {disp_e164} but dials {tel_e164}. If this is call-tracking "
+                               f"(show local, route to a central line) it is intended — confirm it's "
+                               f"deliberate, not a copy-paste error on specific pages.",
+                    details={"displayed": disp_e164, "tel": tel_e164, "class": "display_dial_mismatch"}))
 
     # visible numbers not inside a tel: link (phonenumbers matcher is validity-gated)
     for match in phonenumbers.PhoneNumberMatcher(parsed.visible_text, _REGION):

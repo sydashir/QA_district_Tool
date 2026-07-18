@@ -45,14 +45,25 @@ def test_placeholder_fingerprints(monkeypatch):
     assert "placeholder:curly:https://x/p/:{{foo}}" in fps
 
 
-def test_phone_fingerprints():
-    # tel: dials the retired 800 number; display shows the canonical -> mismatch + RETIRED
-    # (GL's NAP canon lists +18006929850 in stale_retired, so P1 classifies it retired).
+def test_dials_retired_is_error():
+    # button DIALS the retired 800 (display shows canonical). Dialing a dead line is airtight ERROR
+    # regardless of call-routing intent -> "dials_retired". Number is also present -> "retired".
     p = ParsedPage(url=URL, raw_html='<a href="tel:+18006929850">(844) 576-0144</a>',
                    visible_text="call (844) 576-0144")
-    fps = _fps(phone.run(p, CFG))
-    assert "phone:mismatch:https://x/p/:+18006929850" in fps
+    fs = phone.run(p, CFG)
+    fps = _fps(fs)
+    assert "phone:dials_retired:https://x/p/:+18006929850" in fps
     assert "phone:retired:https://x/p/:+18006929850" in fps
+    assert next(f for f in fs if "dials_retired" in f.fingerprint).severity is Severity.ERROR
+
+
+def test_display_dial_mismatch_to_live_number_is_a_warning_question():
+    # shows a local number, dials the LIVE national line -> NOT asserted a bug (likely call-tracking);
+    # a WARNING framed as a question, never ERROR.
+    p = ParsedPage(url=URL, raw_html='<a href="tel:+18445760144">562-330-1644</a>', visible_text="")
+    fs = [f for f in phone.run(p, CFG) if "display_dial_mismatch" in f.fingerprint]
+    assert len(fs) == 1 and fs[0].severity is Severity.WARNING
+    assert "call-tracking" in fs[0].suggestion
 
 
 def test_title_bounds_come_from_config():
