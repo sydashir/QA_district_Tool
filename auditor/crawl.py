@@ -191,15 +191,24 @@ async def enumerate_pages(client, config: BrandConfig):
 # --------------------------------------------------------------------------- #
 # Fetch + content-hash cache                                                  #
 # --------------------------------------------------------------------------- #
-async def fetch_pages(client, urls, crawl) -> list[FetchResult]:
+async def fetch_pages(client, urls, crawl, on_done=None) -> list[FetchResult]:
+    """``on_done(completed, total)`` fires after each fetch — used for live progress on long
+    runs so a multi-thousand-page crawl isn't a black box (and a mid-run throttle-out shows)."""
     sem = asyncio.Semaphore(crawl.max_concurrency)
+    total = len(urls)
+    done = 0
 
     async def one(u):
+        nonlocal done
         async with sem:
             await asyncio.sleep(crawl.delay_seconds)
             status, final, text, err, h = await _request(client, u, max_retries=crawl.max_retries)
             lm = h.get("last-modified") if h else None
-            return FetchResult(u, status, final, text or "", err, last_modified=lm)
+            r = FetchResult(u, status, final, text or "", err, last_modified=lm)
+        done += 1
+        if on_done:
+            on_done(done, total)
+        return r
 
     return await asyncio.gather(*(one(u) for u in urls))
 

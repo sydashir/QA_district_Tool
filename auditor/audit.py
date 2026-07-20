@@ -140,6 +140,16 @@ def _collapse_phone(findings: list[Finding]) -> list[Finding]:
     return keep
 
 
+def _progress(label: str, every: int = 200):
+    """Live progress for long phases (fetch / enum / links). Prints every ``every`` completions
+    and at the end, flushed so a background run's output file shows it in real time — a silent
+    throttle-out (completions stalling) becomes visible instead of a black box."""
+    def cb(done: int, total: int) -> None:
+        if done == total or done % every == 0:
+            print(f"[{time.strftime('%H:%M:%S')}] {label}: {done}/{total}", flush=True)
+    return cb
+
+
 def write_projection_cache(brand: str, projections: list[PageProjection]) -> tuple[Path, int]:
     """Persist the LIGHT projection per page (B5 approved schema): change-detection keys
     (content_hash, last_modified, status, final_url) + barrier inputs (link_urls, title,
@@ -273,7 +283,7 @@ async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile:
             recon = await enumeration.reconcile(client, config, sitemap_urls)
 
         sample = select_sample(sitemap_urls, limit, head=head_sample)
-        fetched = await C.fetch_pages(client, sample, config.crawl)
+        fetched = await C.fetch_pages(client, sample, config.crawl, on_done=_progress("fetch pages"))
         ok = [r for r in fetched if r.ok]
         failed = [r for r in fetched if not r.ok]  # sitemapped but unfetchable -> real findings
 
@@ -289,7 +299,7 @@ async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile:
         findings: list[Finding] = [f for p in projections for f in p.intrinsic_findings]
         findings.extend(enumeration.sitemap_unreachable(failed, config.brand))  # the dropped 7
         link_findings, link_stats = await links.check_links(
-            projections, client, config, max_links=max_link_probes)
+            projections, client, config, max_links=max_link_probes, on_done=_progress("link probe"))
         findings.extend(link_findings)
         findings.extend(_cross_page_duplicates(projections))
 
@@ -299,7 +309,8 @@ async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile:
         enum_stats = None
         if recon and enum_probes != 0:
             enum_findings, enum_stats = await enumeration.run(
-                client, config, recon["pages_missing_from_sitemap"], probe_cap=enum_probes)
+                client, config, recon["pages_missing_from_sitemap"], probe_cap=enum_probes,
+                on_done=_progress("enum probe"))
             findings.extend(enum_findings)
 
         findings = dedupe_findings(findings)  # one finding per fingerprint across the run

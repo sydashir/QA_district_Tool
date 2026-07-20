@@ -79,7 +79,7 @@ def _finding(target, sources, subtype, severity, issue, suggestion, cls, **detai
         details={"target": target, "class": cls, "sources": sources, **details})
 
 
-async def check_links(pages, client, config, max_links: int | None = None):
+async def check_links(pages, client, config, max_links: int | None = None, on_done=None):
     # ``pages`` are compact projections: each has ``.url`` and ``.link_urls`` (the DOM is long
     # gone by now). unique target -> source page urls
     targets: dict[str, list[str]] = {}
@@ -120,11 +120,17 @@ async def check_links(pages, client, config, max_links: int | None = None):
 
     sem = asyncio.Semaphore(config.crawl.max_concurrency)
     status: dict[str, tuple] = {}
+    total = len(capped)
+    done = 0
 
     async def probe(url):
+        nonlocal done
         async with sem:
             await asyncio.sleep(config.crawl.delay_seconds)
             status[url] = await _head_or_get(client, url)
+        done += 1
+        if on_done:
+            on_done(done, total)
 
     await asyncio.gather(*(probe(u) for u in capped))
 

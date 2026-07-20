@@ -111,7 +111,7 @@ def test_run_head_reclassifies_header_only_noindex(monkeypatch):
     # noindex_unsitemapped (INFO), NOT left in the indexable WARNING bucket (Syed's catch).
     missing = ["https://x/header-noindex/", "https://x/truly-indexable/"]
 
-    async def fake_fetch(client, urls, crawl):
+    async def fake_fetch(client, urls, crawl, on_done=None):
         return [FetchResult(url=u, status=200, final_url=u, text=INDEXABLE, error=None)
                 for u in urls]
 

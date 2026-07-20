@@ -30,3 +30,26 @@ def test_page_hash_ignores_cfemail_rotation():
 
 def test_page_hash_detects_real_change():
     assert crawl.page_hash(_A) != crawl.page_hash(_C)
+
+
+def test_fetch_pages_progress_callback_fires_per_fetch():
+    # long-run progress: on_done(completed, total) fires once per fetch, ending at (N, N).
+    import asyncio
+    from types import SimpleNamespace
+    from auditor.crawl import fetch_pages
+
+    class _Resp:
+        def __init__(self, u):
+            self.status_code, self.url, self.text, self.headers = 200, u, "<html></html>", {}
+
+    class _Client:
+        async def request(self, method, url, headers=None):
+            return _Resp(url)
+
+    crawl_cfg = SimpleNamespace(max_concurrency=3, delay_seconds=0.0, max_retries=0)
+    urls = [f"https://x/{i}" for i in range(5)]
+    calls = []
+    asyncio.run(fetch_pages(_Client(), urls, crawl_cfg, on_done=lambda d, t: calls.append((d, t))))
+    assert len(calls) == 5
+    assert calls[-1] == (5, 5)
+    assert {t for _, t in calls} == {5}

@@ -156,12 +156,12 @@ async def reconcile(client, config, sitemap_urls: list[str]) -> dict:
     }
 
 
-async def run(client, config, missing_urls: list[str], probe_cap: int | None = None):
+async def run(client, config, missing_urls: list[str], probe_cap: int | None = None, on_done=None):
     """Fetch the missing pages (robots-only; NO audit checks — they're out of audit scope),
     classify each, then HEAD-refine the indexable set for header noindex. Returns
     (findings, stats). ``probe_cap`` limits the fetch for smokes; None = all (baseline)."""
     urls = missing_urls if probe_cap is None else missing_urls[:probe_cap]
-    results = await C.fetch_pages(client, urls, config.crawl)
+    results = await C.fetch_pages(client, urls, config.crawl, on_done=on_done)
     findings = [classify(r.url, config.brand, ok=r.ok, status=r.status, html=r.text)
                 for r in results]
 
