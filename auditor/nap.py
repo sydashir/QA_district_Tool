@@ -36,8 +36,11 @@ BRAND_TOKENS = {"RR", "GL", "CAD", "COC", "AR", "DBH", "TDRC", "AH", "MHD", "SLN
 # zero-canonical loud-failure so it doesn't false-alarm every run.
 NOT_LIVE_BRANDS = frozenset({"SLN"})
 
-# 2026-07-02 SNAPSHOT. Live read (D2) swaps grid_from_xlsx -> grid_from_sheet.
-NAP_SNAPSHOT = Path.home() / "Documents/workk/district/.tmp_dd/jake_sites.xlsx"
+# NAP snapshot — repo-local, gitignored copy of Syed's authoritative export (2026-07-20; the
+# older .tmp_dd/jake_sites.xlsx was 2026-07-02, missing the AH/CAD/MHD call-center numbers).
+# Refresh = drop a new export at this path. Durable fix is the live gspread read (D2 backlog):
+# grid_from_xlsx -> grid_from_sheet, parse unchanged.
+NAP_SNAPSHOT = Path(__file__).resolve().parent.parent / "data" / "nap_snapshot.xlsx"
 NAP_TAB = "NAP (Current)"
 # Plan [c] ID — UNVERIFIED as the live canonical sheet; Syed confirms before live use.
 NAP_SHEET_ID = "1AU_wNukifVPc6yH7pvXW051llwOnf7RTDx9hZDVgF-c"
