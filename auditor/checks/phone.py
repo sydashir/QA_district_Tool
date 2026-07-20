@@ -109,7 +109,7 @@ def run(parsed: ParsedPage, config) -> list[Finding]:
             if tel_e164 in retired:  # dials a DEAD line — no call-routing story makes this OK -> ERROR
                 findings.append(Finding(
                     url=parsed.url, check=CHECK, severity=Severity.ERROR,
-                    fingerprint=make_fingerprint(CHECK, "dials_retired", parsed.url, tel_e164),
+                    fingerprint=make_fingerprint(CHECK, "dials_retired", parsed.url, tel_e164, disp_e164),
                     issue="click-to-call dials a retired number", location=f"tel:{raw}",
                     snippet=f"shows {display!r} but dials RETIRED {tel_e164}",
                     suggestion=f"The button dials {tel_e164}, a retired number ({_SNAP_CAVEAT}) — "
@@ -118,7 +118,7 @@ def run(parsed: ParsedPage, config) -> list[Finding]:
             else:  # displayed != dialed but the dialed line is LIVE -> likely call-tracking; a QUESTION
                 findings.append(Finding(
                     url=parsed.url, check=CHECK, severity=Severity.WARNING,
-                    fingerprint=make_fingerprint(CHECK, "display_dial_mismatch", parsed.url, tel_e164),
+                    fingerprint=make_fingerprint(CHECK, "display_dial_mismatch", parsed.url, tel_e164, disp_e164),
                     issue="displayed number differs from the click-to-call target", location=f"tel:{raw}",
                     snippet=f"shows {display!r} but dials {tel_e164}",
                     suggestion=f"Shows {disp_e164} but dials {tel_e164}. If this is call-tracking "

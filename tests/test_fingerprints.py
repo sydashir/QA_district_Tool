@@ -57,6 +57,16 @@ def test_dials_retired_is_error():
     assert next(f for f in fs if "dials_retired" in f.fingerprint).severity is Severity.ERROR
 
 
+def test_display_dial_mismatch_fingerprint_includes_displayed():
+    # two buttons on ONE page dial the same number but SHOW different numbers -> distinct
+    # fingerprints (the AH /cro-template-testing collision: fp must key on displayed too).
+    html = ('<a href="tel:+18445760144">562-330-1644</a>'
+            '<a href="tel:+18445760144">949-676-9364</a>')
+    p = ParsedPage(url=URL, raw_html=html, visible_text="")
+    fps = [f.fingerprint for f in phone.run(p, CFG) if "display_dial_mismatch" in f.fingerprint]
+    assert len(fps) == 2 and len(set(fps)) == 2  # both kept, no collision
+
+
 def test_display_dial_mismatch_to_live_number_is_a_warning_question():
     # shows a local number, dials the LIVE national line -> NOT asserted a bug (likely call-tracking);
     # a WARNING framed as a question, never ERROR.
