@@ -52,7 +52,8 @@ def test_dials_retired_is_error():
                    visible_text="call (844) 576-0144")
     fs = phone.run(p, CFG)
     fps = _fps(fs)
-    assert "phone:dials_retired:https://x/p/:+18006929850" in fps
+    # fingerprint now includes the displayed number (dials-retired collision fix)
+    assert "phone:dials_retired:https://x/p/:+18006929850:+18445760144" in fps
     assert "phone:retired:https://x/p/:+18006929850" in fps
     assert next(f for f in fs if "dials_retired" in f.fingerprint).severity is Severity.ERROR
 
