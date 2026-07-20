@@ -1,0 +1,21 @@
+# California Detox (CAD) — base URL cross-checked against the live NAP sheet (matches CLAUDE.md §6).
+# Sitemap: Rank Math default /sitemap_index.xml — CONFIRM via the access probe before a full crawl.
+brand = "CAD"
+name = "California Detox"
+base_url = "https://californiadetox.com"
+sitemap_url = "https://californiadetox.com/sitemap_index.xml"
+canonical_phones = ["888-995-4208"]  # national only; per-location + retired come from the NAP canon (canon_for)
+
+[crawl]
+max_concurrency = 5
+delay_seconds = 0.25
+timeout_seconds = 20.0
+max_retries = 1
+exclude = ["/wp-admin", "?"]
+
+[wp_rest]
+enabled = true
+base_url = "https://californiadetox.com"
+post_types = ["pages", "posts"]
+username_env = "CAD_WP_USER"
+password_env = "CAD_WP_PASS"

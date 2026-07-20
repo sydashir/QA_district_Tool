@@ -1,0 +1,21 @@
+# Addiction Hotline (AH) — base URL cross-checked against the live NAP sheet (matches CLAUDE.md §6).
+# Sitemap: Rank Math default /sitemap_index.xml — CONFIRM via the access probe before a full crawl.
+brand = "AH"
+name = "Addiction Hotline"
+base_url = "https://addictionhotline.com"
+sitemap_url = "https://addictionhotline.com/sitemap_index.xml"
+canonical_phones = ["844-575-6602"]  # national only; per-location + retired come from the NAP canon (canon_for)
+
+[crawl]
+max_concurrency = 5
+delay_seconds = 0.25
+timeout_seconds = 20.0
+max_retries = 1
+exclude = ["/wp-admin", "?"]
+
+[wp_rest]
+enabled = true
+base_url = "https://addictionhotline.com"
+post_types = ["pages", "posts"]
+username_env = "AH_WP_USER"
+password_env = "AH_WP_PASS"
