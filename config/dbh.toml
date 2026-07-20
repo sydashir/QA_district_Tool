@@ -1,0 +1,22 @@
+# District Behavioral Health (DBH) — parent brand. URL confirmed by Syed 2026-07-20
+# (was absent from the NAP sheet; the sheet has the phone only). Sitemap: Rank Math
+# default /sitemap_index.xml — CONFIRM via the access probe before a full crawl.
+brand = "DBH"
+name = "District Behavioral Health"
+base_url = "https://districtbehavioralhealth.com"
+sitemap_url = "https://districtbehavioralhealth.com/sitemap_index.xml"
+canonical_phones = ["888-707-6073"]  # national only; NAP canon (canon_for) carries the full set
+
+[crawl]
+max_concurrency = 5
+delay_seconds = 0.25
+timeout_seconds = 20.0
+max_retries = 1
+exclude = ["/wp-admin", "?"]
+
+[wp_rest]
+enabled = true
+base_url = "https://districtbehavioralhealth.com"
+post_types = ["pages", "posts"]
+username_env = "DBH_WP_USER"
+password_env = "DBH_WP_PASS"
