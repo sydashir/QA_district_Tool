@@ -9,6 +9,8 @@ leaking into headings (the spike's "Contact Us (Pillar)" / "…-copy" case).
 """
 from __future__ import annotations
 
+from collections import Counter
+
 from ..parse import ParsedPage
 from ..report import Finding, Severity, make_fingerprint
 
@@ -55,12 +57,20 @@ def run(parsed: ParsedPage, config) -> list[Finding]:
                 suggestion="Heading level skipped — a minor document-outline nit, not a barrier."))
         prev = lvl
 
+    # A page can leak the SAME label at two heading positions (e.g. "Services (Pillar)" as both an
+    # H1 and an H2). (url, text) alone collides those into one identity and would drop the second
+    # (Check #2 pathology). Key on (H{lvl}, occurrence) so each instance keeps its own identity;
+    # the first occurrence stays bare "H{lvl}" so the common single-leak fingerprint is stable.
+    seen_leak: Counter = Counter()
     for lvl, text in headings:
         low = text.lower()
         if any(m in low for m in _LABEL_MARKERS):
+            occ = seen_leak[(lvl, text)]
+            seen_leak[(lvl, text)] += 1
+            slot = f"H{lvl}" if occ == 0 else f"H{lvl}#{occ}"
             findings.append(Finding(
                 url=parsed.url, check=CHECK, severity=Severity.ERROR,
-                fingerprint=make_fingerprint(CHECK, "label_leak", parsed.url, text),
+                fingerprint=make_fingerprint(CHECK, "label_leak", parsed.url, slot, text),
                 issue="template label leaked into heading", location=f"H{lvl}",
                 snippet=text[:80],
                 suggestion="Internal label (e.g. '(Pillar)'/'copy') is rendering as a heading."))

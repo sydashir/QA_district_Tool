@@ -26,8 +26,21 @@ def test_structure_fingerprints():
                                       Heading(3, "5000+")], visible_text="x" * 600)
     fps = _fps(structure.run(p, CFG))
     assert "heading_structure:multi_h1:https://x/p/" in fps
-    assert "heading_structure:label_leak:https://x/p/:Contact (Pillar)" in fps
+    assert "heading_structure:label_leak:https://x/p/:H1:Contact (Pillar)" in fps
     assert any(f.startswith("heading_structure:skipped:https://x/p/:H1->H3") for f in fps)
+
+
+def test_label_leak_same_text_twice_keeps_distinct_fingerprints():
+    # The AR bug: the SAME leaked label at two heading positions must NOT collide to one identity
+    # (that would silently drop the second — Check #2 pathology). Each instance keeps its own fp.
+    p = ParsedPage(url=URL, headings=[Heading(1, "Services (Pillar)"),
+                                      Heading(2, "Services (Pillar)"),
+                                      Heading(2, "Services (Pillar)")], visible_text="x" * 600)
+    leak = [f for f in _fps(structure.run(p, CFG)) if ":label_leak:" in f]
+    assert len(leak) == len(set(leak)) == 3  # three headings -> three distinct fingerprints
+    assert "heading_structure:label_leak:https://x/p/:H1:Services (Pillar)" in leak
+    assert "heading_structure:label_leak:https://x/p/:H2:Services (Pillar)" in leak
+    assert "heading_structure:label_leak:https://x/p/:H2#1:Services (Pillar)" in leak
 
 
 def test_blank_fingerprints():
