@@ -10,7 +10,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field, field_validator
 
-from .nap import CanonicalNumbers, canon_for, load_third_party
+from .nap import CanonicalNumbers, brand_number_owners, canon_for, load_third_party
 
 # The browser-like User-Agent the session-1 spike proved works against GL's
 # Cloudflare without being challenged. Reused verbatim (see spike/gl_spike.py).
@@ -75,6 +75,9 @@ class BrandConfig(BaseModel):
     canon: CanonicalNumbers | None = None
     # Global third-party hotlines (Poison Control/SAMHSA/Lifeline/RAINN) — expected, not defects.
     third_party: set[str] = Field(default_factory=set)
+    # Global map: live number -> owning brand(s). Splits benign call-tracking (dials own number)
+    # from cross-brand leaks (dials another brand's number).
+    brand_numbers: dict[str, list[str]] = Field(default_factory=dict)
 
     @field_validator("base_url", "sitemap_url")
     @classmethod
@@ -99,4 +102,5 @@ def load_brand(brand: str) -> BrandConfig:
     cfg = load_brand_config(CONFIG_DIR / f"{brand.lower()}.toml")
     cfg.canon = canon_for(cfg.brand)
     cfg.third_party = load_third_party()
+    cfg.brand_numbers = brand_number_owners()
     return cfg

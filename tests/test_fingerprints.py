@@ -68,13 +68,23 @@ def test_display_dial_mismatch_fingerprint_includes_displayed():
     assert len(fps) == 2 and len(set(fps)) == 2  # both kept, no collision
 
 
-def test_display_dial_mismatch_to_live_number_is_a_warning_question():
-    # shows a local number, dials the LIVE national line -> NOT asserted a bug (likely call-tracking);
-    # a WARNING framed as a question, never ERROR.
+def test_display_dial_mismatch_own_number_is_benign_question():
+    # shows a local number, dials the brand's OWN national line -> benign call-tracking WARNING
+    # (both numbers are GL's own), never ERROR.
     p = ParsedPage(url=URL, raw_html='<a href="tel:+18445760144">562-330-1644</a>', visible_text="")
     fs = [f for f in phone.run(p, CFG) if "display_dial_mismatch" in f.fingerprint]
     assert len(fs) == 1 and fs[0].severity is Severity.WARNING
     assert "call-tracking" in fs[0].suggestion
+
+
+def test_cross_brand_dial_is_error():
+    # a COC page shows COC's number but the button dials GL's national (844-576-0144) -> a
+    # cross-brand leak, a real ERROR, with the owning brand named.
+    coc = load_brand("coc")
+    p = ParsedPage(url="https://connectionsoc.com/x",
+                   raw_html='<a href="tel:+18445760144">844-759-0999</a>', visible_text="")
+    fs = [f for f in phone.run(p, coc) if "cross_brand_dial" in f.fingerprint]
+    assert len(fs) == 1 and fs[0].severity is Severity.ERROR and fs[0].details["owner"] == "GL"
 
 
 def test_title_bounds_come_from_config():

@@ -77,6 +77,8 @@ def run(parsed: ParsedPage, config) -> list[Finding]:
         clean = {e for e in (normalize(c) for c in config.canonical_phones) if e}
         retired = set()
     third_party = getattr(config, "third_party", None) or set()  # expected hotlines, not defects
+    brand = getattr(config, "brand", "this brand")
+    brand_numbers = getattr(config, "brand_numbers", None) or {}  # live number -> owning brand(s)
 
     soup = BeautifulSoup(parsed.raw_html, "lxml")
     numbers_on_page: set[str] = set()  # E.164, for the non-canonical pass (deduped)
@@ -115,16 +117,46 @@ def run(parsed: ParsedPage, config) -> list[Finding]:
                     suggestion=f"The button dials {tel_e164}, a retired number ({_SNAP_CAVEAT}) — "
                                f"customers reach a dead line. Fix the tel: target.",
                     details={"displayed": disp_e164, "tel": tel_e164, "class": "dials_retired"}))
-            else:  # displayed != dialed but the dialed line is LIVE -> likely call-tracking; a QUESTION
+            elif tel_e164 in clean:  # dials one of THIS brand's OWN live numbers -> benign call-tracking
                 findings.append(Finding(
                     url=parsed.url, check=CHECK, severity=Severity.WARNING,
                     fingerprint=make_fingerprint(CHECK, "display_dial_mismatch", parsed.url, tel_e164, disp_e164),
                     issue="displayed number differs from the click-to-call target", location=f"tel:{raw}",
                     snippet=f"shows {display!r} but dials {tel_e164}",
-                    suggestion=f"Shows {disp_e164} but dials {tel_e164}. If this is call-tracking "
-                               f"(show local, route to a central line) it is intended — confirm it's "
-                               f"deliberate, not a copy-paste error on specific pages.",
+                    suggestion=f"Shows {disp_e164} but dials {tel_e164} — both {brand}'s own numbers. "
+                               f"If this is call-tracking (show local, route to a central line) it is "
+                               f"intended — confirm it's deliberate, not a copy-paste error.",
                     details={"displayed": disp_e164, "tel": tel_e164, "class": "display_dial_mismatch"}))
+            else:  # dialed number is NOT this brand's — check whose it is
+                owners = [b for b in brand_numbers.get(tel_e164, ()) if b != brand]
+                if len(owners) == 1:  # dials exactly ONE other brand's live number -> cross-brand leak
+                    findings.append(Finding(
+                        url=parsed.url, check=CHECK, severity=Severity.ERROR,
+                        fingerprint=make_fingerprint(CHECK, "cross_brand_dial", parsed.url, tel_e164, disp_e164),
+                        issue=f"click-to-call dials another brand's number ({owners[0]})",
+                        location=f"tel:{raw}", snippet=f"shows {display!r} but dials {tel_e164} ({owners[0]})",
+                        suggestion=f"The button dials {tel_e164}, which is {owners[0]}'s number, not {brand}'s"
+                                   f" — a cross-brand leak (likely a template copied from {owners[0]}). Fix the tel:.",
+                        details={"displayed": disp_e164, "tel": tel_e164, "class": "cross_brand_dial",
+                                 "owner": owners[0]}))
+                elif len(owners) >= 2:  # a number claimed by 2+ brands -> ambiguous, don't hard-call
+                    findings.append(Finding(
+                        url=parsed.url, check=CHECK, severity=Severity.WARNING,
+                        fingerprint=make_fingerprint(CHECK, "display_dial_ambiguous", parsed.url, tel_e164, disp_e164),
+                        issue="displayed number differs; dialed number belongs to multiple brands",
+                        location=f"tel:{raw}", snippet=f"shows {display!r} but dials {tel_e164} ({owners})",
+                        suggestion=f"Dials {tel_e164}, which multiple brands claim ({owners}) — verify which is correct.",
+                        details={"displayed": disp_e164, "tel": tel_e164, "class": "display_dial_ambiguous",
+                                 "owners": owners}))
+                else:  # nobody's canonical number -> unrecognized dialed number
+                    findings.append(Finding(
+                        url=parsed.url, check=CHECK, severity=Severity.WARNING,
+                        fingerprint=make_fingerprint(CHECK, "display_dial_unknown", parsed.url, tel_e164, disp_e164),
+                        issue="displayed number differs; dialed number is in no brand's set",
+                        location=f"tel:{raw}", snippet=f"shows {display!r} but dials {tel_e164}",
+                        suggestion=f"Shows {disp_e164} but dials {tel_e164}, which isn't in any brand's number "
+                                   f"set — verify it's a legitimate tracked/partner line, not a wrong number.",
+                        details={"displayed": disp_e164, "tel": tel_e164, "class": "display_dial_unknown"}))
 
     # visible numbers not inside a tel: link (phonenumbers matcher is validity-gated)
     for match in phonenumbers.PhoneNumberMatcher(parsed.visible_text, _REGION):
@@ -132,7 +164,6 @@ def run(parsed: ParsedPage, config) -> list[Finding]:
         numbers_on_page.add(e164)
     numbers_on_page |= _vanity_numbers(parsed.visible_text)  # align visible path with tel:
 
-    brand = getattr(config, "brand", "this brand")
     if clean or retired:
         for e164 in sorted(numbers_on_page - clean):
             if e164 in retired:  # a KNOWN-retired number still live -> the headline

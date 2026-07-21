@@ -229,6 +229,24 @@ def load_third_party(loader=grid_from_xlsx) -> set[str]:
         return set()
 
 
+def brand_number_owners(loader=load_canonical_from_snapshot) -> dict[str, list[str]]:
+    """Map every LIVE canonical number (national + per_location) -> the brand(s) that own it,
+    across ALL brands. Lets the phone check tell a benign call-tracking mismatch (dials one of
+    THIS brand's own numbers) from a cross-brand leak (dials ANOTHER brand's number, e.g. a COC
+    page dialing GL's line). Verified 2026-07-20: no number is shared across brands, but the map
+    carries the full owner set so a future shared number is flagged ambiguous, not miscalled."""
+    try:
+        brands = loader()
+    except (FileNotFoundError, OSError, ValueError, KeyError) as e:
+        _log.warning("NAP brand-number map unavailable (%s)", e)
+        return {}
+    owners: dict[str, set[str]] = {}
+    for b, c in brands.items():
+        for n in c.current_set():
+            owners.setdefault(n, set()).add(b)
+    return {n: sorted(bs) for n, bs in owners.items()}
+
+
 def canon_for(brand: str, loader=load_canonical_from_snapshot) -> CanonicalNumbers | None:
     """Best-effort per-brand canonical from the NAP snapshot. Returns None (with a loud
     log) if the snapshot is unavailable/unreadable — the phone check then DEGRADES to the

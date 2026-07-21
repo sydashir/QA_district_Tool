@@ -57,6 +57,9 @@ def components(config, checks_dir: Path = CHECKS_DIR) -> dict:
     else:
         comp["canonical_phones"] = sorted(getattr(config, "canonical_phones", None) or [])
     comp["third_party"] = sorted(getattr(config, "third_party", None) or [])  # phone-scoped ruler
+    # cross-brand number->owner map (dial-split); a change to any brand's canon can change it.
+    bn = getattr(config, "brand_numbers", None) or {}
+    comp["brand_numbers"] = sorted(f"{k}:{','.join(v)}" for k, v in bn.items())
     # Per-brand title bounds (P4) — a CONFIG component keyed to meta, so a per-brand tune
     # moves only that brand's version, never RR's. Absent on non-BrandConfig test configs.
     th = getattr(config, "thresholds", None)
