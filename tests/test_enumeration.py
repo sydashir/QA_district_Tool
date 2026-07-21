@@ -1,6 +1,8 @@
 """Enumeration reconciliation ('the 845'): per-page findings for live-but-unsitemapped pages,
-D1 severity (LOCKED), cruft regex gates the ERROR tier, and the indexable bucket is HEAD-refined
-for X-Robots-Tag header noindex. Network faked.
+D1 severity (LOCKED), cruft regex gates the ERROR tier. Under union scope these are DERIVED from
+the one content fetch (``from_audit``): noindex is the projection's is_noindex (robots META OR
+X-Robots-Tag header, both captured on the fetch), so there is no separate HEAD refine. Network
+faked.
 """
 from __future__ import annotations
 
@@ -17,12 +19,9 @@ BRAND = "GL"
 CRAWL = SimpleNamespace(max_concurrency=3, delay_seconds=0.0, max_retries=1, exclude=[])
 CFG = SimpleNamespace(brand=BRAND, crawl=CRAWL)
 
-INDEXABLE = "<html><head></head><body>x</body></html>"
-NOINDEX = '<html><head><meta name="robots" content="noindex, follow"></head><body>x</body></html>'
 
-
-def _cls(url, ok=True, status=200, html=INDEXABLE):
-    return E.classify(url, BRAND, ok=ok, status=status, html=html)
+def _cls(url, ok=True, status=200, noindex=False):
+    return E.classify(url, BRAND, ok=ok, status=status, noindex=noindex)
 
 
 def test_fingerprint_shape():
@@ -32,34 +31,34 @@ def test_fingerprint_shape():
 
 
 def test_indexable_unsitemapped_is_warning():
-    f = _cls("https://x/live-page/", html=INDEXABLE)
+    f = _cls("https://x/live-page/", noindex=False)
     assert f.severity is Severity.WARNING and f.details["class"] == "indexable_unsitemapped"
 
 
 def test_noindex_unsitemapped_is_info():
-    f = _cls("https://x/live-page/", html=NOINDEX)
+    f = _cls("https://x/live-page/", noindex=True)
     assert f.severity is Severity.INFO and f.details["class"] == "noindex_unsitemapped"
 
 
 def test_cruft_indexable_is_error():
-    f = _cls("https://x/landing-copy/", html=INDEXABLE)
+    f = _cls("https://x/landing-copy/", noindex=False)
     assert f.severity is Severity.ERROR and f.details["class"] == "cruft_indexable"
 
 
 def test_cruft_noindex_is_warning():
-    f = _cls("https://x/landing-copy/", html=NOINDEX)
+    f = _cls("https://x/landing-copy/", noindex=True)
     assert f.severity is Severity.WARNING and f.details["class"] == "cruft_noindex"
 
 
 def test_rest_404_is_separate_warning():
-    f = _cls("https://x/ghost/", ok=False, status=404, html="")
+    f = _cls("https://x/ghost/", ok=False, status=404)
     assert f.severity is Severity.WARNING and f.details["class"] == "rest_404"
     assert f.details["status"] == 404
 
 
 def test_rest_none_is_unreachable_not_404():
     # a transport failure (status=None) is "couldn't fetch", NOT a public 404 (wrong claim)
-    f = _cls("https://x/timeout/", ok=False, status=None, html="")
+    f = _cls("https://x/timeout/", ok=False, status=None)
     assert f.details["class"] == "rest_unreachable" and "could not be fetched" in f.issue
 
 
@@ -89,42 +88,44 @@ def test_cruft_regex(url, cruft):
     assert E.is_cruft(url) is cruft
 
 
-# --- run(): fetch (faked) -> classify -> HEAD-refine the indexable bucket ---
+# --- from_audit(): derive enumeration findings from the ONE union fetch (no second crawl) ---
 
-class _Resp:
-    def __init__(self, headers):
-        self.headers = headers
-
-
-class _Client:
-    """HEAD returns the per-url X-Robots-Tag we program in."""
-    def __init__(self, header_noindex: set[str]):
-        self.header_noindex = header_noindex
-
-    async def request(self, method, url, headers=None):
-        xrt = "noindex" if url in self.header_noindex else ""
-        return _Resp({"x-robots-tag": xrt})
+def _proj(url, is_noindex=False, status=200):
+    """Duck-typed PageProjection: from_audit only reads url/status/is_noindex."""
+    return SimpleNamespace(url=url, status=status, is_noindex=is_noindex)
 
 
-def test_run_head_reclassifies_header_only_noindex(monkeypatch):
-    # /header-noindex/ is indexable by META but noindex by HEADER -> must be reclassified to
-    # noindex_unsitemapped (INFO), NOT left in the indexable WARNING bucket (Syed's catch).
-    missing = ["https://x/header-noindex/", "https://x/truly-indexable/"]
-
-    async def fake_fetch(client, urls, crawl, on_done=None):
-        return [FetchResult(url=u, status=200, final_url=u, text=INDEXABLE, error=None)
-                for u in urls]
-
-    monkeypatch.setattr(E.C, "fetch_pages", fake_fetch)
-    client = _Client(header_noindex={"https://x/header-noindex/"})
-    findings, stats = asyncio.run(E.run(client, CFG, missing))
+def test_from_audit_derives_enumeration_from_projections():
+    # /header-noindex is indexable by META but noindex by HEADER; under union scope that header
+    # noindex is folded into is_noindex on the ONE fetch, so it classifies noindex_unsitemapped
+    # (INFO) with no separate HEAD probe. A page already in the sitemap is not an enumeration
+    # finding; a REST-only page that FAILED to fetch is the rest_404 integrity bucket.
+    projections = [
+        _proj("https://x/header-noindex", is_noindex=True),    # noindex (meta OR header) -> INFO
+        _proj("https://x/truly-indexable", is_noindex=False),  # indexable -> WARNING
+        _proj("https://x/in-sitemap", is_noindex=False),       # in sitemap -> not an enum finding
+    ]
+    failed = [FetchResult(url="https://x/ghost/", status=404, final_url=None, text="", error=None)]
+    sitemap_set = {"https://x/in-sitemap"}
+    findings, stats = E.from_audit(projections, failed, sitemap_set, BRAND)
 
     by_url = {f.url: f for f in findings}
-    assert by_url["https://x/header-noindex/"].severity is Severity.INFO
-    assert by_url["https://x/header-noindex/"].details["class"] == "noindex_unsitemapped"
-    assert by_url["https://x/truly-indexable/"].severity is Severity.WARNING
-    assert stats["head_reclassified_noindex"] == 1
-    assert stats["indexable_unsitemapped"] == 1  # only the truly-indexable one remains
+    assert "https://x/in-sitemap" not in by_url  # sitemapped -> handled by the content audit, not here
+    assert by_url["https://x/header-noindex"].severity is Severity.INFO
+    assert by_url["https://x/header-noindex"].details["class"] == "noindex_unsitemapped"
+    assert by_url["https://x/truly-indexable"].severity is Severity.WARNING
+    assert by_url["https://x/truly-indexable"].details["class"] == "indexable_unsitemapped"
+    assert by_url["https://x/ghost"].details["class"] == "rest_404"
+    assert stats["missing_total"] == 3
+    assert stats["indexable_unsitemapped"] == 1 and stats["noindex_unsitemapped"] == 1
+
+
+def test_from_audit_skips_sitemapped_failures():
+    # a page that IS in the sitemap but failed to fetch is NOT an enumeration finding here — it's
+    # sitemap_dead (handled by sitemap_unreachable). from_audit must ignore it to avoid double-flag.
+    failed = [FetchResult(url="https://x/dead/", status=404, final_url=None, text="", error=None)]
+    findings, stats = E.from_audit([], failed, {"https://x/dead"}, BRAND)
+    assert findings == [] and stats["missing_total"] == 0
 
 
 def test_reconcile_missing_is_rest_minus_sitemap(monkeypatch):

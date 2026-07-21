@@ -33,6 +33,7 @@ class FetchResult:
     text: str
     error: str | None
     last_modified: str | None = None  # response Last-Modified (304-skip signal + future stale check)
+    robots_header: str | None = None  # response X-Robots-Tag (header-level noindex)
 
     @property
     def ok(self) -> bool:
@@ -204,7 +205,8 @@ async def fetch_pages(client, urls, crawl, on_done=None) -> list[FetchResult]:
             await asyncio.sleep(crawl.delay_seconds)
             status, final, text, err, h = await _request(client, u, max_retries=crawl.max_retries)
             lm = h.get("last-modified") if h else None
-            r = FetchResult(u, status, final, text or "", err, last_modified=lm)
+            xrt = h.get("x-robots-tag") if h else None
+            r = FetchResult(u, status, final, text or "", err, last_modified=lm, robots_header=xrt)
         done += 1
         if on_done:
             on_done(done, total)

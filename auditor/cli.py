@@ -60,15 +60,21 @@ def _print_summary(cfg, result) -> None:
         f"malformed={ls['malformed']} staging={ls['staging']} "
         f"cdn_cgi_excluded={ls['cdn_cgi_excluded']} redirects={ls['redirects']}")
 
+    scope = result.get("audit_scope")
+    if scope:
+        typer.echo(
+            f"\naudit scope (union): sitemap={scope['sitemap']} "
+            f"rest_only_added={scope['rest_only_added']} union={scope['union']}")
+
     run = result.get("run")
     es = result.get("enum_stats")
     if es:
         bisect = {k: es[k] for k in
                   ("noindex_unsitemapped", "indexable_unsitemapped", "cruft_noindex",
-                   "cruft_indexable", "rest_404") if k in es}
+                   "cruft_indexable", "rest_404", "rest_unreachable") if k in es}
         typer.echo(
-            f"\nenumeration (the 845): missing={es['missing_total']} probed={es['probed']}  "
-            f"bisection={bisect}  head_reclassified={es['head_reclassified_noindex']}")
+            f"\nenumeration (missing from sitemap): missing={es['missing_total']}  "
+            f"bisection={bisect}")
 
     if run:
         by_status = dict(run["rollup"].by_status)
@@ -84,8 +90,6 @@ def audit(
     limit: int = typer.Option(None, "--limit", "-n", help="cap pages fetched (sample size)"),
     max_link_probes: int = typer.Option(400, "--max-link-probes",
         help="cap unique links probed; -1 = all (baseline)"),
-    enum_probes: int = typer.Option(0, "--enum-probes",
-        help="fetch N live-but-unsitemapped pages for the 845 report; 0=skip, -1=all (baseline)"),
     head: bool = typer.Option(False, "--head",
         help="sample the FIRST-N sitemap urls (skewed by page type; debugging only) vs seeded-random"),
     enumerate_only: bool = typer.Option(False, "--enumerate-only", help="list URLs; no fetch"),
@@ -112,8 +116,7 @@ def audit(
 
     result = asyncio.run(auditmod.run_audit(
         cfg, limit=limit, head_sample=head,
-        max_link_probes=None if max_link_probes == -1 else max_link_probes,
-        enum_probes=None if enum_probes == -1 else enum_probes))
+        max_link_probes=None if max_link_probes == -1 else max_link_probes))
     _print_summary(cfg, result)
 
 

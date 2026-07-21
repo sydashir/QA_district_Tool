@@ -43,6 +43,7 @@ class ParsedPage:
     url: str
     title: str | None = None
     meta_description: str | None = None
+    is_noindex: bool = False  # <meta name=robots content=...noindex...>
     headings: list[Heading] = field(default_factory=list)
     links: list[Link] = field(default_factory=list)
     visible_text: str = ""  # normalized: script/style/cfemail stripped
@@ -90,6 +91,8 @@ def parse_html(html: str, page_url: str, base_url: str | None = None) -> ParsedP
     title = soup.title.get_text(strip=True) if soup.title else None
     md = soup.find("meta", attrs={"name": "description"})
     meta_description = md.get("content").strip() if md and md.get("content") else None
+    mr = soup.find("meta", attrs={"name": re.compile(r"^robots$", re.I)})
+    is_noindex = bool(mr and "noindex" in (mr.get("content") or "").lower())
 
     headings = [
         Heading(int(h.name[1]), h.get_text(" ", strip=True))
@@ -115,6 +118,7 @@ def parse_html(html: str, page_url: str, base_url: str | None = None) -> ParsedP
         url=page_url,
         title=title,
         meta_description=meta_description,
+        is_noindex=is_noindex,
         headings=headings,
         links=links,
         visible_text=visible_text,

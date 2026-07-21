@@ -18,17 +18,14 @@ D1 severity (LOCKED by Syed):
 - cruft + indexable                        -> ERROR    (live, findable, shouldn't exist)
 - in WP-REST but 404s publicly             -> WARNING, separate (integrity bug; cross-ref links)
 
-Noindex is read from the robots META tag, then the INDEXABLE bucket is HEAD-probed for an
-``X-Robots-Tag`` header (FetchResult drops headers): a header-only noindex would otherwise
-falsely inflate the one bucket we tell the client is worth attention.
+Noindex is the projection's ``is_noindex`` — robots META **or** the ``X-Robots-Tag`` response
+header, both captured on the one union fetch (``_project``). There is no separate HEAD probe:
+every live page is now content-fetched anyway (union scope), so the enumeration findings are
+DERIVED from that same fetch (``from_audit``) rather than re-fetching the unsitemapped set.
 """
 from __future__ import annotations
 
-import asyncio
 import re
-
-import httpx
-from bs4 import BeautifulSoup
 
 from .. import crawl as C
 from ..report import Finding, Severity, canonical_url, make_fingerprint
@@ -39,19 +36,10 @@ CHECK = "enumeration"
 # (+ optional -N dupe suffix): /page-copy/, /thing-old, /x-delete-2/. Conservative — anchored to
 # a leading -/ and the end — to keep the cruft+indexable ERROR precise (no 'goldman' false hits).
 CRUFT_RE = re.compile(r"[-/](?:delete|copy|old)(?:-\d+)?/?$", re.IGNORECASE)
-_NOINDEX_RE = re.compile(r"noindex", re.IGNORECASE)
 
 
 def is_cruft(url: str) -> bool:
     return bool(CRUFT_RE.search(url))
-
-
-def _meta_noindex(html: str) -> bool:
-    if not html:
-        return False
-    soup = BeautifulSoup(html, "lxml")
-    m = soup.find("meta", attrs={"name": re.compile(r"^robots$", re.I)})
-    return bool(m and _NOINDEX_RE.search(m.get("content") or ""))
 
 
 def _finding(url: str, brand: str, sev: Severity, issue: str, cls: str, suggestion: str,
@@ -63,9 +51,10 @@ def _finding(url: str, brand: str, sev: Severity, issue: str, cls: str, suggesti
         details={"class": cls, **details})
 
 
-def classify(url: str, brand: str, *, ok: bool, status, html: str) -> Finding:
+def classify(url: str, brand: str, *, ok: bool, status, noindex: bool) -> Finding:
     """One finding for a page that's live in WP-REST but missing from the sitemap. Severity by
-    the LOCKED D1 rules; noindex here is META-only (the indexable set is HEAD-refined in run())."""
+    the LOCKED D1 rules; ``noindex`` is the page's is_noindex (robots META or X-Robots-Tag header,
+    both captured on the union fetch), so no separate HEAD refine is needed."""
     cruft = is_cruft(url)
     if not ok:  # in WP-REST but not reachable publicly -> integrity bug, called out separately
         if status is None:  # transport failure / timeout — we COULDN'T fetch it, not a real 404
@@ -77,7 +66,6 @@ def classify(url: str, brand: str, *, ok: bool, status, html: str) -> Finding:
             url, brand, Severity.WARNING, f"in WP-REST but returns HTTP {status} publicly",
             "rest_404", "Integrity bug: indexed in WP-REST but not publicly reachable — "
             "cross-ref the broken-link rest_published set.", status=status, cruft=cruft)
-    noindex = _meta_noindex(html)
     if cruft and not noindex:
         return _finding(
             url, brand, Severity.ERROR, "cruft page live, indexable, missing from sitemap",
@@ -125,13 +113,29 @@ def sitemap_unreachable(results, brand: str) -> list[Finding]:
     return out
 
 
-async def _head_noindex(client, url: str) -> bool:
-    """HEAD a URL and report whether its X-Robots-Tag header carries noindex."""
-    try:
-        r = await client.request("HEAD", url)
-        return bool(_NOINDEX_RE.search(r.headers.get("x-robots-tag", "") or ""))
-    except (httpx.TimeoutException, httpx.TransportError):
-        return False
+def from_audit(projections, failed, sitemap_set: set[str], brand: str) -> tuple[list[Finding], dict]:
+    """Derive the enumeration findings from the ONE union fetch — no second crawl.
+
+    Union scope means every live page (sitemap ∪ WP-REST) is already content-fetched, so a page
+    that is live but NOT in the sitemap is exactly one whose canonical identity is absent from
+    ``sitemap_set``. For those we already hold the parsed ``is_noindex`` (META or X-Robots-Tag)
+    on the projection, so ``classify`` needs no HEAD probe. Fetched-OK projections classify by
+    (cruft, noindex); pages that failed to fetch classify as the rest_404/rest_unreachable
+    integrity bucket. Pages IN the sitemap are handled elsewhere (content audit + sitemap_dead)."""
+    findings: list[Finding] = []
+    for p in projections:
+        if canonical_url(p.url) in sitemap_set:
+            continue
+        findings.append(classify(p.url, brand, ok=True, status=p.status, noindex=p.is_noindex))
+    for r in failed:
+        if canonical_url(r.url) in sitemap_set:
+            continue  # a sitemapped page that failed -> sitemap_dead, not an enumeration finding
+        findings.append(classify(canonical_url(r.url), brand, ok=False, status=r.status, noindex=False))
+
+    stats: dict = {"missing_total": len(findings)}
+    for f in findings:
+        stats[f.details["class"]] = stats.get(f.details["class"], 0) + 1
+    return findings, stats
 
 
 async def reconcile(client, config, sitemap_urls: list[str]) -> dict:
@@ -154,41 +158,3 @@ async def reconcile(client, config, sitemap_urls: list[str]) -> dict:
         "sitemap_only_count": len(sitemap_set - rest_set),
         "rest_urls": sorted(rest_set),
     }
-
-
-async def run(client, config, missing_urls: list[str], probe_cap: int | None = None, on_done=None):
-    """Fetch the missing pages (robots-only; NO audit checks — they're out of audit scope),
-    classify each, then HEAD-refine the indexable set for header noindex. Returns
-    (findings, stats). ``probe_cap`` limits the fetch for smokes; None = all (baseline)."""
-    urls = missing_urls if probe_cap is None else missing_urls[:probe_cap]
-    results = await C.fetch_pages(client, urls, config.crawl, on_done=on_done)
-    findings = [classify(r.url, config.brand, ok=r.ok, status=r.status, html=r.text)
-                for r in results]
-
-    # HEAD-refine ONLY the indexable+unsitemapped bucket: the meta tag misses header-only
-    # noindex, which would otherwise falsely inflate the exact WARNING set we flag to the client.
-    idx = [f for f in findings if f.details.get("class") == "indexable_unsitemapped"]
-    reclassified = 0
-    if idx:
-        sem = asyncio.Semaphore(config.crawl.max_concurrency)
-
-        async def refine(f: Finding) -> None:
-            nonlocal reclassified
-            async with sem:
-                await asyncio.sleep(config.crawl.delay_seconds)
-                if await _head_noindex(client, f.url):
-                    f.severity = Severity.INFO
-                    f.issue = "noindex page missing from sitemap (X-Robots-Tag header)"
-                    f.suggestion = ("Noindexed via X-Robots-Tag header (not the meta tag) and "
-                                    "unsitemapped — likely intentional; inventory to confirm.")
-                    f.details.update(class_="noindex_unsitemapped", noindex="header")
-                    f.details["class"] = "noindex_unsitemapped"
-                    reclassified += 1
-
-        await asyncio.gather(*(refine(f) for f in idx))
-
-    stats: dict = {"missing_total": len(missing_urls), "probed": len(urls),
-                   "head_refined": len(idx), "head_reclassified_noindex": reclassified}
-    for f in findings:
-        stats[f.details["class"]] = stats.get(f.details["class"], 0) + 1
-    return findings, stats

@@ -64,6 +64,7 @@ class PageProjection:
     title: str | None = None
     meta_description: str | None = None
     h1_text: str | None = None
+    is_noindex: bool = False
     visible_chars: int = 0
     intrinsic_findings: list[Finding] = field(default_factory=list)
 
@@ -82,6 +83,7 @@ def _project(parsed: ParsedPage, r, config: BrandConfig) -> PageProjection:
         link_urls=[link.url for link in parsed.links],
         title=parsed.title, meta_description=parsed.meta_description,
         h1_text=next((h.text for h in parsed.headings if h.level == 1), None),
+        is_noindex=parsed.is_noindex or bool(r.robots_header and "noindex" in r.robots_header.lower()),
         visible_chars=len(parsed.visible_text), intrinsic_findings=page_findings)
 
 
@@ -270,7 +272,7 @@ def write_run(findings: list[Finding], projections: list[PageProjection], *, bra
 
 
 async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile: bool = True,
-                    max_link_probes: int | None = 400, enum_probes: int | None = 0,
+                    max_link_probes: int | None = 400,
                     head_sample: bool = False, now: str | None = None, write: bool = True) -> dict:
     now = now or time.strftime("%Y-%m-%dT%H:%M:%S")
     async with C.make_client(config.crawl) as client:
@@ -282,10 +284,24 @@ async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile:
         if do_reconcile and config.wp_rest and config.wp_rest.enabled:
             recon = await enumeration.reconcile(client, config, sitemap_urls)
 
-        sample = select_sample(sitemap_urls, limit, head=head_sample)
+        # UNION SCOPE (default for every brand): the audit target is every LIVE page =
+        # sitemap ∪ WP-REST published, deduped by canonical identity, sitemap first so the tier
+        # ordering is preserved. Auditing only the sitemap silently under-covers a brand whose
+        # sitemap is broken (DBH 15/483, MHD 96/8761 live) — the live set is the right denominator.
+        # rest-only pages get the full content audit AND the missing-from-sitemap flag (from_audit).
+        sitemap_set = {canonical_url(u) for u in sitemap_urls}
+        audit_urls = list(sitemap_urls)
+        rest_only_added = 0
+        if recon:
+            for u in recon["rest_urls"]:
+                if canonical_url(u) not in sitemap_set:
+                    audit_urls.append(u)
+                    rest_only_added += 1
+
+        sample = select_sample(audit_urls, limit, head=head_sample)
         fetched = await C.fetch_pages(client, sample, config.crawl, on_done=_progress("fetch pages"))
         ok = [r for r in fetched if r.ok]
-        failed = [r for r in fetched if not r.ok]  # sitemapped but unfetchable -> real findings
+        failed = [r for r in fetched if not r.ok]  # unfetchable -> sitemap_dead or rest_404
 
         # Project-and-discard: parse -> intrinsic checks -> compact projection; the ParsedPage
         # is unreferenced after each iteration and collected, so peak memory is projections
@@ -297,20 +313,22 @@ async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile:
             projections.append(_project(parsed, r, config))
 
         findings: list[Finding] = [f for p in projections for f in p.intrinsic_findings]
-        findings.extend(enumeration.sitemap_unreachable(failed, config.brand))  # the dropped 7
+        # sitemap_unreachable is for SITEMAPPED pages that failed (a sitemap advertising a dead
+        # page); REST-only failures are the enumeration rest_404 bucket (from_audit), not this.
+        sitemap_failed = [r for r in failed if canonical_url(r.url) in sitemap_set]
+        findings.extend(enumeration.sitemap_unreachable(sitemap_failed, config.brand))
         link_findings, link_stats = await links.check_links(
             projections, client, config, max_links=max_link_probes, on_done=_progress("link probe"))
         findings.extend(link_findings)
         findings.extend(_cross_page_duplicates(projections))
 
-        # The 845: per-page enumeration findings for live-but-unsitemapped pages. Robots-only
-        # fetch (NO audit checks — out of scope); goes into the MAIN stream so the diff tracks
-        # each page. enum_probes: 0 = skip (smokes), None = all (baseline), N = cap.
+        # The 845, now DERIVED from the same union fetch (no second crawl): every live page not in
+        # the sitemap, classified by (cruft, noindex) or the rest_404 integrity bucket. Goes into
+        # the MAIN stream so the diff tracks each page.
         enum_stats = None
-        if recon and enum_probes != 0:
-            enum_findings, enum_stats = await enumeration.run(
-                client, config, recon["pages_missing_from_sitemap"], probe_cap=enum_probes,
-                on_done=_progress("enum probe"))
+        if recon:
+            enum_findings, enum_stats = enumeration.from_audit(
+                projections, failed, sitemap_set, config.brand)
             findings.extend(enum_findings)
 
         findings = dedupe_findings(findings)  # one finding per fingerprint across the run
@@ -323,6 +341,10 @@ async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile:
             out_dir = REPORTS_DIR / config.brand.lower() / _stamp(now)
             history = C.CACHE_DIR / config.brand.lower() / "history.json"
             extra = {"pages_enumerated": len(sitemap_urls), "link_stats": link_stats,
+                     # union scope: how many live pages the sitemap missed (rest_only_added) and
+                     # the true audit denominator (union) vs the sitemap's own advertised total.
+                     "audit_scope": {"sitemap": len(sitemap_urls),
+                                     "rest_only_added": rest_only_added, "union": len(audit_urls)},
                      # completeness signal: a run where many pages failed to fetch (e.g. Cloudflare
                      # started blocking mid-crawl) would persist a thin history. No hard threshold
                      # (the baseline calibrates the healthy rate) — but surface it for eyeballing.
@@ -357,6 +379,8 @@ async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile:
             "sitemap_blocked": blocked,
             "fetched": len(fetched),
             "fetched_ok": len(ok),
+            "audit_scope": {"sitemap": len(sitemap_urls),
+                            "rest_only_added": rest_only_added, "union": len(audit_urls)},
             "page_visible_chars": [p.visible_chars for p in projections],
             "enum_stats": enum_stats,
             "run": run,
