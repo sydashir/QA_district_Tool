@@ -6,11 +6,16 @@ base_url = "https://inpatientmentalhealthfinder.com"
 sitemap_url = "https://inpatientmentalhealthfinder.com/sitemap_index.xml"
 canonical_phones = ["888-376-8385"]  # national only; per-location + retired come from the NAP canon (canon_for)
 
+# Throttle-safe crawl: MHD's host rate-limits hard. Diagnostic (2026-07-20): at concurrency 5 it
+# timed out ~72% of a sample, but a slow serial re-probe returned 200 on ~90% — i.e. the pages are
+# alive, the host just throttles concurrent hits. So crawl it gently: low concurrency, >=1s delay,
+# longer timeout to ride out its slow responses. ~8.7k pages -> a long run, but the 2-5am window +
+# these settings keep it polite and keep fetched_ok high (a throttled fast crawl = false 404s).
 [crawl]
-max_concurrency = 5
-delay_seconds = 0.25
-timeout_seconds = 20.0
-max_retries = 1
+max_concurrency = 2
+delay_seconds = 1.0
+timeout_seconds = 30.0
+max_retries = 2
 exclude = ["/wp-admin", "?"]
 
 [wp_rest]
