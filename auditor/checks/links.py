@@ -54,16 +54,18 @@ def _is_malformed(url: str) -> bool:
     return not p.netloc or "." not in p.netloc
 
 
-async def _head_or_get(client, url):
-    """Return (status, final_url, error). HEAD first; GET fallback on 403/405/501 or error."""
+async def _head_or_get(client, url, timeout):
+    """Return (status, final_url, error). HEAD first; GET fallback on 403/405/501 or error.
+    ``timeout`` is explicit per call so the caller can give internal links the full budget and
+    external hosts a short one (both HEAD and the GET retry honor it)."""
     try:
-        r = await client.request("HEAD", url)
+        r = await client.request("HEAD", url, timeout=timeout)
         if r.status_code in (403, 405, 501):
-            r = await client.request("GET", url)
+            r = await client.request("GET", url, timeout=timeout)
         return r.status_code, str(r.url), None
     except (httpx.TimeoutException, httpx.TransportError):
         try:
-            r = await client.request("GET", url)
+            r = await client.request("GET", url, timeout=timeout)
             return r.status_code, str(r.url), None
         except (httpx.TimeoutException, httpx.TransportError) as e:
             return None, url, f"{type(e).__name__}"
@@ -118,6 +120,8 @@ async def check_links(pages, client, config, max_links: int | None = None, on_do
     capped = to_probe[:max_links] if max_links else to_probe
     stats["probed"] = len(capped)
 
+    full_timeout = config.crawl.timeout_seconds
+    ext_timeout = getattr(config.crawl, "external_link_timeout_seconds", 5.0)
     sem = asyncio.Semaphore(config.crawl.max_concurrency)
     status: dict[str, tuple] = {}
     total = len(capped)
@@ -125,9 +129,12 @@ async def check_links(pages, client, config, max_links: int | None = None, on_do
 
     async def probe(url):
         nonlocal done
+        # host-scope budget: internal links get the full timeout (a real 404 is a real finding);
+        # external hosts get the short one (they classify `unverified` regardless of exact status).
+        timeout = full_timeout if _registrable(_host(url)) == internal else ext_timeout
         async with sem:
             await asyncio.sleep(config.crawl.delay_seconds)
-            status[url] = await _head_or_get(client, url)
+            status[url] = await _head_or_get(client, url, timeout)
         done += 1
         if on_done:
             on_done(done, total)

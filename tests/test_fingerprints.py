@@ -164,7 +164,7 @@ def test_links_fingerprint_is_target():
             self.status_code, self.url = code, url
 
     class _Client:
-        async def request(self, method, url, headers=None):
+        async def request(self, method, url, headers=None, timeout=None):
             return _Resp(404, url)
 
     # external host with a real TLD (a 404 -> broken; identity = the bare target url)

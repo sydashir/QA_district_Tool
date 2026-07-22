@@ -28,6 +28,12 @@ class CrawlRules(BaseModel):
     max_concurrency: int = 5
     delay_seconds: float = 0.25
     timeout_seconds: float = 20.0
+    # Link probing splits the budget by host scope: internal links (real 404s -> real findings)
+    # get the full timeout above; EXTERNAL hosts get this short one. A citation host that hasn't
+    # answered in 5s won't, and we classify it `unverified` regardless of the exact status, so
+    # waiting the full 20s (x2 with the GET retry) just serializes the probe tail behind slow gov
+    # servers. GL's link probe took 108min/400 links before this split; 5s bounds it.
+    external_link_timeout_seconds: float = 5.0
     max_retries: int = 1
     user_agent: str = DEFAULT_USER_AGENT
     # URL substrings to exclude from enumeration (jake_doc crawl.exclude).

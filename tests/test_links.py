@@ -14,7 +14,9 @@ from auditor.checks import links
 from auditor.report import Severity
 
 CFG = SimpleNamespace(base_url="https://www.gratitudelodge.com",
-                      crawl=SimpleNamespace(max_concurrency=3, delay_seconds=0.0))
+                      crawl=SimpleNamespace(max_concurrency=3, delay_seconds=0.0,
+                                            timeout_seconds=20.0,
+                                            external_link_timeout_seconds=5.0))
 
 
 class _Resp:
@@ -25,8 +27,10 @@ class _Resp:
 class _Client:
     def __init__(self, codes):
         self.codes = codes
+        self.timeouts: dict[str, float] = {}  # url -> timeout it was probed with
 
-    async def request(self, method, url, headers=None):
+    async def request(self, method, url, headers=None, timeout=None):
+        self.timeouts[url] = timeout
         return _Resp(self.codes.get(url, 200), url)
 
 
@@ -65,3 +69,17 @@ def test_staging_host_flagged_not_probed():
     f, s = _run(stg, {})
     assert s["staging"] == 1 and s["probed"] == 0
     assert f[0].details["class"] == "staging_link" and f[0].severity is Severity.ERROR
+
+
+def test_probe_timeout_split_by_host_scope():
+    # internal links get the full timeout (a real 404 is a real finding); external hosts get the
+    # short one (they classify `unverified` regardless) so the probe tail isn't serialized behind
+    # slow gov servers. Was one shared full timeout -> GL's 108min/400-link stall.
+    internal = "https://www.gratitudelodge.com/authors/jane"
+    external = "https://www.cdc.gov/adhd"
+    p = audit.PageProjection(url="https://www.gratitudelodge.com/p",
+                             link_urls=[internal, external])
+    client = _Client({})
+    asyncio.run(links.check_links([p], client, CFG))
+    assert client.timeouts[internal] == 20.0   # full page timeout
+    assert client.timeouts[external] == 5.0     # short external timeout
