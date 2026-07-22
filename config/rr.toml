@@ -6,11 +6,17 @@ base_url = "https://www.renaissancerecovery.com"
 sitemap_url = "https://www.renaissancerecovery.com/sitemap_index.xml"
 canonical_phones = ["866-330-9449", "866-923-1867"]  # national only; per-location + retired come from the NAP canon (canon_for)
 
+# Cold-cache tuned (diagnostic 2026-07-22): RR's WP origin renders UNCACHED pages slowly (~20s
+# median, up to 36s), then Cloudflare serves them instantly once warm. A first-time crawl of 7.8k
+# unique pages is all cache-misses, so: (1) timeout 45s — the old 20s false-timed-out ~37% of cold
+# pages that a 45s timeout gets to 200 (verified 15/15); (2) retries 2 — a timed-out page is often
+# warm on retry; (3) concurrency 10 — tested clean on cold pages (20/20 200, zero 5xx, no origin
+# saturation), lands the full crawl in ~5h. NOT a throttle (a trickle serves fast); origin cold-render.
 [crawl]
-max_concurrency = 5
+max_concurrency = 10
 delay_seconds = 0.25
-timeout_seconds = 20.0
-max_retries = 1
+timeout_seconds = 45.0
+max_retries = 2
 exclude = ["/wp-admin", "?"]
 
 [wp_rest]
