@@ -30,7 +30,13 @@ def _print_summary(cfg, result) -> None:
     typer.echo(f"brand={cfg.brand}  base={cfg.base_url}")
     typer.echo(
         f"enumeration: sitemap urls={result['report'].pages_enumerated}  "
-        f"child_sitemaps={result['child_sitemaps']}  blocked={result['sitemap_blocked']}")
+        f"child_sitemaps={result['child_sitemaps']}  blocked={result['sitemap_blocked']}  "
+        f"partial={result['sitemap_partial']} failed_children={len(result['sitemap_failed_children'])}")
+    if result["sitemap_partial"]:
+        typer.echo(
+            "  WARNING: sitemap read INCOMPLETE — coverage findings WITHHELD (re-run serially / "
+            "throttle-safe). Failed children: "
+            + ", ".join(f.get("url", "?").rsplit("/", 1)[-1] for f in result["sitemap_failed_children"][:8]))
     if result["recon"]:
         r = result["recon"]
         typer.echo(

@@ -276,9 +276,14 @@ async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile:
                     head_sample: bool = False, now: str | None = None, write: bool = True) -> dict:
     now = now or time.strftime("%Y-%m-%dT%H:%M:%S")
     async with C.make_client(config.crawl) as client:
-        sitemap_urls, blocked, child_sitemaps = await C.enumerate_sitemap(
+        sitemap_urls, blocked, child_sitemaps, failed_sitemaps = await C.enumerate_sitemap(
             client, config.sitemap_url, max_retries=config.crawl.max_retries)
         sitemap_urls = C._apply_exclude(sitemap_urls, config.crawl.exclude)
+        # A PARTIAL sitemap read (a throttled/5xx child dropped) silently undercounts and must never
+        # produce a coverage finding — that is exactly how MHD's 15,635-URL sitemap read as 96 and
+        # yielded a bogus "~1% coverage". reconcile still runs (the REST union keeps the content audit
+        # best-effort), but the missing-from-sitemap FINDING (from_audit) is withheld when partial.
+        sitemap_partial = bool(failed_sitemaps)
 
         recon = None
         if do_reconcile and config.wp_rest and config.wp_rest.enabled:
@@ -326,7 +331,7 @@ async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile:
         # the sitemap, classified by (cruft, noindex) or the rest_404 integrity bucket. Goes into
         # the MAIN stream so the diff tracks each page.
         enum_stats = None
-        if recon:
+        if recon and not sitemap_partial:  # withhold coverage findings on a partial sitemap read
             enum_findings, enum_stats = enumeration.from_audit(
                 projections, failed, sitemap_set, config.brand)
             findings.extend(enum_findings)
@@ -349,7 +354,8 @@ async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile:
                      # started blocking mid-crawl) would persist a thin history. No hard threshold
                      # (the baseline calibrates the healthy rate) — but surface it for eyeballing.
                      "crawl": {"fetched": len(fetched), "fetched_ok": len(ok),
-                               "sitemap_blocked": blocked}}
+                               "sitemap_blocked": blocked, "sitemap_partial": sitemap_partial,
+                               "sitemap_failed_children": failed_sitemaps}}
             if enum_stats is not None:  # the 845 bisection (INFO/WARNING/ERROR) for the human view
                 extra["enumeration"] = enum_stats
             if config.canon is not None:  # name the phone-scope limitation IN the report
@@ -377,6 +383,8 @@ async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile:
             "link_stats": link_stats,
             "child_sitemaps": child_sitemaps,
             "sitemap_blocked": blocked,
+            "sitemap_partial": sitemap_partial,
+            "sitemap_failed_children": failed_sitemaps,
             "fetched": len(fetched),
             "fetched_ok": len(ok),
             "audit_scope": {"sitemap": len(sitemap_urls),

@@ -53,7 +53,7 @@ async def _request(client, url, method="GET", max_retries=1, req_headers=None):
         except (httpx.TimeoutException, httpx.TransportError) as e:
             if attempt == max_retries:
                 return None, url, "", f"{type(e).__name__}: {e}", {}
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(min(0.5 * 2 ** attempt, 8.0))  # back off a throttling host (0.5/1/2/4/8s)
 
 
 def _cloudflare_blocked(status, text) -> bool:
@@ -86,10 +86,16 @@ def make_client(crawl) -> httpx.AsyncClient:
 # --------------------------------------------------------------------------- #
 async def enumerate_sitemap(client, sitemap_url, max_retries=1, max_depth=3):
     """Index-aware sitemap enumeration: expand nested <sitemapindex> entries into
-    page <urlset> URLs. Returns (page_urls, blocked, child_sitemap_count)."""
+    page <urlset> URLs. Returns (page_urls, blocked, child_sitemap_count, failed_sitemaps).
+
+    ``failed_sitemaps`` records every child sitemap that errored or returned non-200 — a partial
+    read (a throttling host dropping child sitemaps) MUST be visible, not a silent undercount. A
+    silently-dropped child made MHD's 15,635-URL sitemap read as 96 and produced a bogus "~1%
+    coverage" finding; the caller uses a non-empty ``failed_sitemaps`` to withhold coverage claims."""
     seen_sitemaps: set[str] = set()
     page_urls: list[str] = []
     blocked = False
+    failed_sitemaps: list[dict] = []
 
     async def walk(sm_url, depth):
         nonlocal blocked
@@ -100,6 +106,7 @@ async def enumerate_sitemap(client, sitemap_url, max_retries=1, max_depth=3):
         if err or status != 200:
             if status and _cloudflare_blocked(status, text):
                 blocked = True
+            failed_sitemaps.append({"url": sm_url, "status": status, "error": err, "depth": depth})
             return
         locs = _LOC_RE.findall(text)
         children = [u for u in locs if u.lower().endswith(".xml")]
@@ -115,7 +122,7 @@ async def enumerate_sitemap(client, sitemap_url, max_retries=1, max_depth=3):
             s.add(u)
             out.append(u)
     child_count = max(0, len(seen_sitemaps) - 1)  # visited sitemaps minus the root index
-    return out, blocked, child_count
+    return out, blocked, child_count, failed_sitemaps
 
 
 def _wp_auth_header(wp: WPRestConfig) -> str | None:
@@ -172,21 +179,26 @@ def _apply_exclude(urls, exclude) -> list[str]:
 async def enumerate_pages(client, config: BrandConfig):
     """Sitemap first (index-aware); WP-REST fallback if the sitemap is blocked/empty.
     Returns (urls, method, meta)."""
-    urls, blocked, child_count = await enumerate_sitemap(
+    urls, blocked, child_count, failed_sitemaps = await enumerate_sitemap(
         client, config.sitemap_url, max_retries=config.crawl.max_retries)
     urls = _apply_exclude(urls, config.crawl.exclude)
-    if urls and not blocked:
-        return urls, "sitemap", {"child_sitemaps": child_count}
+    # A partial read (any failed child sitemap) is NOT authoritative — fall through to WP-REST
+    # rather than return an understated set. (blocked = a CF challenge; failed_sitemaps = a
+    # throttled/5xx child drop.)
+    if urls and not blocked and not failed_sitemaps:
+        return urls, "sitemap", {"child_sitemaps": child_count, "failed_sitemaps": failed_sitemaps}
 
     if config.wp_rest and config.wp_rest.enabled:
         rest_urls, authed = await enumerate_wp_rest(
             client, config.wp_rest, max_retries=config.crawl.max_retries)
         rest_urls = _apply_exclude(rest_urls, config.crawl.exclude)
         method = "wp-rest+auth" if authed else "wp-rest"
-        reason = "sitemap blocked" if blocked else "sitemap empty"
-        return rest_urls, method, {"reason": reason, "post_types": config.wp_rest.post_types}
+        reason = "sitemap blocked" if blocked else ("sitemap partial" if failed_sitemaps else "sitemap empty")
+        return rest_urls, method, {"reason": reason, "post_types": config.wp_rest.post_types,
+                                   "failed_sitemaps": failed_sitemaps}
 
-    return urls, "sitemap", {"child_sitemaps": child_count, "blocked": blocked}
+    return urls, "sitemap", {"child_sitemaps": child_count, "blocked": blocked,
+                             "failed_sitemaps": failed_sitemaps}
 
 
 # --------------------------------------------------------------------------- #
