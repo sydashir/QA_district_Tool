@@ -10,7 +10,7 @@ canonical_phones = ["844-759-0999"]  # national only; per-location + retired com
 max_concurrency = 5
 delay_seconds = 0.25
 timeout_seconds = 20.0
-max_retries = 1
+max_retries = 3  # bumped: sitemap child fetches must survive throttle so the read is complete
 exclude = ["/wp-admin", "?"]
 
 [wp_rest]
