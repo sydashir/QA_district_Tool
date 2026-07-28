@@ -49,6 +49,19 @@ def components(config, checks_dir: Path = CHECKS_DIR) -> dict:
         f = checks_dir.parent / dep
         if f.exists():
             comp[f"src:{dep}"] = _sha(f.read_text(encoding="utf-8"))
+    # OUT-OF-REPO dep: the placeholder check importlib-loads extract_acf_tokens from the GeoData
+    # Fetcher's geo_field_validator (path via $GEODATA_SERVICES_DIR). Its content IS the ACF-token
+    # ruleset, so it must be a component — otherwise repointing/updating it changes findings while
+    # the version stays identical, and vanished findings read as `resolved` instead of rule_changed.
+    # (The Fetcher repo is read-only for us; we only hash it.) Path is hashed too: a repoint to a
+    # different checkout is a ruleset change even if we can't read the new file.
+    try:
+        from .checks.placeholder import _GEODATA_GFV as _gfv
+        comp["geodata_gfv_path"] = str(_gfv)
+        comp["src:geo_field_validator.py"] = (
+            _sha(_gfv.read_text(encoding="utf-8")) if _gfv.exists() else "MISSING")
+    except Exception:  # never let version() fail — a missing/odd dep must degrade, not crash
+        comp["src:geo_field_validator.py"] = "UNAVAILABLE"
     # Phone ruler = the canonical VALUES (not their source): an identical-numbers snapshot->live
     # swap is then a no-op for the version. Full NAP value-set when present, else the flat list.
     canon = getattr(config, "canon", None)

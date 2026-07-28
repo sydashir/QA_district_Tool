@@ -57,17 +57,19 @@ def _is_malformed(url: str) -> bool:
 async def _head_or_get(client, url, timeout):
     """Return (status, final_url, error). HEAD first; GET fallback on 403/405/501 or error.
     ``timeout`` is explicit per call so the caller can give internal links the full budget and
-    external hosts a short one (both HEAD and the GET retry honor it)."""
+    external hosts a short one (both HEAD and the GET retry honor it). Catches httpx.HTTPError
+    (not just timeout/transport) so a redirect-loop or decoding error on ONE link target can't
+    abort the whole link barrier after a multi-hour crawl has already been paid for."""
     try:
         r = await client.request("HEAD", url, timeout=timeout)
         if r.status_code in (403, 405, 501):
             r = await client.request("GET", url, timeout=timeout)
         return r.status_code, str(r.url), None
-    except (httpx.TimeoutException, httpx.TransportError):
+    except (httpx.HTTPError, httpx.InvalidURL):
         try:
             r = await client.request("GET", url, timeout=timeout)
             return r.status_code, str(r.url), None
-        except (httpx.TimeoutException, httpx.TransportError) as e:
+        except (httpx.HTTPError, httpx.InvalidURL) as e:
             return None, url, f"{type(e).__name__}"
 
 
@@ -117,6 +119,10 @@ async def check_links(pages, client, config, max_links: int | None = None, on_do
         else:
             to_probe.append(url)
 
+    # Sort before capping: the probe window must be the SAME set every run regardless of the order
+    # pages arrived in. Otherwise the cap picks a different subset each run and a broken link that
+    # simply wasn't probed this time reads as `resolved` in the diff — a fix claim that never happened.
+    to_probe.sort()
     capped = to_probe[:max_links] if max_links else to_probe
     stats["probed"] = len(capped)
 
@@ -132,17 +138,21 @@ async def check_links(pages, client, config, max_links: int | None = None, on_do
         # host-scope budget: internal links get the full timeout (a real 404 is a real finding);
         # external hosts get the short one (they classify `unverified` regardless of exact status).
         timeout = full_timeout if _registrable(_host(url)) == internal else ext_timeout
-        async with sem:
-            await asyncio.sleep(config.crawl.delay_seconds)
-            status[url] = await _head_or_get(client, url, timeout)
-        done += 1
-        if on_done:
-            on_done(done, total)
+        try:
+            async with sem:
+                await asyncio.sleep(config.crawl.delay_seconds)
+                status[url] = await _head_or_get(client, url, timeout)
+        except Exception as e:  # one bad target must not sink the barrier after a long crawl
+            status[url] = (None, url, f"{type(e).__name__}")
+        finally:
+            done += 1
+            if on_done:
+                on_done(done, total)
 
-    await asyncio.gather(*(probe(u) for u in capped))
+    await asyncio.gather(*(probe(u) for u in capped), return_exceptions=True)
 
     for url in capped:
-        code, final, err = status[url]
+        code, final, err = status.get(url, (None, url, "NotProbed"))
         sources = targets[url][:5]
         is_internal = _registrable(_host(url)) == internal
 

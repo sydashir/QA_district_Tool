@@ -64,6 +64,81 @@ def test_barriers_run_over_resumed_projections():
     assert any(f.check == "meta" and "duplicate title" in f.issue for f in dups)
 
 
+def test_stream_fetch_project_isolates_a_failing_page(tmp_path, monkeypatch):
+    # ONE bad page must not sink the crawl: without isolation, an exception escaping a single page
+    # aborts the whole gather, write_run never runs, and since only successes are cached EVERY
+    # --resume dies on the same page (an unresumable poison page on a 15k census).
+    import asyncio
+    from auditor.config import load_brand
+    cfg = load_brand("gl")
+
+    class _Resp:
+        def __init__(self, u):
+            self.status_code, self.url, self.headers = 200, u, {}
+            self.text = ("<html><head><title>T</title></head><body><h1>H</h1><p>"
+                         + "x" * 600 + "</p></body></html>")
+
+    class _Client:
+        async def request(self, method, url, headers=None, timeout=None):
+            return _Resp(url)
+
+    real_project = audit._project
+
+    def boom(parsed, r, config):
+        if r.url == "https://x/2/":
+            raise RuntimeError("check exploded on odd markup")
+        return real_project(parsed, r, config)
+
+    monkeypatch.setattr(audit, "_project", boom)
+    urls = ["https://x/1/", "https://x/2/", "https://x/3/"]
+    projs, failed = asyncio.run(
+        audit._stream_fetch_project(_Client(), urls, cfg, "Vx", tmp_path / "r.jsonl"))
+    assert [p.url for p in projs] == ["https://x/1", "https://x/3"]  # siblings survived
+    assert [f.url for f in failed] == ["https://x/2/"]               # the bad page is recorded
+    assert len([ln for ln in (tmp_path / "r.jsonl").read_text().splitlines() if ln.strip()]) == 2
+
+
+def test_stream_fetch_project_returns_sample_order_not_completion_order(tmp_path):
+    # Order must follow the REQUEST list, not completion. Completion order varies run to run, and
+    # the capped link probe (to_probe[:max_links]) would then probe a different subset each run ->
+    # an unprobed broken link silently reads as `resolved` in the diff (a fix that never happened).
+    import asyncio
+    from auditor.config import load_brand
+    cfg = load_brand("gl")
+    delays = {"https://x/1/": 0.05, "https://x/2/": 0.0, "https://x/3/": 0.02}  # finish out of order
+
+    class _Resp:
+        def __init__(self, u):
+            self.status_code, self.url, self.headers = 200, u, {}
+            self.text = "<html><head><title>T</title></head><body><h1>H</h1><p>body</p></body></html>"
+
+    class _Client:
+        async def request(self, method, url, headers=None, timeout=None):
+            await asyncio.sleep(delays.get(url, 0))
+            return _Resp(url)
+
+    urls = ["https://x/1/", "https://x/2/", "https://x/3/"]
+    projs, _failed = asyncio.run(
+        audit._stream_fetch_project(_Client(), urls, cfg, "Vx", tmp_path / "r.jsonl"))
+    assert [p.url for p in projs] == ["https://x/1", "https://x/2", "https://x/3"]
+
+
+def test_load_resume_rejects_rows_older_than_max_age(tmp_path, monkeypatch):
+    # a resume is for continuing an INTERRUPTED crawl, not for re-emitting last week's crawl as
+    # today's report. An aged row must be re-fetched rather than passed off as current.
+    import time as _t
+    from auditor import crawl as C
+    monkeypatch.setattr(C, "CACHE_DIR", tmp_path)
+    path = audit.resume_cache_path("gl")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fresh = audit._projection_row(audit.PageProjection(url="https://x/new/"), "V")
+    old = audit._projection_row(audit.PageProjection(url="https://x/old/"), "V")
+    old["fetched_at"] = _t.strftime("%Y-%m-%dT%H:%M:%S", _t.localtime(_t.time() - 100 * 3600))
+    path.write_text(json.dumps(old) + "\n" + json.dumps(fresh) + "\n")
+    done = audit.load_resume("gl", "V", max_age_hours=48)
+    assert set(done) == {"https://x/new/"}
+
+
 def test_stream_fetch_project_persists_each_page_incrementally(tmp_path):
     # each page is flushed to the resume cache AS it completes (not after a batch), so a crash at
     # page N keeps the N-1 already on disk — the property that makes a 15k crawl resumable.

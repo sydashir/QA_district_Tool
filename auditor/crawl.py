@@ -50,7 +50,10 @@ async def _request(client, url, method="GET", max_retries=1, req_headers=None):
             r = await client.request(method, url, headers=req_headers)
             text = r.text if method == "GET" else ""
             return r.status_code, str(r.url), text, None, r.headers
-        except (httpx.TimeoutException, httpx.TransportError) as e:
+        # httpx.HTTPError covers timeouts/transport AND TooManyRedirects/DecodingError; InvalidURL
+        # derives straight from Exception. The narrow (Timeout, Transport) catch let a single
+        # redirect-looping page escape and abort a whole crawl — on a 15k-page census that's fatal.
+        except (httpx.HTTPError, httpx.InvalidURL) as e:
             if attempt == max_retries:
                 return None, url, "", f"{type(e).__name__}: {e}", {}
             await asyncio.sleep(min(0.5 * 2 ** attempt, 8.0))  # back off a throttling host (0.5/1/2/4/8s)

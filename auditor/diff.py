@@ -47,6 +47,11 @@ _CHECK_COMPONENT["phone"] = _CHECK_COMPONENT["phone"] | {"canonical_phones", "sr
 # meta output depends on the per-brand title bounds (P4) — config-scoped to meta, so a
 # per-brand threshold tune rule-changes only that brand's meta findings.
 _CHECK_COMPONENT["meta"] = _CHECK_COMPONENT["meta"] | {"title_bounds"}
+# placeholder output depends on the ACF-token ruleset imported from the GeoData Fetcher's
+# geo_field_validator (out-of-repo, path via $GEODATA_SERVICES_DIR) — placeholder-scoped, so
+# updating/repointing it rule-changes ONLY the [acf field] findings, never another check's.
+_CHECK_COMPONENT["placeholder"] = _CHECK_COMPONENT["placeholder"] | {
+    "src:geo_field_validator.py", "geodata_gfv_path"}
 
 
 def load_history(path) -> dict:
