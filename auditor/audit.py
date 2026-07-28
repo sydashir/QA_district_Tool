@@ -13,6 +13,7 @@ timestamped ``reports/<brand>/<stamp>/`` dir, and persist the run history for th
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import random
@@ -175,6 +176,104 @@ def write_projection_cache(brand: str, projections: list[PageProjection]) -> tup
     return path, len(cache)
 
 
+# --------------------------------------------------------------------------- #
+# Resume cache — full projections (incl. intrinsic_findings) stamped with the  #
+# check-version, persisted incrementally so an interrupted large crawl (MHD    #
+# 15,635 died twice at 2,600) resumes from where it stopped instead of         #
+# re-fetching from scratch. DISTINCT from write_projection_cache (the light    #
+# diff cache, which deliberately omits findings — the B5 stale-findings trap): #
+# resume DELIBERATELY persists findings, made safe by the version stamp. Reuse #
+# only when checks_version.version matches (the SAME components the diff's      #
+# rule_changed keys on: src + config + parse.py + report.py + nap.py + crawl);  #
+# a mismatch means cached findings are stale -> that page re-fetches + re-runs. #
+# --------------------------------------------------------------------------- #
+def resume_cache_path(brand: str) -> Path:
+    return C.CACHE_DIR / brand.lower() / "resume.jsonl"
+
+
+def _projection_row(p: PageProjection, check_version: str) -> dict:
+    return {
+        "check_version": check_version, "url": p.url, "final_url": p.final_url,
+        "status": p.status, "content_hash": p.content_hash, "last_modified": p.last_modified,
+        "link_urls": p.link_urls, "title": p.title, "meta_description": p.meta_description,
+        "h1_text": p.h1_text, "is_noindex": p.is_noindex, "visible_chars": p.visible_chars,
+        "intrinsic_findings": [f.model_dump(mode="json") for f in p.intrinsic_findings],
+    }
+
+
+def _row_projection(row: dict) -> PageProjection:
+    return PageProjection(
+        url=row["url"], final_url=row.get("final_url"), status=row.get("status"),
+        content_hash=row.get("content_hash", ""), last_modified=row.get("last_modified"),
+        link_urls=row.get("link_urls") or [], title=row.get("title"),
+        meta_description=row.get("meta_description"), h1_text=row.get("h1_text"),
+        is_noindex=row.get("is_noindex", False), visible_chars=row.get("visible_chars", 0),
+        intrinsic_findings=[Finding.model_validate(d) for d in row.get("intrinsic_findings", [])])
+
+
+def load_resume(brand: str, check_version: str) -> dict[str, PageProjection]:
+    """{canonical_url: PageProjection} for pages already completed AT THE CURRENT check-version.
+    Entries stamped with a different version are stale (a check/config/parse edit changed output)
+    and ignored -> those pages re-fetch + re-check. Last line per url wins (crash-retry safe)."""
+    path = resume_cache_path(brand)
+    if not path.exists():
+        return {}
+    done: dict[str, PageProjection] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+        except ValueError:
+            continue  # a torn last line from a crash mid-write -> skip, don't abort the resume
+        if row.get("check_version") != check_version:
+            continue
+        done[row["url"]] = _row_projection(row)
+    return done
+
+
+async def _stream_fetch_project(client, urls, config, check_version, resume_path, on_done=None):
+    """Fetch -> parse -> project -> APPEND to the resume cache, per page, concurrency-capped.
+    Persisting INSIDE the loop (not after a batch gather) is what makes a crawl resumable: a
+    crash at page N keeps the N-1 already flushed to disk. Returns (projections, failed)."""
+    resume_path.parent.mkdir(parents=True, exist_ok=True)
+    sem = asyncio.Semaphore(config.crawl.max_concurrency)
+    lock = asyncio.Lock()
+    fh = resume_path.open("a", encoding="utf-8")
+    total = len(urls)
+    done_n = 0
+    projections: list[PageProjection] = []
+    failed: list = []
+
+    async def one(u):
+        nonlocal done_n
+        async with sem:
+            await asyncio.sleep(config.crawl.delay_seconds)
+            status, final, text, err, h = await C._request(
+                client, u, max_retries=config.crawl.max_retries)
+            r = C.FetchResult(u, status, final, text or "", err,
+                              last_modified=(h.get("last-modified") if h else None),
+                              robots_header=(h.get("x-robots-tag") if h else None))
+        if r.ok:
+            parsed = parse_html(r.text, page_url=canonical_url(r.url), base_url=r.final_url or r.url)
+            proj = _project(parsed, r, config)
+            async with lock:
+                fh.write(json.dumps(_projection_row(proj, check_version)) + "\n")
+                fh.flush()
+            projections.append(proj)
+        else:
+            failed.append(r)
+        done_n += 1
+        if on_done:
+            on_done(done_n, total)
+
+    try:
+        await asyncio.gather(*(one(u) for u in urls))
+    finally:
+        fh.close()
+    return projections, failed
+
+
 # Heading defects that are TEMPLATE-driven walls — collapse by URL-template so 1,095 pages of
 # one Elementor geo-template read as one "fix the template" finding, not 1,095 identical rows.
 # Only multi_h1 (validated: one template per url-shape, spot-checked on the 1,095-page group).
@@ -272,8 +371,8 @@ def write_run(findings: list[Finding], projections: list[PageProjection], *, bra
 
 
 async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile: bool = True,
-                    max_link_probes: int | None = 400,
-                    head_sample: bool = False, now: str | None = None, write: bool = True) -> dict:
+                    max_link_probes: int | None = 400, head_sample: bool = False,
+                    now: str | None = None, write: bool = True, resume: bool = False) -> dict:
     now = now or time.strftime("%Y-%m-%dT%H:%M:%S")
     async with C.make_client(config.crawl) as client:
         sitemap_urls, blocked, child_sitemaps, failed_sitemaps = await C.enumerate_sitemap(
@@ -304,18 +403,30 @@ async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile:
                     rest_only_added += 1
 
         sample = select_sample(audit_urls, limit, head=head_sample)
-        fetched = await C.fetch_pages(client, sample, config.crawl, on_done=_progress("fetch pages"))
-        ok = [r for r in fetched if r.ok]
-        failed = [r for r in fetched if not r.ok]  # unfetchable -> sitemap_dead or rest_404
 
-        # Project-and-discard: parse -> intrinsic checks -> compact projection; the ParsedPage
-        # is unreferenced after each iteration and collected, so peak memory is projections
-        # (small) not the DOM of every page at once.
-        projections: list[PageProjection] = []
-        for r in ok:
-            # identity = requested URL (canonical); links resolve against the final/landing URL
-            parsed = parse_html(r.text, page_url=canonical_url(r.url), base_url=r.final_url or r.url)
-            projections.append(_project(parsed, r, config))
+        # Resume: skip pages already completed at THIS check-version; a fresh run starts the
+        # resume cache clean so it reflects this run's version+scope. Streaming fetch-project-persist
+        # (below) writes each page as it lands, so an interrupted crawl resumes from the tail.
+        check_version = checks_version.version(config)
+        resume_path = resume_cache_path(config.brand)
+        if resume:
+            done = load_resume(config.brand, check_version)
+        else:
+            if resume_path.exists():
+                resume_path.unlink()
+            done = {}
+        to_fetch = [u for u in sample if canonical_url(u) not in done]
+        if done:
+            print(f"[resume] reusing {len(done)} cached pages (version match); "
+                  f"fetching {len(to_fetch)} of {len(sample)}", flush=True)
+
+        # Project-and-discard, streamed: parse -> intrinsic checks -> compact projection, persisted
+        # per page. Peak memory is projections (small), not the DOM of every page at once.
+        fresh_projections, failed = await _stream_fetch_project(
+            client, to_fetch, config, check_version, resume_path, on_done=_progress("fetch pages"))
+        # cross-page barriers (dup title/desc/H1, link dedup) run over ALL projections, resumed +
+        # fresh — never just the fresh ones, or dup-detection silently breaks across a resume.
+        projections: list[PageProjection] = list(done.values()) + fresh_projections
 
         findings: list[Finding] = [f for p in projections for f in p.intrinsic_findings]
         # sitemap_unreachable is for SITEMAPPED pages that failed (a sitemap advertising a dead
@@ -353,7 +464,8 @@ async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile:
                      # completeness signal: a run where many pages failed to fetch (e.g. Cloudflare
                      # started blocking mid-crawl) would persist a thin history. No hard threshold
                      # (the baseline calibrates the healthy rate) — but surface it for eyeballing.
-                     "crawl": {"fetched": len(fetched), "fetched_ok": len(ok),
+                     "crawl": {"fetched": len(sample), "fetched_ok": len(projections),
+                               "resumed_from_cache": len(done),
                                "sitemap_blocked": blocked, "sitemap_partial": sitemap_partial,
                                "sitemap_failed_children": failed_sitemaps}}
             if enum_stats is not None:  # the 845 bisection (INFO/WARNING/ERROR) for the human view
@@ -385,8 +497,9 @@ async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile:
             "sitemap_blocked": blocked,
             "sitemap_partial": sitemap_partial,
             "sitemap_failed_children": failed_sitemaps,
-            "fetched": len(fetched),
-            "fetched_ok": len(ok),
+            "fetched": len(sample),
+            "fetched_ok": len(projections),
+            "resumed_from_cache": len(done),
             "audit_scope": {"sitemap": len(sitemap_urls),
                             "rest_only_added": rest_only_added, "union": len(audit_urls)},
             "page_visible_chars": [p.visible_chars for p in projections],

@@ -100,6 +100,8 @@ def audit(
         help="sample the FIRST-N sitemap urls (skewed by page type; debugging only) vs seeded-random"),
     enumerate_only: bool = typer.Option(False, "--enumerate-only", help="list URLs; no fetch"),
     no_checks: bool = typer.Option(False, "--no-checks", help="M0 path: crawl + cache only"),
+    resume: bool = typer.Option(False, "--resume",
+        help="reuse pages already completed at the current check-version; fetch only the un-done tail"),
 ):
     """Run the M1 audit (enumerate -> reconcile -> fetch -> checks) for one brand."""
     cfg = load_brand(brand)
@@ -121,7 +123,7 @@ def audit(
         raise typer.Exit()
 
     result = asyncio.run(auditmod.run_audit(
-        cfg, limit=limit, head_sample=head,
+        cfg, limit=limit, head_sample=head, resume=resume,
         max_link_probes=None if max_link_probes == -1 else max_link_probes))
     _print_summary(cfg, result)
 

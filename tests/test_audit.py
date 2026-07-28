@@ -19,6 +19,76 @@ def _f(fp, url="https://x/a/", check="meta", issue="i"):
     return Finding(url=url, check=check, fingerprint=fp, severity=Severity.WARNING, issue=issue)
 
 
+# --- resume cache (skip fetch + checks for pages already done at the current check-version) ---
+
+def test_resume_projection_row_roundtrip():
+    # the resume cache DELIBERATELY persists intrinsic findings (the schema change vs the light B5
+    # projection); they must survive the round-trip so a resumed page needs no re-check.
+    f = Finding(url="https://x/a/", check="meta", fingerprint="meta:dup:t",
+                severity=Severity.WARNING, issue="duplicate title", details={"count": 2})
+    p = audit.PageProjection(url="https://x/a/", final_url="https://x/a", status=200,
+                             content_hash="h1", link_urls=["https://x/b"], title="A",
+                             meta_description="d", h1_text="H", is_noindex=True, visible_chars=500,
+                             intrinsic_findings=[f])
+    back = audit._row_projection(audit._projection_row(p, "V1"))
+    assert back.url == p.url and back.is_noindex is True and back.visible_chars == 500
+    assert back.link_urls == ["https://x/b"] and back.title == "A" and back.status == 200
+    assert len(back.intrinsic_findings) == 1
+    assert back.intrinsic_findings[0].fingerprint == "meta:dup:t"
+    assert back.intrinsic_findings[0].details == {"count": 2}
+
+
+def test_load_resume_filters_by_check_version(tmp_path, monkeypatch):
+    # a resume entry stamped with a DIFFERENT check-version is stale (a check/config/parse edit
+    # changed output) -> ignored, so that page re-fetches + re-checks. This is the guard that keeps
+    # resumed findings from going silently stale (the Check #2 trap in the resume path).
+    from auditor import crawl as C
+    monkeypatch.setattr(C, "CACHE_DIR", tmp_path)
+    path = audit.resume_cache_path("gl")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    cur = audit._projection_row(audit.PageProjection(url="https://x/cur/", title="cur"), "V_now")
+    old = audit._projection_row(audit.PageProjection(url="https://x/old/", title="old"), "V_old")
+    path.write_text(json.dumps(old) + "\n" + json.dumps(cur) + "\n")
+    done = audit.load_resume("gl", "V_now")
+    assert set(done) == {"https://x/cur/"}       # stale-version row dropped
+    assert done["https://x/cur/"].title == "cur"
+
+
+def test_barriers_run_over_resumed_projections():
+    # a resumed (reconstructed-from-cache) projection must participate in cross-page dup detection
+    # alongside fresh ones — else a dup title spanning the resume boundary is silently missed.
+    resumed = audit._row_projection(audit._projection_row(
+        audit.PageProjection(url="https://x/a/", title="Same Title"), "V"))
+    fresh = audit.PageProjection(url="https://x/b/", title="Same Title")
+    dups = audit._cross_page_duplicates([resumed, fresh])
+    assert any(f.check == "meta" and "duplicate title" in f.issue for f in dups)
+
+
+def test_stream_fetch_project_persists_each_page_incrementally(tmp_path):
+    # each page is flushed to the resume cache AS it completes (not after a batch), so a crash at
+    # page N keeps the N-1 already on disk — the property that makes a 15k crawl resumable.
+    import asyncio
+    from auditor.config import load_brand
+    cfg = load_brand("gl")
+
+    class _Resp:
+        def __init__(self, u):
+            self.status_code, self.url, self.headers = 200, u, {}
+            self.text = ("<html><head><title>T</title></head><body><h1>H</h1><p>"
+                         + "x" * 600 + "</p></body></html>")
+
+    class _Client:
+        async def request(self, method, url, headers=None, timeout=None):
+            return _Resp(url)
+
+    path = tmp_path / "resume.jsonl"
+    urls = ["https://x/1/", "https://x/2/", "https://x/3/"]
+    projs, failed = asyncio.run(audit._stream_fetch_project(_Client(), urls, cfg, "Vx", path))
+    assert len(projs) == 3 and failed == []
+    lines = [ln for ln in path.read_text().splitlines() if ln.strip()]
+    assert len(lines) == 3 and all(json.loads(ln)["check_version"] == "Vx" for ln in lines)
+
+
 def test_select_sample_seeded_random_reproducible_and_representative():
     urls = [f"https://x/{i}" for i in range(1000)]
     a = audit.select_sample(urls, 50)
