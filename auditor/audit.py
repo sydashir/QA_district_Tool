@@ -507,7 +507,15 @@ async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile:
         findings = _collapse_headings(findings)  # template-driven multi-H1 -> one per template
 
         run = None
-        if write:
+        # A run that audited NOTHING must not produce an authoritative-looking report. It happens for
+        # real: if the sitemap index itself fails (throttled host) and WP-REST is also unreachable,
+        # the union is empty — and a written report would claim "0 findings" and persist an empty
+        # history that makes the NEXT run's diff nonsense. Refuse loudly instead; same principle as
+        # withholding coverage findings on a partial sitemap read.
+        if write and not projections:
+            print("ERROR: 0 pages audited (enumeration returned nothing — check sitemap_partial / "
+                  "host availability). NO report written, history untouched.", flush=True)
+        elif write:
             live = set(recon["rest_urls"]) if recon else None
             out_dir = REPORTS_DIR / config.brand.lower() / _stamp(now)
             history = C.CACHE_DIR / config.brand.lower() / "history.json"
