@@ -226,6 +226,10 @@ re-runs (changed blocks only, via §B1 diff) are a small fraction. Verify with `
 sample before committing (do not ship on these estimates). **Verdict: Phase 2 is affordable; block
 dedup is what makes it comfortable, and it is a go on cost.**
 
+> **SUPERSEDED by §D (2026-07-31).** The sketch above was written from a single-brand sample before
+> the 9-brand crawl existed. §D is the real design: measured dedup on 6 brands, real page counts,
+> current pricing, and the allowlist sized against actual sources. Where the two disagree, §D wins.
+
 ### B5. Cache-skip / incremental runs — design pass (no code; decisions needed)
 
 **The correction that reframed this:** the compact projection *cannot* serve a check-version bump —
@@ -361,3 +365,204 @@ table; the "all 9 crawlable" assumption is *not* made — DBH stays `unknown`.
 Unchanged: #3 DBH URL, #4 PPC subdomain URLs, #5 written H2/H3 rules, #6 AR canonical phone confirm,
 #7 [m] do-not-flag terms. New from this pass: **#8** the 845 sitemap/WP-REST delta scope. Plus the
 three decisions below.
+
+---
+
+# Part D — Phase 2 (spelling / grammar / context), made real
+
+> Design pass, 2026-07-31. **No code written.** Supersedes the §B4 sketch. Every number below was
+> measured this session against the live sites or read from an authoritative source — nothing is
+> carried over from the earlier estimate. Decisions Syed still owes are collected in §D8.
+
+## D1. What Phase 2 is actually for — grounded in the client's own examples
+
+Read the ClickUp thread (`86baawd2a`) before designing anything: Jake's reported defects are the
+spec. They fall into **three classes, and only one of them needs AI.**
+
+| Jake's actual words | Class | Who catches it |
+|---|---|---|
+| *"spelled Heroin wrong"* | **spelling** | **AI (Phase 2)** |
+| *"homepage meta description doesn't mention Tennessee, only CA and FL"* | **context/scope** | **AI (Phase 2)** |
+| *"Among 9861 people in 2023, overdose outcomes d compared to 2022 by 5.96%"* — *"a word is missing… reads as broken merge-field text"* | empty-variable artifact | **deterministic** (§D2) |
+| *"There are at least outpatient drug rehab programs available within of California"* | empty-variable artifact | **deterministic** |
+| *"In , the involving substances such as"* / *"Among a population of in , overdose outcomes d compared to by %."* | empty-variable artifact | **deterministic** |
+| *"In Los Angeles during [blank], there were 5 news reports"* | empty-variable artifact | **deterministic** |
+| *"fix [acf field=ge,:"* | literal ACF token | **already shipped** (v1 `placeholder`) |
+| phone link errors on the COC facility page | phone | **already shipped** (v1 `phone`) |
+
+Jake's standing ask in that thread — *"how easy is it to add these issues to the automated QA tool
+to catch similar items like these for us in the future?"* — is the mandate for this phase.
+
+**The design consequence is the most important decision in Part D:** the largest, most embarrassing,
+most *frequently reported* class (empty-variable artifacts) is **not** a spelling/grammar problem and
+must not be sent to a model. It is a pattern problem, it is free, and it is deterministic.
+
+## D2. Empty-variable artifacts — a v1-class check, built first (no AI)
+
+v1's `placeholder` check catches the *literal* token (`[acf field=geo]`). It does **not** catch the
+case where the token resolved to an **empty string** and left grammatically broken text behind —
+which is what Jake actually keeps reporting. Signatures, all from his examples:
+
+- **Dangling preposition before punctuation:** `within of California`, `in , the`, `during [blank],`
+- **Orphaned comma/percent:** `In , there were`, `compared to by %.`
+- **Truncated word from a cut merge field:** `overdose outcomes d compared to` (`d` = the stub of
+  `decreased`/`increased`)
+- **Missing numeral where the sentence demands one:** `There are at least outpatient drug rehab
+  programs` (the count vanished)
+
+Implement as `auditor/checks/empty_slot.py` (v1 package, not `ai/`): a small ordered pattern set over
+`visible_text`, each with a fixture drawn from Jake's verbatim examples. Severity ERROR — these are
+visible on the customer-facing page. **This is cheap, exact, has zero token cost, and closes the
+single most-reported defect class.** It should ship before any AI work begins.
+
+## D3. Proper-noun allowlist — the make-or-break, and it is buildable today
+
+Without this, a spellchecker flags *Costa Mesa*, *buprenorphine*, and *Laguna Niguel* on every page
+and the review queue is worthless. Sources, **all confirmed on disk this session**:
+
+| Source | Yield | Confirmed |
+|---|---|---|
+| Fetcher `data/integrated_all_drugs_county.csv` (read-only) | **1,181 distinct counties across 51 state codes**, format `Baldwin County, AL` | 10,621 rows read |
+| Fetcher `scripts/geo_location_mapper.py` `LOCATION_MAP` | ~30 CA proper nouns + county/region names (thin, CA-only — a seed, not the breadth) | read |
+| **Our own crawl cache** (`cache/*/pages.json`, 9 brands) | **3,702 distinct capitalized tokens** from titles + H1s across **16,216 pages** — brands, cities, facilities, drugs, clinician names | computed |
+| Brand guides (`.tmp_dd/brand_guide_*.txt`) | brands, execs, clinical terms, banned words | on disk |
+| NAP sheet | brand + facility names | on disk |
+
+**The third row is the discovery.** We do not need to source a drug/facility dictionary — we already
+crawled the entire network, and every proper noun the sites actually use is sitting in our own cache.
+Build the allowlist from *our own corpus*, not from an external word list.
+
+Build rule: a term enters the allowlist if it appears **capitalized in ≥2 brands' titles/H1s**, or is
+in the county CSV, or is in a brand guide. Cross-brand agreement is what separates a real proper noun
+from one site's typo. Store as `auditor/ai/allowlist.json`, regenerated by a script, **committed** so
+a run is reproducible and diffable — and hashed as a check-version component (§D6) so a rebuild
+correctly rule-changes Phase-2 findings instead of silently resolving them.
+
+## D4. Templated-content dedup — measured on 6 brands
+
+Cost hinges on this. Measured this session (spread samples across each sitemap, sentence-level
+blocks, "boilerplate" = a block present on ≥30% of sampled pages):
+
+| Brand | pages sampled | boilerplate share | **dedup saves** | unique tokens/page |
+|---|---|---|---|---|
+| MHD | 11 | 64.5% | **56.7%** | ~2,071 |
+| AR | 4 | 78.5% | **54.7%** | ~3,168 |
+| RR | 25 | 50.1% | **49.7%** | ~4,595 |
+| GL | 25 | 43.6% | **47.8%** | ~3,692 |
+| CAD | 25 | 35.7% | **34.6%** | ~3,243 |
+
+**Dedup roughly halves the bill on every brand measured** (35–57%). It is mandatory, exactly as the
+sketch said — but now on 6 brands rather than one.
+
+**Honest limitation, stated because it moves the cost number:** `unique tokens/page` is computed as
+*distinct blocks in the sample ÷ pages sampled*, and small samples find less sharing than the full
+corpus does. So these per-page figures are an **upper bound**; the real corpus-wide number is lower,
+and dedup gets *better* with scale, not worse. The cost model below is therefore a ceiling.
+
+*(Measurement note: the first run of this reported 0% boilerplate on every brand. That was my bug —
+`ParsedPage.visible_text` is space-normalized (7 newlines in 27k chars), so paragraph-splitting
+produced one block per page. Fixed to sentence-level splitting; numbers above are the corrected run.
+`spike/dedup_measure.py`.)*
+
+## D5. Cost model — current pricing, real page counts
+
+**Pricing (via the `claude-api` skill, current — not from memory):** Opus 5 **$5 / $25** per 1M
+in/out · Sonnet 5 **$3 / $15** (intro **$2 / $10** through 2026-08-31) · Haiku 4.5 **$1 / $5**.
+**Batch API = 50%** of standard. **Prompt caching: writes 1.25×** (5-min TTL) or **2×** (1-h TTL),
+**reads ~0.1×**. Minimum cacheable prefix is model-dependent: **Opus 5 512 tok, Sonnet 5 1,024,
+Haiku 4.5 4,096** — our system+allowlist prefix clears all three, so caching works on any tier.
+
+**Corpus (union-scope page counts from the actual runs):**
+
+| GL | RR | MHD | CAD | COC | DBH | AR | AH | TDRC | **total** |
+|---|---|---|---|---|---|---|---|---|---|
+| 3,591 | 7,827 | 15,640 | 1,236 | 1,509 | 578 | 474 | 161 | 21 | **~31,037** |
+
+*(AR = real pages only; its 10,740 duplicate `/city-data/` doorways are excluded by config, and CAD's
+3,933 hidden doorways are not in its sitemap. Auditing 14,700 copies of two pages would be waste.)*
+
+At the measured **ceiling** of ~3,700 unique tokens/page → **~115M input tokens** for a full
+first pass; output is structured findings (most blocks yield nothing) — budget ~15% → ~17M.
+
+| Tier (batch, cached prefix) | Input | Output | **Full first pass** |
+|---|---|---|---|
+| **Haiku 4.5** | ~$58 | ~$43 | **~$100** |
+| **Sonnet 5** (intro rate) | ~$115 | ~$85 | **~$200** |
+| **Sonnet 5** (standard) | ~$173 | ~$128 | **~$300** |
+| **Opus 5** | ~$288 | ~$213 | **~$500** |
+
+**Verdict: affordable, and cheaper than it looks** — these are ceilings (D4), a mixed-tier pipeline
+(D6) puts most volume on the cheap tier, and incremental re-runs only re-check *changed* blocks via
+the existing run-diff, which is a small fraction. **Do not commit on these numbers**: run
+`count_tokens` against a real 200-block sample first, exactly as the earlier sketch said.
+
+## D6. Pipeline, model routing, and output
+
+`auditor/ai/`, consuming `ParsedPage`/projections and emitting `Finding`. v1 has zero imports from it;
+`audit --brand gl --ai` is off by default, so with the flag off the tool stays byte-for-byte v1.
+
+1. **Block extraction + dedup** (§D4) — check each distinct block once, fan the verdict to every page
+   carrying it.
+2. **Deterministic pre-pass** — `empty_slot` (§D2) and the banned-phrase matcher (§D7) run **before**
+   any model call. Free, exact, and they remove the highest-volume defects from the AI's input.
+3. **Model pass, routed per check type — never hardcoded** (already decided). `config/ai.toml`:
+   ```toml
+   [models]
+   spelling      = "claude-haiku-4-5"   # high volume, allowlist does the heavy lifting
+   grammar       = "claude-sonnet-5"
+   context_scope = "claude-opus-5"      # the judgement call — see D7
+   ```
+   Read at runtime, hashed into the check-version. Rationale for the split: spelling on a strong
+   allowlist is near-mechanical; context-scope is the one that needs real reasoning.
+4. **Prompt shape:** system prompt + allowlist = the **stable cached prefix**; the block is the
+   volatile suffix. Batch API for the bulk pass. Structured output (`output_config.format`) →
+   `{issue, confidence, snippet, suggestion}`.
+5. **Output = review queue, never an auto-verdict.** Emits `Finding` at INFO/WARNING with a
+   `confidence` field; client preference is **over-flag** [n]. Nothing is ever auto-applied.
+
+**Check-version discipline (the trap):** every Phase-2 input must be a hashed component or vanished
+findings will read as `resolved` instead of `rule_changed` — that is the Check #2 pathology we have
+already been bitten by twice. Components: `src:ai/*.py`, the **allowlist file**, the **banned-phrase
+list**, and the **model IDs** from `config/ai.toml`. Scope them to the Phase-2 checks in
+`diff.py::_CHECK_COMPONENT` so a model swap doesn't churn v1 findings.
+
+## D7. Context-scope detection — how the page declares its own scope
+
+The "national page says county" class (and Jake's *"meta description doesn't mention Tennessee"*).
+The page tells us its scope in four places we already parse — **no gSheet needed for v1 of this**:
+
+| Signal | Source | Example |
+|---|---|---|
+| **URL path** | crawl | `/drug/rehab/california/orange-county/costa-mesa/` → city scope |
+| **H1** | `ParsedPage.headings` | *"Drug Rehab in Costa Mesa, CA"* → city |
+| **Title / meta description** | `ParsedPage` | *"…CA and FL"* → state list |
+| **Sitemap grouping** | RR now groups sitemaps by template (Naveed, ClickUp) | template class |
+
+Derive a **declared scope** `{level: national|state|county|city, place: str}` from those, then ask the
+model one narrow question per block: *does this text make a geographic claim inconsistent with the
+declared scope?* That is a far cheaper and more precise prompt than "find context errors", and it is
+checkable against the allowlist (§D3 knows which names are counties vs cities).
+
+**The near-certain version is the sheet↔live diff** (compare rendered text to the source gSheet cell)
+— deterministic, no model, catches county/country instantly. It is gated on the gSheet connector,
+which is still **not wired** (we read a snapshot). That remains Decision D2 from Part B.
+
+## D8. Decisions needed from Syed
+
+1. **Ship `empty_slot` (§D2) first, before any AI?** It is the most-reported defect class, it is
+   deterministic, free, and ~a day of work. I recommend yes — it also shrinks the AI input.
+2. **Model routing defaults (§D6)** — I propose Haiku 4.5 for spelling, Sonnet 5 for grammar,
+   Opus 5 for context-scope. Approve, or set different tiers? (All runtime-config, so this is a
+   default, not a lock-in.)
+3. **Cost ceiling to authorise for the first full pass** — ~$100 (Haiku-heavy) to ~$500 (all-Opus).
+   I recommend authorising the **token-count validation run first** (~$0, `count_tokens` only), then
+   a single-brand pilot on GL, then the network pass.
+4. **Banned-phrase source.** Confirmed terms today are from the brand guide: *"District Behavioral
+   Health Network"* / *network* next to DBH, and *addicts* (person-first is mandatory —
+   person-first constructions must never be flagged). **I could not find an explicit do-not-say list
+   in Jake's ClickUp comments** — his June-18 items are PDF attachments I can't read, and open
+   question **[m]** ("do-not-flag terms") is still marked *unsure* by the client. So: do you have the
+   list, should it come from a gSheet tab we read live, or do we ship with the brand-guide terms and
+   add to it? **I will not invent the list.**
+5. **Scope of the first AI pass** — all 9 brands, or GL only as a pilot? (GL has the best
+   ground-truth fixture and a sent report to compare against.)
