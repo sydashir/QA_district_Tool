@@ -6,11 +6,22 @@ base_url = "https://inpatientmentalhealthfinder.com"
 sitemap_url = "https://inpatientmentalhealthfinder.com/sitemap_index.xml"
 canonical_phones = ["888-376-8385"]  # national only; per-location + retired come from the NAP canon (canon_for)
 
-# Throttle-safe crawl: MHD's host rate-limits hard. Diagnostic (2026-07-20): at concurrency 5 it
-# timed out ~72% of a sample, but a slow serial re-probe returned 200 on ~90% — i.e. the pages are
-# alive, the host just throttles concurrent hits. So crawl it gently: low concurrency, >=1s delay,
-# longer timeout to ride out its slow responses. ~8.7k pages -> a long run, but the 2-5am window +
-# these settings keep it polite and keep fetched_ok high (a throttled fast crawl = false 404s).
+# Throttle-safe crawl: MHD's host rate-limits hard. The pages are ALIVE — a slow serial re-probe
+# returns 200 on ~90% — the host just fails under concurrent hits. Crawl it gently.
+#
+# ============================ DO NOT RAISE max_concurrency ABOVE 2 ============================
+# 2 IS THE PERMANENT CEILING. Measured on cold pages 2026-07-30 — do NOT retest, the test itself
+# harms a client production origin:
+#     conc 1 -> 90% yield, 0.024 pg/s      conc 2 -> 90% yield, 0.032 pg/s   <- ceiling, best rate
+#     conc 3 -> 30% yield (throttling)     conc 4 -> 0% yield, 20 of 24 requests returned HTTP 500
+# Concurrency 4 did not merely slow down: it pushed the origin into 500s and left it degraded for
+# MINUTES afterwards — the very next audit could not even read sitemap_index.xml (the partial-read
+# guard correctly withheld coverage findings rather than report a false "0 URLs" gap). Concurrency 6
+# was deliberately NOT tested for that reason. Saturation here shows up as latency + 500s, not just
+# timeouts. Ceiling locked by Syed 2026-07-30.
+# CONSEQUENCE: a full 15,635-page census is ~131h (5.5 days) at conc 2. That is why MHD is audited
+# as a seeded-random SAMPLE (report it AS a sample — never extrapolate to the full site).
+# ==============================================================================================
 [crawl]
 max_concurrency = 2
 delay_seconds = 1.0
