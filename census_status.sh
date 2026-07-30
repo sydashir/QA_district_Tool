@@ -10,7 +10,11 @@ TOTAL=$(grep -oE 'fetch pages: [0-9]+/[0-9]+' "$LOG" 2>/dev/null | tail -1 | sed
 TOTAL=${TOTAL:-15640}
 echo "tracking: $LOG"
 
-banked=$(wc -l < cache/mhd/resume.jsonl 2>/dev/null | tr -d ' ')
+# resume.jsonl is renamed to resume.done.jsonl when a run COMPLETES — count whichever exists so a
+# finished run doesn't read as "0 banked".
+RESUME=cache/mhd/resume.jsonl
+[ -f "$RESUME" ] || RESUME=cache/mhd/resume.done.jsonl
+banked=$(wc -l < "$RESUME" 2>/dev/null | tr -d ' ')
 banked=${banked:-0}
 last=$(grep -oE 'fetch pages: [0-9]+/[0-9]+' "$LOG" 2>/dev/null | tail -1)
 attempted=$(echo "$last" | sed -E 's#.*: ([0-9]+)/.*#\1#')

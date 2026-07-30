@@ -90,6 +90,24 @@ def test_display_dial_mismatch_own_number_is_benign_question():
     assert "call-tracking" in fs[0].suggestion
 
 
+def test_same_number_pair_on_two_anchors_keeps_distinct_fingerprints():
+    # MHD hit this live: one page carries the SAME display/dial pair on two anchors whose raw href
+    # formatting differs, so the findings' evidence differs but (class,url,tel,disp) collided into
+    # ONE fingerprint. Each occurrence must keep its own identity (never silently dropped).
+    p = ParsedPage(
+        url=URL,
+        raw_html='<a href="tel:+18445760144">562-330-1644</a>'
+                 '<a href="tel:(844)%20576-0144">562-330-1644</a>',
+        visible_text="")
+    fs = [f for f in phone.run(p, CFG) if "display_dial_mismatch" in f.fingerprint]
+    fps = [f.fingerprint for f in fs]
+    assert len(fs) == 2, f"expected one finding per anchor, got {len(fs)}"
+    assert len(set(fps)) == 2, f"fingerprints collided: {fps}"
+    # the FIRST occurrence keeps the bare fingerprint so the common single-anchor case is stable
+    assert any(":display_dial_mismatch:" in f for f in fps)
+    assert any(":display_dial_mismatch#1:" in f for f in fps)
+
+
 def test_cross_brand_dial_is_error():
     # a COC page shows COC's number but the button dials GL's national (844-576-0144) -> a
     # cross-brand leak, a real ERROR, with the owning brand named.

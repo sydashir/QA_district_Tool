@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import re
 import urllib.parse
+from collections import Counter
 
 import phonenumbers
 from bs4 import BeautifulSoup
@@ -83,6 +84,19 @@ def run(parsed: ParsedPage, config) -> list[Finding]:
     soup = BeautifulSoup(parsed.raw_html, "lxml")
     numbers_on_page: set[str] = set()  # E.164, for the non-canonical pass (deduped)
 
+    # One page can carry the SAME display/dial number pair on two different anchors whose raw href
+    # or link text differ (e.g. "tel:888-376-8385" vs "tel:(888) 376-8385"). Those are two real
+    # findings with different evidence, but (class,url,tel,disp) gives them ONE fingerprint — a
+    # collision the dedupe safety net has to catch ("keeping all, don't drop"). Key each occurrence
+    # so identities stay distinct; the FIRST keeps the bare fingerprint so the common single-anchor
+    # case is stable across runs. Same fix as heading_structure's label_leak.
+    _seen_pair: Counter = Counter()
+
+    def slot(cls: str, tel: str, disp: str) -> str:
+        n = _seen_pair[(cls, tel, disp)]
+        _seen_pair[(cls, tel, disp)] += 1
+        return "" if n == 0 else f"#{n}"
+
     for a in soup.find_all("a", href=True):
         href = a["href"].strip()
         if not href.lower().startswith("tel:"):
@@ -111,7 +125,7 @@ def run(parsed: ParsedPage, config) -> list[Finding]:
             if tel_e164 in retired:  # dials a DEAD line — no call-routing story makes this OK -> ERROR
                 findings.append(Finding(
                     url=parsed.url, check=CHECK, severity=Severity.ERROR,
-                    fingerprint=make_fingerprint(CHECK, "dials_retired", parsed.url, tel_e164, disp_e164),
+                    fingerprint=make_fingerprint(CHECK, "dials_retired" + slot("dials_retired", tel_e164, disp_e164), parsed.url, tel_e164, disp_e164),
                     issue="click-to-call dials a retired number", location=f"tel:{raw}",
                     snippet=f"shows {display!r} but dials RETIRED {tel_e164}",
                     suggestion=f"The button dials {tel_e164}, a retired number ({_SNAP_CAVEAT}) — "
@@ -120,7 +134,7 @@ def run(parsed: ParsedPage, config) -> list[Finding]:
             elif tel_e164 in clean:  # dials one of THIS brand's OWN live numbers -> benign call-tracking
                 findings.append(Finding(
                     url=parsed.url, check=CHECK, severity=Severity.WARNING,
-                    fingerprint=make_fingerprint(CHECK, "display_dial_mismatch", parsed.url, tel_e164, disp_e164),
+                    fingerprint=make_fingerprint(CHECK, "display_dial_mismatch" + slot("display_dial_mismatch", tel_e164, disp_e164), parsed.url, tel_e164, disp_e164),
                     issue="displayed number differs from the click-to-call target", location=f"tel:{raw}",
                     snippet=f"shows {display!r} but dials {tel_e164}",
                     suggestion=f"Shows {disp_e164} but dials {tel_e164} — both {brand}'s own numbers. "
@@ -132,7 +146,7 @@ def run(parsed: ParsedPage, config) -> list[Finding]:
                 if len(owners) == 1:  # dials exactly ONE other brand's live number -> cross-brand leak
                     findings.append(Finding(
                         url=parsed.url, check=CHECK, severity=Severity.ERROR,
-                        fingerprint=make_fingerprint(CHECK, "cross_brand_dial", parsed.url, tel_e164, disp_e164),
+                        fingerprint=make_fingerprint(CHECK, "cross_brand_dial" + slot("cross_brand_dial", tel_e164, disp_e164), parsed.url, tel_e164, disp_e164),
                         issue=f"click-to-call dials another brand's number ({owners[0]})",
                         location=f"tel:{raw}", snippet=f"shows {display!r} but dials {tel_e164} ({owners[0]})",
                         suggestion=f"The button dials {tel_e164}, which is {owners[0]}'s number, not {brand}'s"
@@ -142,7 +156,7 @@ def run(parsed: ParsedPage, config) -> list[Finding]:
                 elif len(owners) >= 2:  # a number claimed by 2+ brands -> ambiguous, don't hard-call
                     findings.append(Finding(
                         url=parsed.url, check=CHECK, severity=Severity.WARNING,
-                        fingerprint=make_fingerprint(CHECK, "display_dial_ambiguous", parsed.url, tel_e164, disp_e164),
+                        fingerprint=make_fingerprint(CHECK, "display_dial_ambiguous" + slot("display_dial_ambiguous", tel_e164, disp_e164), parsed.url, tel_e164, disp_e164),
                         issue="displayed number differs; dialed number belongs to multiple brands",
                         location=f"tel:{raw}", snippet=f"shows {display!r} but dials {tel_e164} ({owners})",
                         suggestion=f"Dials {tel_e164}, which multiple brands claim ({owners}) — verify which is correct.",
@@ -151,7 +165,7 @@ def run(parsed: ParsedPage, config) -> list[Finding]:
                 else:  # nobody's canonical number -> unrecognized dialed number
                     findings.append(Finding(
                         url=parsed.url, check=CHECK, severity=Severity.WARNING,
-                        fingerprint=make_fingerprint(CHECK, "display_dial_unknown", parsed.url, tel_e164, disp_e164),
+                        fingerprint=make_fingerprint(CHECK, "display_dial_unknown" + slot("display_dial_unknown", tel_e164, disp_e164), parsed.url, tel_e164, disp_e164),
                         issue="displayed number differs; dialed number is in no brand's set",
                         location=f"tel:{raw}", snippet=f"shows {display!r} but dials {tel_e164}",
                         suggestion=f"Shows {disp_e164} but dials {tel_e164}, which isn't in any brand's number "
