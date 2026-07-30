@@ -10,8 +10,13 @@ canonical_phones = ["844-287-8506"]  # national only; per-location + retired com
 max_concurrency = 5
 delay_seconds = 0.25
 timeout_seconds = 20.0
-max_retries = 1
-exclude = ["/wp-admin", "?"]
+max_retries = 3  # sitemap children must survive throttle so the read is never silently partial
+# /city-data/ = ~10,740 URLs that all serve ONE byte-identical page (verified: 10 spread samples ->
+# 1 content hash, 84% carry a -N dup slug, generic non-localized H1). They are a duplicate-doorway
+# SEO liability reported once in reports/ar/DOORWAY_FINDING.md — auditing 10,740 copies of one page
+# would bury AR's ~500 real pages in noise and waste the link-probe budget. Excluded from the crawl
+# BY DESIGN, not by accident; the doorway finding stands on its own.
+exclude = ["/wp-admin", "?", "/city-data/"]
 
 [wp_rest]
 enabled = true
