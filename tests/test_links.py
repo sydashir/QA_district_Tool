@@ -71,6 +71,32 @@ def test_staging_host_flagged_not_probed():
     assert f[0].details["class"] == "staging_link" and f[0].severity is Severity.ERROR
 
 
+def test_capped_probe_window_is_stable_and_unbiased():
+    # The capped probe window must be (a) the SAME set every run — else a broken link that simply
+    # wasn't probed this time reads as `resolved` in the diff — and (b) REPRESENTATIVE, not clustered
+    # on one URL prefix. Plain sort()+head satisfied (a) but broke (b): measured on AR it made the
+    # 400-link window 71% /city-data/ doorway URLs and the real link signal vanished.
+    pages = [audit.PageProjection(
+        url="https://www.gratitudelodge.com/p",
+        # 90% of the link graph is one prefix (the AR doorway shape), 10% is everything else
+        link_urls=[f"https://www.gratitudelodge.com/city-data/c{i:05d}/" for i in range(900)]
+                  + [f"https://www.gratitudelodge.com/real/page{i:03d}/" for i in range(100)])]
+    client = _Client({})
+    _f1, s1 = asyncio.run(links.check_links(pages, client, CFG, max_links=100))
+    probed1 = sorted(client.timeouts)
+    client2 = _Client({})
+    _f2, s2 = asyncio.run(links.check_links(pages, client2, CFG, max_links=100))
+    probed2 = sorted(client2.timeouts)
+
+    assert s1["probed"] == s2["probed"] == 100
+    assert probed1 == probed2                      # (a) deterministic across runs
+    doorway = sum(1 for u in probed1 if "/city-data/" in u)
+    # (b) unbiased: ~90% doorway share expected by proportion; the alphabetical-head bug gave ~100%
+    # doorway AND zero /real/ pages. Assert the window actually reaches the non-doorway cohort.
+    assert doorway < 100, "probe window is ALL one prefix — biased selection"
+    assert any("/real/" in u for u in probed1), "probe window never reaches the minority cohort"
+
+
 def test_probe_timeout_split_by_host_scope():
     # internal links get the full timeout (a real 404 is a real finding); external hosts get the
     # short one (they classify `unverified` regardless) so the probe tail isn't serialized behind

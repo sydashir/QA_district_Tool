@@ -17,6 +17,7 @@ not one per occurrence.
 from __future__ import annotations
 
 import asyncio
+import random
 import re
 from urllib.parse import urlparse
 
@@ -26,6 +27,7 @@ from ..report import Finding, Severity, make_fingerprint
 
 CHECK = "broken_links"
 _CDN_CGI = "/cdn-cgi/"
+_PROBE_SEED = 0xB0BA  # fixed -> the capped probe window is the same set every run
 
 # "The host refused/blocked OUR request" — verification impossible, NOT proof the page is gone.
 # On an EXTERNAL host this is `unverified` (a browser probe found CDC=200, pubmed=reCAPTCHA,
@@ -119,11 +121,18 @@ async def check_links(pages, client, config, max_links: int | None = None, on_do
         else:
             to_probe.append(url)
 
-    # Sort before capping: the probe window must be the SAME set every run regardless of the order
-    # pages arrived in. Otherwise the cap picks a different subset each run and a broken link that
-    # simply wasn't probed this time reads as `resolved` in the diff — a fix claim that never happened.
+    # The probe window must be BOTH stable across runs AND representative.
+    # - Stable: an unprobed broken link would otherwise read as `resolved` in the diff next run — a
+    #   fix claim that never happened. So the selection must not depend on page arrival order.
+    # - Representative: plain sort()+head is stable but SKEWED to one URL prefix (measured: on AR it
+    #   made the 400-link window 71% /city-data/ doorway URLs and the real link signal vanished) —
+    #   the same first-N skew already fixed for page sampling.
+    # Seeded-random over the sorted pool gives both: same seed -> same set every run, no prefix bias.
     to_probe.sort()
-    capped = to_probe[:max_links] if max_links else to_probe
+    if max_links and len(to_probe) > max_links:
+        capped = sorted(random.Random(_PROBE_SEED).sample(to_probe, max_links))
+    else:
+        capped = to_probe
     stats["probed"] = len(capped)
 
     full_timeout = config.crawl.timeout_seconds
