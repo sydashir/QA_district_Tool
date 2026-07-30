@@ -2,8 +2,13 @@
 # MHD census progress readout. Run any time:  bash census_status.sh
 # Reads the detached run's log + the resume cache. Read-only; never touches the crawl.
 cd "$(dirname "$0")" || exit 1
-LOG=reports/mhd_census.log
-TOTAL=15640
+# track whichever MHD run is most recent (full census leg or seeded sample)
+LOG=$(ls -t reports/mhd_census.log reports/mhd_sample.log 2>/dev/null | head -1)
+LOG=${LOG:-reports/mhd_census.log}
+# denominator = what THIS run is auditing (from the log's own progress line), else the full union
+TOTAL=$(grep -oE 'fetch pages: [0-9]+/[0-9]+' "$LOG" 2>/dev/null | tail -1 | sed -E 's#.*/([0-9]+)#\1#')
+TOTAL=${TOTAL:-15640}
+echo "tracking: $LOG"
 
 banked=$(wc -l < cache/mhd/resume.jsonl 2>/dev/null | tr -d ' ')
 banked=${banked:-0}
