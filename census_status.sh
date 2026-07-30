@@ -44,7 +44,10 @@ if [ -n "$m1" ] && [ -n "$m2" ] && [ "$m1" != "$m2" ]; then
   ds=$(( s2 - s1 )); dn=$(( n2 - n1 ))
   [ "$ds" -lt 0 ] && ds=$(( ds + 86400 ))   # crossed midnight
   if [ "$ds" -gt 0 ] && [ "$dn" -gt 0 ]; then
-    echo "recent pace: ${dn} pages / ${ds}s  -> ETA for the remaining $(( TOTAL - banked )): ~$(( (TOTAL - banked) * ds / dn / 3600 ))h at this pace"
+    rem=$(( TOTAL - banked ))
+    eta_s=$(( rem * ds / dn ))
+    if [ "$eta_s" -ge 3600 ]; then eta="~$(( eta_s / 3600 ))h $(( (eta_s % 3600) / 60 ))m"; else eta="~$(( eta_s / 60 ))m"; fi
+    echo "recent pace: ${dn} pages / ${ds}s  -> ETA for the remaining ${rem}: ${eta} at this pace"
   fi
 fi
 echo
