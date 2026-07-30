@@ -26,14 +26,14 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from . import checks_version, crawl as C, diff, writers
-from .checks import blank, enumeration, links, meta, phone, placeholder, structure
+from .checks import blank, empty_slot, enumeration, links, meta, phone, placeholder, structure
 from .config import BrandConfig
 from .parse import ParsedPage, parse_html
 from .report import (AuditReport, Finding, PageAudit, Severity, canonical_url,
                      dedupe_findings, make_fingerprint)
 
 # Per-page checks that operate purely on a ParsedPage.
-_PAGE_CHECKS = (structure, placeholder, phone, blank, meta)
+_PAGE_CHECKS = (structure, placeholder, empty_slot, phone, blank, meta)
 
 REPORTS_DIR = Path(__file__).resolve().parent.parent / "reports"
 _log = logging.getLogger(__name__)
