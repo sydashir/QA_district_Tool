@@ -91,10 +91,13 @@ def test_capped_probe_window_is_stable_and_unbiased():
     assert s1["probed"] == s2["probed"] == 100
     assert probed1 == probed2                      # (a) deterministic across runs
     doorway = sum(1 for u in probed1 if "/city-data/" in u)
-    # (b) unbiased: ~90% doorway share expected by proportion; the alphabetical-head bug gave ~100%
-    # doorway AND zero /real/ pages. Assert the window actually reaches the non-doorway cohort.
-    assert doorway < 100, "probe window is ALL one prefix — biased selection"
-    assert any("/real/" in u for u in probed1), "probe window never reaches the minority cohort"
+    real = sum(1 for u in probed1 if "/real/" in u)
+    # (b) informative: the budget must NOT be swallowed by the dominant section. A flat random pick
+    # would spend ~90 of 100 probes on the duplicated /city-data/ cohort and reach only ~10 real
+    # pages (measured on AR: 86% of the window, 2% coverage of the links that matter). Stratified
+    # round-robin gives the two sections comparable shares.
+    assert real >= 50, f"probe window under-covers the minority section: only {real}/100 real pages"
+    assert doorway <= 50, f"dominant section swallowed the budget: {doorway}/100 doorway URLs"
 
 
 def test_probe_timeout_split_by_host_scope():

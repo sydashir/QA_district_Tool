@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import random
 import re
+from collections import defaultdict
 from urllib.parse import urlparse
 
 import httpx
@@ -75,6 +76,42 @@ async def _head_or_get(client, url, timeout):
             return None, url, f"{type(e).__name__}"
 
 
+def _probe_group(url: str) -> tuple[str, str]:
+    """Selection stratum = (registrable host, first path segment) — a rough 'site section'. Keeps one
+    huge section (e.g. AR's 10,746 duplicate /city-data/ URLs) from swallowing the probe budget."""
+    p = urlparse(url)
+    segs = [s for s in p.path.split("/") if s]
+    return (_registrable(p.netloc.lower()), segs[0] if segs else "")
+
+
+def _select_probe_window(to_probe: list[str], max_links: int | None) -> list[str]:
+    """Deterministic, section-stratified pick of at most ``max_links`` targets. Round-robins across
+    sorted groups so the window spans many sections; seeded shuffle inside each group keeps the
+    within-section pick representative. Same inputs -> same window, every run."""
+    if not max_links or len(to_probe) <= max_links:
+        return to_probe
+    groups: dict[tuple[str, str], list[str]] = defaultdict(list)
+    for u in to_probe:
+        groups[_probe_group(u)].append(u)
+    rng = random.Random(_PROBE_SEED)
+    for g in groups.values():
+        rng.shuffle(g)
+    keys = sorted(groups)
+    picked: list[str] = []
+    while len(picked) < max_links:
+        progressed = False
+        for k in keys:
+            if groups[k]:
+                picked.append(groups[k].pop())
+                progressed = True
+                if len(picked) >= max_links:
+                    break
+        if not progressed:  # every group exhausted
+            break
+    picked.sort()
+    return picked
+
+
 def _finding(target, sources, subtype, severity, issue, suggestion, cls, **details):
     return Finding(
         url=sources[0], check=CHECK, severity=severity,
@@ -121,18 +158,19 @@ async def check_links(pages, client, config, max_links: int | None = None, on_do
         else:
             to_probe.append(url)
 
-    # The probe window must be BOTH stable across runs AND representative.
-    # - Stable: an unprobed broken link would otherwise read as `resolved` in the diff next run — a
-    #   fix claim that never happened. So the selection must not depend on page arrival order.
-    # - Representative: plain sort()+head is stable but SKEWED to one URL prefix (measured: on AR it
-    #   made the 400-link window 71% /city-data/ doorway URLs and the real link signal vanished) —
-    #   the same first-N skew already fixed for page sampling.
-    # Seeded-random over the sorted pool gives both: same seed -> same set every run, no prefix bias.
+    # The capped probe window must be stable, unbiased, AND informative:
+    # - Stable: an unprobed broken link reads as `resolved` in the next diff (a fix claim that never
+    #   happened), so selection must not depend on page arrival order.
+    # - Unbiased: sort()+head is stable but skews to one URL prefix (measured: 71% of AR's window
+    #   became /city-data/ URLs) — the first-N skew already fixed for page sampling.
+    # - Informative: a FLAT random sample is unbiased yet still useless when one section dominates
+    #   the link multiset — AR has 10,746 duplicate /city-data/ links vs 1,834 real ones, so 86% of
+    #   the budget probed one duplicated page and covered only 2% of the links that matter.
+    # So stratify: group targets by (registrable host, first path segment) and round-robin across
+    # groups. The window then spans every section of the site instead of the largest cohort, and a
+    # seeded shuffle within each group keeps it representative and reproducible.
     to_probe.sort()
-    if max_links and len(to_probe) > max_links:
-        capped = sorted(random.Random(_PROBE_SEED).sample(to_probe, max_links))
-    else:
-        capped = to_probe
+    capped = _select_probe_window(to_probe, max_links)
     stats["probed"] = len(capped)
 
     full_timeout = config.crawl.timeout_seconds
