@@ -20,9 +20,12 @@ code. One way to do each thing — no parallel implementations "just in case."
   this correctly once; keep doing it).
 - **Read before you write.** Don't break existing working code when adding new code — confirm
   existing functionality still works after every change.
-- **Session continuity:** at the start of every session, read `SESSION_STATE.md` first. Update it
-  continuously through the session, not just at the end — if you're ever unsure you have enough
-  context budget left to finish a thought, write state down first.
+- **Session continuity:** at the start of every session, read `SESSION_STATE.md` first.
+  **Write it after every meaningful step — every commit, every finding, every decision.** Not
+  "continuously" as a vibe, not at some threshold. After each step, before starting the next one.
+  **The test: if this session died right now, could a fresh one continue with zero loss?** If no,
+  you are already late. Writing state costs seconds; losing a session costs hours. There is never
+  a reason to defer it.
 - **Git identity for this repo:** `sydashir` / `meetashirr@gmail.com` (set repo-local, not global).
 
 Corollaries: never invent a URL, config shape, or library API surface. If it isn't in this file,
