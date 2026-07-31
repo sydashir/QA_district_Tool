@@ -41,30 +41,47 @@ def blocks(text: str) -> list[str]:
     return out
 
 
-async def collect(n_pages: int) -> tuple[list[str], int, int]:
+async def collect(n_pages: int) -> tuple[list[str], int, int, int]:
+    """Unique NON-BOILERPLATE blocks. A block present on >=30% of pages is nav/footer/CTA chrome:
+    it is not page copy, it is the largest source of false positives (headings run into paragraphs,
+    menus arrive as one 'sentence'), and re-checking it is pure cost. Excluding it fixes precision
+    and spend together."""
     cfg = load_brand("gl")
     async with C.make_client(cfg.crawl) as client:
         urls, _b, _c, _f = await C.enumerate_sitemap(client, cfg.sitemap_url, max_retries=3)
         urls = C._apply_exclude(urls, cfg.crawl.exclude)
         step = max(1, len(urls) // n_pages)
         sample = urls[::step][:n_pages]
-        seen: set[str] = set()
-        uniq: list[str] = []
-        total = 0
-        pages = 0
+        per_page: list[list[str]] = []
         for u in sample:
             st, _f2, html, _e, _h = await C._request(client, u, max_retries=2)
             if st != 200 or not html:
                 continue
-            pages += 1
-            for b in blocks(parse_html(html, page_url=u, base_url=u).visible_text):
-                total += 1
-                h = hashlib.sha1(b.encode()).hexdigest()
-                if h not in seen:
-                    seen.add(h)
-                    uniq.append(b)
+            per_page.append(blocks(parse_html(html, page_url=u, base_url=u).visible_text))
             await asyncio.sleep(cfg.crawl.delay_seconds)
-    return uniq, total, pages
+
+    pages = len(per_page)
+    freq: dict[str, int] = {}
+    for bl in per_page:
+        for h in {hashlib.sha1(b.encode()).hexdigest() for b in bl}:
+            freq[h] = freq.get(h, 0) + 1
+    cutoff = max(2, int(0.30 * pages))
+
+    seen: set[str] = set()
+    uniq: list[str] = []
+    total = 0
+    boiler = 0
+    for bl in per_page:
+        for b in bl:
+            total += 1
+            h = hashlib.sha1(b.encode()).hexdigest()
+            if freq[h] >= cutoff:
+                boiler += 1
+                continue
+            if h not in seen:
+                seen.add(h)
+                uniq.append(b)
+    return uniq, total, pages, boiler
 
 
 SYSTEM = """You are a copy-editor for a US behavioral-health website network. US English, AP style.
@@ -78,8 +95,13 @@ CRITICAL RULES:
 - The ALLOWLIST below contains real proper nouns used by this business: city names, county names,
   facility names, brand names, drug and medication names. NEVER report an allowlisted term as a
   misspelling.
-- Do NOT report style preferences, tone, capitalisation choices in headings, or American-vs-British
-  variants that are correct in US English.
+- Do NOT report style preferences of ANY kind. Specifically never report: a colon before a list,
+  heading capitalisation, sentence length, list formatting, "restructure for clarity", missing
+  Oxford commas, or American-vs-British variants that are correct in US English.
+- Report ONLY a concrete, mechanical error. Every finding MUST be a short exact substring that is
+  wrong and a short exact replacement. If you cannot express the fix as a short replacement string,
+  do not report it.
+- Do NOT report anything about license numbers, ID codes, or alphanumeric identifiers.
 - Do NOT report a term as misspelled unless you are confident it is wrong. Marketing copy for this
   industry contains many clinical and place names.
 - Person-first language ("people with addiction") is REQUIRED and is never an error.
@@ -103,7 +125,7 @@ SCHEMA = {
 
 
 def main(n_pages: int, n_blocks: int) -> None:
-    uniq, total, pages = asyncio.run(collect(n_pages))
+    uniq, total, pages, boiler = asyncio.run(collect(n_pages))
     allow = json.loads(ALLOWLIST.read_text())["terms"]
     client = anthropic.Anthropic()
 
@@ -115,7 +137,7 @@ def main(n_pages: int, n_blocks: int) -> None:
         model=MODEL, messages=[{"role": "user", "content": "\n\n".join(uniq)}]).input_tokens
 
     print(f"=== 1. cost model validation ({pages} GL pages) ===")
-    print(f"  blocks: {total} total -> {len(uniq)} unique  (dedup saves {100*(1-len(uniq)/max(1,total)):.1f}%)")
+    print(f"  blocks: {total} total | {boiler} boilerplate excluded | {len(uniq)} unique page-copy blocks sent")
     print(f"  deduped body tokens: {body:,}  -> {body/max(1,pages):,.0f} tok/page")
     print(f"  cached prefix (system+allowlist): {tok_sys:,} tokens  [min cacheable: 4096 Haiku / 1024 Sonnet 5 / 512 Opus 5]")
     est = body / max(1, pages) * 31037
@@ -127,6 +149,8 @@ def main(n_pages: int, n_blocks: int) -> None:
     step = max(1, len(uniq) // n_blocks)
     sample = uniq[::step][:n_blocks]
     findings = []
+    from collections import Counter as _C
+    dropped = _C()
     for i, b in enumerate(sample, 1):
         r = client.messages.create(
             model=MODEL, max_tokens=1000,
@@ -138,11 +162,26 @@ def main(n_pages: int, n_blocks: int) -> None:
         except Exception:
             continue
         for f in out.get("findings", []):
-            findings.append({**f, "block": b[:160]})
+            wrong, correct = (f.get("wrong") or "").strip(), (f.get("correct") or "").strip()
+            # FIX 2a: hard drop degenerate output where the "correction" is the same string
+            if not wrong or not correct or wrong.lower() == correct.lower():
+                dropped["identical"] += 1
+                continue
+            # FIX 2b: length guard — a real correction is a short replacement, not prose advice
+            if len(correct) > 80 or len(wrong) > 80:
+                dropped["prose_not_correction"] += 1
+                continue
+            # FIX 3: never assert a corrected identifier from a model guess; surface it for a human
+            if any(ch.isdigit() for ch in wrong):
+                findings.append({"wrong": wrong, "correct": "(verify against the source record)",
+                                 "kind": "identifier", "confidence": "low", "block": b[:160]})
+                continue
+            findings.append({"wrong": wrong, "correct": correct, "kind": f.get("kind", "?"),
+                             "confidence": f.get("confidence", "?"), "block": b[:160]})
         if i % 20 == 0:
             print(f"  ...{i}/{len(sample)}  cache_read={r.usage.cache_read_input_tokens}", flush=True)
 
-    print(f"\n  blocks checked: {len(sample)}   findings: {len(findings)}")
+    print(f"\n  blocks checked: {len(sample)}   findings: {len(findings)}   filtered_out: {dict(dropped) or 0}")
     from collections import Counter
     print(f"  by kind: {dict(Counter(f['kind'] for f in findings))}")
     print(f"  by confidence: {dict(Counter(f['confidence'] for f in findings))}")
