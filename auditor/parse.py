@@ -17,7 +17,7 @@ import re
 from dataclasses import dataclass, field
 from urllib.parse import urljoin
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, NavigableString
 
 _HEADING_RE = re.compile(r"^h[1-6]$")
 
@@ -73,6 +73,53 @@ def stable_markup(html: str) -> str:
     return str(strip_volatile(BeautifulSoup(html, "lxml")))
 
 
+# Block-level elements. Text from two different blocks is NOT one sentence, so a boundary must
+# survive into ``visible_text`` — otherwise an <h2> runs straight into the <p> beneath it
+# ("Residential Rehab Options Because emergency workers…") and every consumer sees a malformed
+# sentence that isn't on the page. This was a real defect: it produced false "missing sentence
+# break" findings, and it affects EVERY check that reads visible_text, not just the AI layer.
+_BLOCK_TAGS = (
+    "p", "div", "section", "article", "aside", "header", "footer", "nav", "main", "figure",
+    "figcaption", "blockquote", "pre", "li", "ul", "ol", "dl", "dt", "dd", "table", "thead",
+    "tbody", "tr", "td", "th", "form", "fieldset", "hr", "br",
+    "h1", "h2", "h3", "h4", "h5", "h6",
+)
+_BLOCK_SET = frozenset(_BLOCK_TAGS)
+_INLINE_WS = re.compile(r"[^\S\n]+")   # runs of spaces/tabs, but never newlines
+_BLANK_LINES = re.compile(r"\s*\n\s*")
+
+
+def _visible_text(soup) -> str:
+    """Visible text with BLOCK BOUNDARIES PRESERVED as newlines.
+
+    ``get_text(" ")`` (the original) joins every text node with a space, silently welding an <h2>
+    onto the <p> beneath it — "Residential Rehab Options Because emergency workers…" — a sentence
+    that is not on the page. Every consumer of ``visible_text`` saw that, not just the AI layer.
+    ``get_text("\n")`` fixes the weld but over-splits, breaking inline markup mid-sentence
+    ("Call <b>now</b>" -> "Call\nnow").
+
+    So: one pass over ``descendants``, emitting a newline when a BLOCK-level element starts and
+    nothing for inline elements. Measured on a 1,500-block page: 0.049s, vs 0.004s for the old
+    (incorrect) get_text and **4.1s** for the obvious recursive version / **13.1s** for the
+    insert_before/insert_after version whose bs4 tree mutation is O(n^2). At ~31k pages that
+    difference is 25 minutes versus days, so the cheap traversal is load-bearing, not a micro-opt.
+
+    Known limit: the newline marks a block's START, so bare text immediately following a block at
+    the same level (``<p>A</p>Text``) still welds. That shape is rare in real page markup — text
+    lives inside blocks — and avoiding it costs an exit-marker walk that measured 85x slower.
+    """
+    out: list[str] = []
+    for el in soup.descendants:
+        if isinstance(el, NavigableString):
+            if str(el).strip():
+                out.append(str(el))
+        elif el.name in _BLOCK_SET:
+            out.append("\n")
+    text = _INLINE_WS.sub(" ", "".join(out))   # collapse spaces/tabs, keep \n
+    text = _BLANK_LINES.sub("\n", text)       # one newline per boundary
+    return text.strip()
+
+
 def parse_html(html: str, page_url: str, base_url: str | None = None) -> ParsedPage:
     """Parse rendered HTML into the extraction primitives the M1 checks consume.
 
@@ -112,7 +159,7 @@ def parse_html(html: str, page_url: str, base_url: str | None = None) -> ParsedP
         links.append(Link(href=href, url=absu))
 
     strip_volatile(soup)  # normalize before extracting visible text
-    visible_text = soup.get_text(" ", strip=True)
+    visible_text = _visible_text(soup)
 
     return ParsedPage(
         url=page_url,

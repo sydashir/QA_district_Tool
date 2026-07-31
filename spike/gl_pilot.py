@@ -105,6 +105,8 @@ CRITICAL RULES:
 - Do NOT report a term as misspelled unless you are confident it is wrong. Marketing copy for this
   industry contains many clinical and place names.
 - Person-first language ("people with addiction") is REQUIRED and is never an error.
+- "near {City}" (e.g. "Rehab near Cerritos", "services near Laguna Hills") is this network's
+  DELIBERATE house phrasing for geo pages. Never rewrite "near X" to "in X" or flag it.
 - If the block has no error, return an empty findings list.
 
 ALLOWLIST (proper nouns — never flag these):
@@ -171,8 +173,11 @@ def main(n_pages: int, n_blocks: int) -> None:
             if len(correct) > 80 or len(wrong) > 80:
                 dropped["prose_not_correction"] += 1
                 continue
-            # FIX 3: never assert a corrected identifier from a model guess; surface it for a human
-            if any(ch.isdigit() for ch in wrong):
+            # FIX 3: never assert a corrected identifier from a model guess; surface it for a human.
+            # NARROW: an identifier is an alphanumeric CODE (digits AND letters fused, e.g. 190119BP).
+            # "any digit" was too broad — it swallowed "Copyright (c) 2026" and real prose defects
+            # like "within 20 of Los Alamitos", hiding genuine findings behind "verify this".
+            if re.search(r"\b(?=[A-Za-z0-9-]*\d)(?=[A-Za-z0-9-]*[A-Za-z])[A-Za-z0-9-]{5,}\b", wrong):
                 findings.append({"wrong": wrong, "correct": "(verify against the source record)",
                                  "kind": "identifier", "confidence": "low", "block": b[:160]})
                 continue
