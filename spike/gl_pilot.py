@@ -33,11 +33,21 @@ _WS = re.compile(r"\s+")
 
 
 def blocks(text: str) -> list[str]:
+    """Split on BLOCK BOUNDARIES first, then sentences within each block.
+
+    parse.py emits one newline per block element. Splitting on sentence punctuation alone and then
+    collapsing all whitespace threw that boundary away, re-welding a heading into the paragraph
+    below it and consecutive <li> items into each other. The model then correctly reported the
+    run-on it was shown — "symptom management Comprehensive treatment" — for a defect that does not
+    exist on the page. Verified against live GL pages: those two are separate blocks; a third
+    ("Family Therapy Attended West Chester") really is one block and really is missing a period.
+    """
     out = []
-    for raw in re.split(r"(?<=[.!?])\s+", text):
-        b = _WS.sub(" ", raw).strip()
-        if len(b) >= 40:
-            out.append(b)
+    for line in text.split("\n"):
+        for raw in re.split(r"(?<=[.!?])\s+", line):
+            b = _WS.sub(" ", raw).strip()
+            if len(b) >= 40:
+                out.append(b)
     return out
 
 
@@ -105,7 +115,7 @@ CRITICAL RULES:
 - Do NOT report a term as misspelled unless you are confident it is wrong. Marketing copy for this
   industry contains many clinical and place names.
 - Person-first language ("people with addiction") is REQUIRED and is never an error.
-- "near {City}" (e.g. "Rehab near Cerritos", "services near Laguna Hills") is this network's
+- "near {{City}}" (e.g. "Rehab near Cerritos", "services near Laguna Hills") is this network's
   DELIBERATE house phrasing for geo pages. Never rewrite "near X" to "in X" or flag it.
 - If the block has no error, return an empty findings list.
 
