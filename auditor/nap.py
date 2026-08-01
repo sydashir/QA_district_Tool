@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import logging
 import re
+from functools import lru_cache
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -156,8 +157,17 @@ def validate_canonical(
     ]
 
 
+@lru_cache(maxsize=4)
 def grid_from_xlsx(path: str | Path = NAP_SNAPSHOT, tab: str = NAP_TAB) -> list[list]:
-    """Read the NAP tab from the .tmp_dd snapshot xlsx into raw rows (padded)."""
+    """Read the NAP tab from the .tmp_dd snapshot xlsx into raw rows (padded).
+
+    Cached because a single ``load_brand()`` parses this workbook TWICE — once via
+    ``load_canonical_from_snapshot`` and once via ``load_third_party`` — and openpyxl spends ~25s
+    per parse, which made ``load_brand()`` a 51s call. The snapshot is a static file that cannot
+    change mid-run, and both consumers (``parse_nap_grid``, ``third_party_hotlines``) only READ the
+    grid, so handing back the same list is safe. A process that rewrites the xlsx in place must
+    call ``grid_from_xlsx.cache_clear()``.
+    """
     import openpyxl
 
     wb = openpyxl.load_workbook(path, read_only=True, data_only=True)

@@ -14,6 +14,7 @@ Usage: python3 -m spike.gl_pilot [n_pages] [n_blocks]
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures as cf
 import hashlib
 import json
 import os
@@ -163,16 +164,24 @@ def main(n_pages: int, n_blocks: int) -> None:
     findings = []
     from collections import Counter as _C
     dropped = _C()
-    for i, b in enumerate(sample, 1):
+
+    def _one(b):
         r = client.messages.create(
             model=MODEL, max_tokens=1000,
             system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
             output_config={"format": {"type": "json_schema", "schema": SCHEMA}},
             messages=[{"role": "user", "content": b}])
         try:
-            out = json.loads(next(x.text for x in r.content if x.type == "text"))
+            return b, json.loads(next(x.text for x in r.content if x.type == "text")), r
         except Exception:
-            continue
+            return b, {"findings": []}, r
+
+    # Concurrency: measuring precision needs ENOUGH findings to classify, and with correctly-split
+    # (smaller) blocks a 60-block sample yields 1-3. Serial calls made a large sample take an hour;
+    # the spend is pennies either way, so the sample size was limited by wall-clock, not cost.
+    with cf.ThreadPoolExecutor(max_workers=8) as ex:
+        results = list(ex.map(_one, sample))
+    for i, (b, out, r) in enumerate(results, 1):
         for f in out.get("findings", []):
             wrong, correct = (f.get("wrong") or "").strip(), (f.get("correct") or "").strip()
             # FIX 2a: hard drop degenerate output where the "correction" is the same string
@@ -193,7 +202,7 @@ def main(n_pages: int, n_blocks: int) -> None:
                 continue
             findings.append({"wrong": wrong, "correct": correct, "kind": f.get("kind", "?"),
                              "confidence": f.get("confidence", "?"), "block": b[:160]})
-        if i % 20 == 0:
+        if i % 200 == 0:
             print(f"  ...{i}/{len(sample)}  cache_read={r.usage.cache_read_input_tokens}", flush=True)
 
     print(f"\n  blocks checked: {len(sample)}   findings: {len(findings)}   filtered_out: {dict(dropped) or 0}")
