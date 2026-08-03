@@ -141,3 +141,30 @@ after that point. File-anchored, newest work last. Local artifact (not committed
   REAL). **Sonnet 5 beats Haiku 4.5 about 2:1 on both precision and yield** — strict precision 55% vs 28%
   after removing the parser artifacts, 100 real findings vs 48. Neither clears the 80% bar as a general
   grammar pass
+
+## 2026-08-01 (late) — parse ground-truth gate
+
+- Built the mechanical gate for `parse.py` — `tests/fixtures/parse/` holds 7 REAL HTML fragments saved
+  from live GL/CAD pages, each with a `.source.txt` recording brand and URL, paired with an
+  `.expected.txt` captured from a BROWSER via Playwright `innerText`. The expected values come from
+  something other than the code under test, which is the whole point; the module docstring forbids
+  regenerating them from `parse_html`, since that would only assert the code still does whatever it
+  currently does
+- Proved the gate works by injecting each historical bug and watching it fail — the original
+  `get_text(" ", strip=True)` trips 4 fixtures, the unconditional inline space trips 2. It is not a
+  test that would have passed either bug (commit 72401e0)
+- Covered every case that has bitten: `<strong>x</strong>.` gains no space, heading/paragraph boundary
+  preserved, adjacent `<a>` links separated not welded, inline markup mid-sentence intact, consecutive
+  `<li>` separate, and a genuine client-typed " ," still surfaces. That last fixture is labelled
+  CONSTRUCTED because a 50-page GL/CAD sample contained ZERO client-typed stray spaces in body copy —
+  which is itself the evidence that every " ," the AI reported was a parser artifact
+- Restricted the Phase-2 prompt to the six mechanical defect types that survived adversarial review,
+  and banned word choice, rewrites and hyphenation outright — hyphenation split the judges
+  ("one-on-one" and "top-notch" survived, "same-day" and "inpatient-level" did not), and a class we
+  cannot adjudicate is a class we should not ship (commit 1998743)
+- Added `is_person_or_review()` to drop staff bios and customer testimonials from the corpus, then
+  measured it rather than trusting it: 10 of 5,367 blocks excluded (0.2%), every one genuinely a bio
+  or review on inspection, zero over-exclusion — but those 10 blocks had produced 28 of the judged findings
+- Caught a cost-model error of my own while re-running: `count_tokens` is model-specific, and the same
+  2,395 blocks are 66.8M tokens to Haiku but 111.2M to Sonnet. **Sonnet is $111 for the network, not
+  the $67 I quoted** — I had applied Haiku's token count to Sonnet's price
