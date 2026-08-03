@@ -48,7 +48,8 @@ REQUIRED = {
     "inline_midsentence",     # inline markup does not split a sentence
     "list_items",             # consecutive <li> stay separate
     "genuine_stray_space",    # a real client-typed " ," still surfaces
-    "hidden_span",            # display:none content must NOT reach visible_text
+    "hidden_span",            # display:none content must NOT reach visible_text (inline <style>)
+    "external_css_chip",      # ...and when the rule lives in an EXTERNAL stylesheet
 }
 
 
@@ -56,11 +57,20 @@ def test_every_known_failure_mode_still_has_a_fixture():
     assert REQUIRED <= set(CASES), f"lost coverage for: {sorted(REQUIRED - set(CASES))}"
 
 
+def _extra_css(name: str) -> str:
+    """A `<name>.css` sidecar stands for a <link rel=stylesheet> the crawler fetched. GL inlines all
+    its CSS, but six of the nine brands link 12-47 same-host stylesheets, so the external path must
+    be exercised by a fixture and not just by the inline one."""
+    css = FIXTURES / f"{name}.css"
+    return css.read_text() if css.exists() else ""
+
+
 @pytest.mark.parametrize("name", CASES)
 def test_visible_text_matches_the_browser(name):
     html = (FIXTURES / f"{name}.html").read_text()
     expected = (FIXTURES / f"{name}.expected.txt").read_text().strip()
-    got = parse_html(html, page_url="https://x/p/", base_url="https://x/p/").visible_text
+    got = parse_html(html, page_url="https://x/p/", base_url="https://x/p/",
+                     extra_css=_extra_css(name), css_status="ok").visible_text
     assert got == expected, (
         f"\n{name}: visible_text drifted from the browser-verified expectation."
         f"\n  expected: {expected!r}"
@@ -74,3 +84,17 @@ def test_visible_text_matches_the_browser(name):
 def test_fixture_records_its_provenance(name):
     src = (FIXTURES / f"{name}.source.txt").read_text()
     assert "brand:" in src and "url:" in src, f"{name} has no recorded source page"
+
+
+def test_the_external_css_fixture_actually_depends_on_its_stylesheet():
+    """Guard the guard: if the .css sidecar were ignored, the fixture would still pass only when the
+    rule happened to be inline. Parsing WITHOUT it must leak the hidden label, or this fixture is
+    not testing the external path at all."""
+    html = (FIXTURES / "external_css_chip.html").read_text()
+    without = parse_html(html, page_url="https://x/p/", base_url="https://x/p/").visible_text
+    assert "Costa Mesa, CA" in without, (
+        "the hidden label did not leak without the stylesheet — this fixture no longer proves that "
+        "external CSS is what removes it")
+    with_css = parse_html(html, page_url="https://x/p/", base_url="https://x/p/",
+                          extra_css=_extra_css("external_css_chip"), css_status="ok").visible_text
+    assert "Costa Mesa, CA" not in with_css

@@ -1,0 +1,6 @@
+brand: gl
+url:   https://www.gratitudelodge.com/drug-rehab/lgbtq/california/southern/orange-county/costa-mesa/
+note:  Real chip markup + the real rule that hides it, split into a SEPARATE .css file so the test
+       exercises the external-stylesheet path (extra_css) rather than an inline <style>. GL itself
+       inlines all its CSS, but CAD/COC/AH/AR/MHD/TDRC each link 12-47 same-host stylesheets, so
+       that path is live for six of nine brands.
