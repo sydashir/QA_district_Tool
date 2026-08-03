@@ -1,0 +1,812 @@
+- generic [active] [ref=f12e1]:
+  - link "Skip to content" [ref=f12e2] [cursor=pointer]:
+    - /url: "#content"
+  - banner [ref=f12e3]:
+    - generic [ref=f12e5]:
+      - link [ref=f12e8] [cursor=pointer]:
+        - /url: https://www.gratitudelodge.com
+        - img "Gratitude Lodge logo" [ref=f12e9]
+      - generic [ref=f12e12]:
+        - generic [ref=f12e13]: About Us
+        - generic [ref=f12e17]: Locations
+        - generic [ref=f12e21]: What We Treat
+        - generic [ref=f12e25]: Mental Health
+        - generic [ref=f12e29]: Admissions
+        - link "Contact" [ref=f12e33] [cursor=pointer]:
+          - /url: https://www.gratitudelodge.com/contact-us/
+      - link "844-576-0144" [ref=f12e37] [cursor=pointer]:
+        - /url: tel:844-576-0144
+  - generic [ref=f12e40]:
+    - text:   
+    - generic [ref=f12e44]:
+      - heading "Intervention Rehab near Los Alamitos (Addiction Treatment)" [level=1] [ref=f12e47]
+      - generic [ref=f12e48]:
+        - heading "5000+ Patients Treated" [level=4] [ref=f12e54]
+        - heading "15 Licenses & Certifications" [level=4] [ref=f12e60]
+        - heading "Gym Access" [level=4] [ref=f12e66]
+        - generic [ref=f12e67]:
+          - img "gratitude-lodge-beach-icon" [ref=f12e70]
+          - heading "Walk to the Beach" [level=4] [ref=f12e73]
+        - heading "4.9 Review Rating (320+)" [level=4] [ref=f12e79]
+        - heading "Cooked & Catered Meals" [level=4] [ref=f12e85]
+      - generic [ref=f12e87]:
+        - link "844-576-0144" [ref=f12e91] [cursor=pointer]:
+          - /url: tel:844-576-0144
+        - link "VERIFY INSURANCE" [ref=f12e97] [cursor=pointer]:
+          - /url: "#elementor-action%3Aaction%3Dpopup%3Aopen%26settings%3DeyJpZCI6IjM1MTM0IiwidG9nZ2xlIjpmYWxzZX0%3D"
+    - generic [ref=f12e106]:
+      - heading "Drug Intervention Programs with Structured Support near Los Alamitos" [level=2] [ref=f12e109]
+      - generic [ref=f12e111]:
+        - paragraph [ref=f12e112]:
+          - text: Experiencing the heartbreak of watching someone you love disappear into addiction’s grip while being unable to intervene creates profound anguish. Organizing an intervention represents one of life’s most emotionally taxing decisions for families, as
+          - strong [ref=f12e113]: intense emotions including grief, anger, helplessness, and terror of worsening the situation
+          - text: "generate paralyzing doubt about moving forward. Desperately needing to offer assistance without proper understanding becomes its own crisis. Understanding the weight of your circumstances during this pivotal moment, our team acknowledges:"
+        - list [ref=f12e114]:
+          - listitem [ref=f12e115]:
+            - paragraph [ref=f12e116]: What if this approach pushes them away from our family permanently?
+          - listitem [ref=f12e117]:
+            - paragraph [ref=f12e118]: How do we handle their agreement to treatment followed by last-minute refusal?
+          - listitem [ref=f12e119]:
+            - paragraph [ref=f12e120]: Will my approach damage our relationship beyond repair?
+          - listitem [ref=f12e121]:
+            - paragraph [ref=f12e122]: How do I find quality intervention services within our budget?
+        - paragraph [ref=f12e123]:
+          - text: Behind each worry lies deep affection, validating these natural responses. Professional support becomes essential
+          - strong [ref=f12e124]: from specialists experienced in both clinical and emotional intervention dynamics
+          - text: ", providing customized strategies tailored to your specific situation and family structure."
+        - paragraph [ref=f12e125]:
+          - text: At Gratitude Lodge serving Los Alamitos, our intervention experts work alongside families during each stage of this process in collaboration with
+          - link "District Behavioral Health Group" [ref=f12e126] [cursor=pointer]:
+            - /url: https://districtbehavioralhealth.com/
+          - text: ", understanding that successful enrollment marks only the beginning. Every family member receives comprehensive support through our holistic methodology, extending well past the person requiring treatment."
+        - paragraph [ref=f12e127]: Continue reading below.
+      - generic [ref=f12e131]:
+        - button "Read More" [ref=f12e132] [cursor=pointer]
+        - generic [ref=f12e136]:
+          - heading [level=2] [ref=f12e137]: Professional Intervention Services Near Los Alamitos
+          - paragraph [ref=f12e138]: Helping a loved one recognize their substance use challenges creates overwhelming stress for families, particularly when denial, fear, or heightened emotions prevent meaningful dialogue. Communities around Los Alamitos frequently face difficulties determining effective approaches to motivate treatment participation while avoiding further relationship damage.
+          - paragraph [ref=f12e139]: Structured intervention programs near Los Alamitos provide professionally facilitated assistance that enables families to navigate these sensitive discussions with confidence and direction. Communication built on understanding and compassion replaces hostile confrontation, establishing clear pathways to healing.
+          - heading [level=3] [ref=f12e140]: Core Principles Behind Effective Intervention
+          - paragraph [ref=f12e141]: Carefully orchestrated discussions form the foundation of intervention, helping individuals acknowledge how substance use affects their lives while exploring treatment possibilities. Professional facilitators collaborate with family members to deliver unified messages through respectful, measured communication.
+          - paragraph [ref=f12e142]: Denial and avoidance patterns commonly accompany substance use disorders, rendering casual family discussions largely ineffective. Structured intervention dismantles these defensive barriers through consistent messaging delivered with empathy and professional guidance.
+          - paragraph [ref=f12e143]: Constructive dialogue replaces accusatory language as intervention emphasizes observable consequences and genuine family concerns. Individuals experience support while receiving clear information about treatment as an essential, positive step forward.
+          - heading [level=3] [ref=f12e144]: Trained Facilitators and Their Impact
+          - paragraph [ref=f12e145]: Expert guidance proves essential for intervention success, with families receiving comprehensive preparation before engaging in these crucial conversations. Learning effective communication techniques prevents defensive responses and emotional outbursts that derail progress.
+          - paragraph [ref=f12e146]: Skilled facilitators moderate these discussions, managing intense emotions while keeping conversations focused on treatment goals. Family unity remains intact through professional support, even when challenging topics arise.
+          - paragraph [ref=f12e147]:
+            - text: Comprehensive intervention support at
+            - strong [ref=f12e148]:
+              - link [ref=f12e149] [cursor=pointer]:
+                - /url: https://californiadetox.com/#
+                - text: California Detox
+            - text: addresses both individual and family needs throughout this emotionally challenging journey. Safety, transparency, and connecting individuals with appropriate care remain central priorities.
+          - heading [level=3] [ref=f12e150]: Local Intervention Benefits and Advantages
+          - paragraph [ref=f12e151]: Proximity to services doesn’t diminish intervention value, as structured processes create healthy separation from established family patterns that perpetuate avoidance or arguments. Fresh communication approaches emerge when families engage in professional guidance frameworks.
+          - paragraph [ref=f12e152]: Treatment acceptance rates improve significantly when intervention provides immediate direction and concrete next steps. Clear understanding of available care options and their benefits encourages individuals to embrace supportive resources.
+          - paragraph [ref=f12e153]: Educational components teach families healthy boundary establishment and supportive practices that avoid enabling behaviors. Enhanced knowledge strengthens recovery foundations while minimizing ongoing family tension.
+          - heading [level=3] [ref=f12e154]: Next Steps Following Intervention Success
+          - paragraph [ref=f12e155]: Rapid treatment entry becomes crucial after successful intervention completion, with comprehensive planning and accessible care options maintaining individual commitment levels.
+          - paragraph [ref=f12e156]:
+            - text: Integrated treatment coordination at
+            - strong [ref=f12e157]: California Detox
+            - text: connects intervention services with comprehensive care pathways, maintaining support continuity beyond initial discussions. Family involvement guidance ensures healthy participation throughout recovery development.
+          - paragraph [ref=f12e158]: Compassionate intervention services near Los Alamitos create structured pathways for loved ones beginning recovery journeys, delivering clarity, professional guidance, and renewed hope for meaningful transformation.
+    - generic [ref=f12e160]:
+      - heading "Tour Our Intervention Services Near Los Alamitos" [level=2] [ref=f12e164]
+      - generic [ref=f12e169]:
+        - generic [ref=f12e170]:
+          - img "Gallery image" [ref=f12e172] [cursor=pointer]
+          - img "Gallery image" [ref=f12e176] [cursor=pointer]
+          - img "Gallery image" [ref=f12e180] [cursor=pointer]
+          - img "Gallery image" [ref=f12e184] [cursor=pointer]
+          - img "Gallery image" [ref=f12e188] [cursor=pointer]
+          - img "Gallery image" [ref=f12e192] [cursor=pointer]
+          - img "Gallery image" [ref=f12e196] [cursor=pointer]
+          - img "Gallery image" [ref=f12e200] [cursor=pointer]
+          - img "Gallery image" [ref=f12e204] [cursor=pointer]
+          - img "Gallery image" [ref=f12e208] [cursor=pointer]
+          - img "Gallery image" [ref=f12e212] [cursor=pointer]
+          - img "Gallery image" [ref=f12e216] [cursor=pointer]
+          - img "Gallery image" [ref=f12e220] [cursor=pointer]
+        - button "Show all photos ↓" [ref=f12e223] [cursor=pointer]
+    - generic [ref=f12e225]:
+      - iframe [ref=f12e228]:
+        
+      - heading "When Silence Starts Feeling More Dangerous Than Speaking Up" [level=2] [ref=f12e231]
+      - generic [ref=f12e233]:
+        - paragraph [ref=f12e234]:
+          - text: Families often carry the weight of addiction quietly. You may notice
+          - strong [ref=f12e235]: behavior becoming unpredictable
+          - text: or
+          - strong [ref=f12e236]: worry building every time the phone rings
+          - text: . At some point, staying silent begins to feel riskier than confronting the problem. When that happens, you’re no longer worried the most about conflict. Instead, you lose sleep at night in fear of what could happen if nothing changes.
+        - paragraph [ref=f12e237]:
+          - text: If you’re
+          - strong [ref=f12e238]: worried about someone you love
+          - text: ","
+          - strong [ref=f12e239]: you’re not alone.
+        - paragraph [ref=f12e240]: Interventions were developed because families sometimes need help starting that difficult conversation. Across Los Alamitos, there are more than 12 treatment programs available within 20 of Los Alamitos, offering addiction and mental health care, with intervention planning that can lead directly into treatment.
+        - paragraph [ref=f12e241]: Speaking up can feel overwhelming, but many families find it’s the moment things begin to shift.
+        - paragraph [ref=f12e242]:
+          - text: If you’re considering an intervention near Los Alamitos, view our
+          - link "top-rated facilities" [ref=f12e243] [cursor=pointer]:
+            - /url: https://www.gratitudelodge.com/testimonials/
+          - text: for our addiction and mental health treatment programs, which offer guidance and comprehensive treatment options to help you move forward with care and understanding.
+      - link "Call Now" [ref=f12e247] [cursor=pointer]:
+        - /url: tel:+18006929850
+    - generic [ref=f12e250]: Intervention Services Reviews for Los Alamitos Residents
+    - generic [ref=f12e257]:
+      - generic [ref=f12e258]:
+        - heading "Location Overview" [level=2] [ref=f12e261]
+        - paragraph [ref=f12e264]: Our clean and modern facilities are located near beautiful beaches and a thriving sober community. Clients enjoy easy access to local hiking spots, beaches, restaurants & more nearby.
+      - generic [ref=f12e265]:
+        - generic [ref=f12e266]:
+          - list [ref=f12e269]:
+            - listitem [ref=f12e270]:
+              - generic [ref=f12e274]: Close to The Beach
+          - list [ref=f12e277]:
+            - listitem [ref=f12e278]:
+              - generic [ref=f12e282]: National Parks Nearby
+        - generic [ref=f12e283]:
+          - list [ref=f12e286]:
+            - listitem [ref=f12e287]:
+              - generic [ref=f12e291]: Mild, Comfortable Weather
+          - list [ref=f12e294]:
+            - listitem [ref=f12e295]:
+              - generic [ref=f12e299]: Strong Local Sober Community
+    - generic [ref=f12e301]:
+      - heading "When One \"Argument\" Can Save Their Life" [level=2] [ref=f12e306]
+      - generic [ref=f12e308]:
+        - paragraph [ref=f12e309]:
+          - text: Many people hesitate before staging an intervention. You may be
+          - strong [ref=f12e310]: afraid of pushing them away
+          - text: or
+          - strong [ref=f12e311]: worried that the conversation could go wrong
+          - text: . But the alternative — watching the situation continue to decline — can feel even more frightening.
+        - paragraph [ref=f12e312]:
+          - text: If the
+          - strong [ref=f12e313]: risk of waiting feels too high
+          - text: ","
+          - strong [ref=f12e314]: you’re not alone.
+        - paragraph [ref=f12e315]: Intervention planning expanded because families needed structured support when addiction affects someone they love.
+        - list [ref=f12e316]:
+          - listitem [ref=f12e317]:
+            - paragraph [ref=f12e318]: There are more than 1 to 2 residential treatment programs within of Los Alamitos, offering immersive care for immediate stabilization.
+          - listitem [ref=f12e319]:
+            - paragraph [ref=f12e320]: At least 1 programs accept private insurance within 20 of Los Alamitos, helping reduce financial stress when arranging treatment.
+          - listitem [ref=f12e321]:
+            - paragraph [ref=f12e322]: Around 5 facilities maintain a minimum rating of 4 with at least 10 reviews within 20 of Los Alamitos, reflecting programs where families reported feeling supported throughout the process.
+        - paragraph [ref=f12e323]: The right approach to intervention focuses on clarity and care, not confrontation.
+        - paragraph [ref=f12e324]:
+          - text: If you’re considering an intervention near Los Alamitos, view our
+          - link "top-rated facilities" [ref=f12e325] [cursor=pointer]:
+            - /url: https://www.gratitudelodge.com/testimonials/
+          - text: for our addiction and mental health treatment programs, which offer guidance and comprehensive treatment options to help you move forward with care and understanding.
+      - link "Call Now" [ref=f12e329] [cursor=pointer]:
+        - /url: tel:+18006929850
+    - generic [ref=f12e332]:
+      - heading "Learn About Gratitude Lodge" [level=2] [ref=f12e335]
+      - generic "Accordion. Open links with Enter or Space, close with Escape, and navigate with Arrow Keys" [ref=f12e338]:
+        - group [ref=f12e339]:
+          - generic "Our Admissions Process" [ref=f12e340] [cursor=pointer]:
+            - generic [ref=f12e343]:
+              - generic [ref=f12e344]: 
+              - text: 
+          - 'region "Our Admissions Process Gratitude Lodge Rehab Admission Process: Step-by-Step Step 1 Share your story: Connect with us and let us understand your background, challenges, and goals for recovery. Step 2 Complete a simple pre-screening: Answer a few questions so we can assess your needs and coverage. Step 3 Get your personalized treatment plan: We’ll recommend the program best suited to your situation and goals. Step 4 Coordinate your journey: Our team helps you arrange travel, admissions details, and next steps. Step 5 Begin your recovery: Arrive at your chosen facility and start the healing process with confidence." [ref=f12e346]':
+            - table [ref=f12e349]:
+              - rowgroup [ref=f12e350]:
+                - row [ref=f12e351]:
+                  - columnheader [ref=f12e352]:
+                    - 'heading "Gratitude Lodge Rehab Admission Process: Step-by-Step" [level=3] [ref=f12e353]'
+              - rowgroup [ref=f12e354]:
+                - row [ref=f12e355]:
+                  - cell [ref=f12e356]:
+                    - strong [ref=f12e357]: Step 1
+                  - cell [ref=f12e358]:
+                    - strong [ref=f12e359]: "Share your story:"
+                    - text: Connect with us and let us understand your background, challenges, and goals for recovery.
+                - row [ref=f12e360]:
+                  - cell [ref=f12e361]:
+                    - strong [ref=f12e362]: Step 2
+                  - cell [ref=f12e363]:
+                    - strong [ref=f12e364]: "Complete a simple pre-screening:"
+                    - text: Answer a few questions so we can assess your needs and coverage.
+                - row [ref=f12e365]:
+                  - cell [ref=f12e366]:
+                    - strong [ref=f12e367]: Step 3
+                  - cell [ref=f12e368]:
+                    - strong [ref=f12e369]: "Get your personalized treatment plan:"
+                    - text: We’ll recommend the program best suited to your situation and goals.
+                - row [ref=f12e370]:
+                  - cell [ref=f12e371]:
+                    - strong [ref=f12e372]: Step 4
+                  - cell [ref=f12e373]:
+                    - strong [ref=f12e374]: "Coordinate your journey:"
+                    - text: Our team helps you arrange travel, admissions details, and next steps.
+                - row [ref=f12e375]:
+                  - cell [ref=f12e376]:
+                    - strong [ref=f12e377]: Step 5
+                  - cell [ref=f12e378]:
+                    - strong [ref=f12e379]: "Begin your recovery:"
+                    - text: Arrive at your chosen facility and start the healing process with confidence.
+        - group [ref=f12e380]:
+          - generic "Accreditations" [ref=f12e381] [cursor=pointer]:
+            - generic [ref=f12e384]:
+              - text: 
+              - generic [ref=f12e385]: 
+        - group [ref=f12e387]:
+          - generic "Our Staff" [ref=f12e388] [cursor=pointer]:
+            - generic [ref=f12e391]:
+              - text: 
+              - generic [ref=f12e392]: 
+        - group [ref=f12e394]:
+          - generic "What Addictions Do We Treat?" [ref=f12e395] [cursor=pointer]:
+            - generic [ref=f12e398]:
+              - text: 
+              - generic [ref=f12e399]: 
+        - group [ref=f12e401]:
+          - generic "Levels of Addiction Treatment" [ref=f12e402] [cursor=pointer]:
+            - generic [ref=f12e405]:
+              - text: 
+              - generic [ref=f12e406]: 
+        - group [ref=f12e408]:
+          - generic "Treatment Therapies" [ref=f12e409] [cursor=pointer]:
+            - generic [ref=f12e412]:
+              - text: 
+              - generic [ref=f12e413]: 
+    - generic [ref=f12e416]:
+      - heading "Key Factors Behind Successful Intervention Services in Los Alamitos" [level=2] [ref=f12e419]
+      - generic [ref=f12e421]:
+        - paragraph [ref=f12e422]: Community-based intervention programs demonstrate remarkable success because rapid response prevents escalation of underlying issues. Research indicates that timely, structured support improves adherence rates and long-term family stability.
+        - list [ref=f12e423]:
+          - listitem [ref=f12e424]: Quick response capabilities shorten prolonged emergency situations
+          - listitem [ref=f12e425]: Professional guidance ensures solution-oriented methodologies
+          - listitem [ref=f12e426]: Structured conversations minimize family resistance
+          - listitem [ref=f12e427]: Ongoing support helps families maintain unified progress
+        - paragraph [ref=f12e428]: Proximity advantages eliminate delay factors, allowing families to convert anxiety into swift, purposeful action.
+      - link "Verify Your Insurance" [ref=f12e432] [cursor=pointer]:
+        - /url: "#elementor-action%3Aaction%3Dpopup%3Aopen%26settings%3DeyJpZCI6IjM1MTM0IiwidG9nZ2xlIjpmYWxzZX0%3D"
+    - generic [ref=f12e436]:
+      - heading "Why Trust Us With Your Care" [level=2] [ref=f12e439]
+      - generic [ref=f12e440]:
+        - generic [ref=f12e441]:
+          - generic [ref=f12e444]:
+            - paragraph [ref=f12e445]: Lives Treated
+            - generic [ref=f12e446]:
+              - generic [ref=f12e448]: "0"
+              - generic [ref=f12e449]: +
+          - generic [ref=f12e450]: Real people. Real recovery. Real impact.
+        - generic [ref=f12e452]:
+          - generic [ref=f12e455]:
+            - paragraph [ref=f12e456]: Licensed Professionals
+            - generic [ref=f12e457]: "0"
+          - generic [ref=f12e461]: Experienced, compassionate, and committed to your healing.
+        - generic [ref=f12e463]:
+          - generic [ref=f12e466]:
+            - paragraph [ref=f12e467]: States Served
+            - generic [ref=f12e468]:
+              - generic [ref=f12e470]: "0"
+              - generic [ref=f12e471]: +
+          - generic [ref=f12e472]: Patients travel from almost every state to come to our California Rehab.
+        - generic [ref=f12e474]:
+          - generic [ref=f12e477]:
+            - paragraph [ref=f12e478]: Verified Reviews
+            - generic [ref=f12e479]:
+              - generic [ref=f12e481]: "0"
+              - generic [ref=f12e482]: +
+          - generic [ref=f12e483]: Clients trust us and share their stories.
+      - region "Carousel" [ref=f12e489]:
+        - generic [ref=f12e490]:
+          - group "1 of 5" [ref=f12e491]:
+            - link [ref=f12e496] [cursor=pointer]:
+              - /url: https://www.legitscript.com/websites/?checker_keywords=gratitudelodge.com
+          - group "2 of 5" [ref=f12e497]:
+            - link [ref=f12e502] [cursor=pointer]:
+              - /url: https://www.jointcommission.org/en-us/about-us/recognizing-excellence/find-accredited-organizations/632282
+              - img "an image of the Joint Commission's Gold Seal of Approval" [ref=f12e503]
+          - group "3 of 5" [ref=f12e504]
+          - group "4 of 5" [ref=f12e509]
+          - group "5 of 5" [ref=f12e514]:
+            - link [ref=f12e519] [cursor=pointer]:
+              - /url: https://recovery.com/gratitude-lodge-california/
+    - generic [ref=f12e521]:
+      - 'heading "The Reality of Relapse: Why Rehab Matters" [level=2] [ref=f12e525]'
+      - generic [ref=f12e526]:
+        - generic [ref=f12e527]:
+          - heading "85% Relapse" [level=2] [ref=f12e532]
+          - heading "Without treatment" [level=4] [ref=f12e535]
+          - paragraph [ref=f12e538]: Within the 1st year of sobriety. Most people struggling with substance use disorder who do not get treatment relapse within months.
+        - generic [ref=f12e539]:
+          - heading "25-50% More Success" [level=2] [ref=f12e544]
+          - heading "With treatment" [level=4] [ref=f12e547]
+          - paragraph [ref=f12e550]: Recovery rates improve with each level of care completed in the addiction treatment journey.
+    - generic [ref=f12e551]:
+      - generic [ref=f12e552]:
+        - generic [ref=f12e553]:
+          - heading "The Addiction Therapies We Use" [level=2] [ref=f12e556]
+          - paragraph [ref=f12e559]: Gratitude Lodge uses addiction therapies that are backed by latest science in addiction treatment and are administered by our expert clinicians.
+        - link "Learn More" [ref=f12e564] [cursor=pointer]:
+          - /url: /contact-us/
+      - generic "Accordion. Open links with Enter or Space, close with Escape, and navigate with Arrow Keys" [ref=f12e569]:
+        - group [ref=f12e570]:
+          - generic "Cognitive Behavioral Therapy (CBT)" [ref=f12e571] [cursor=pointer]:
+            - generic [ref=f12e574]:
+              - generic [ref=f12e575]: 
+              - text: 
+          - region "Cognitive Behavioral Therapy (CBT) CBT helps individuals identify and change negative thought patterns and behaviors that contribute to addiction and mental health challenges. By learning practical coping strategies, clients gain healthier ways to manage stress and triggers in daily life." [ref=f12e577]:
+            - paragraph [ref=f12e580]: CBT helps individuals identify and change negative thought patterns and behaviors that contribute to addiction and mental health challenges. By learning practical coping strategies, clients gain healthier ways to manage stress and triggers in daily life.
+        - group [ref=f12e581]:
+          - generic "Dialectical Behavior Therapy (DBT)" [ref=f12e582] [cursor=pointer]:
+            - generic [ref=f12e585]:
+              - text: 
+              - generic [ref=f12e586]: 
+        - group [ref=f12e588]:
+          - generic "Medication-Assisted Treatment (MAT)" [ref=f12e589] [cursor=pointer]:
+            - generic [ref=f12e592]:
+              - text: 
+              - generic [ref=f12e593]: 
+        - group [ref=f12e595]:
+          - generic "Group & Family Therapy" [ref=f12e596] [cursor=pointer]:
+            - generic [ref=f12e599]:
+              - text: 
+              - generic [ref=f12e600]: 
+        - group [ref=f12e602]:
+          - generic "Couples Rehab" [ref=f12e603] [cursor=pointer]:
+            - generic [ref=f12e606]:
+              - text: 
+              - generic [ref=f12e607]: 
+    - generic [ref=f12e609]:
+      - generic [ref=f12e610]:
+        - generic [ref=f12e611]:
+          - heading "Levels of Care in Addiction Treatment" [level=2] [ref=f12e614]
+          - paragraph [ref=f12e617]: "Starting your journey toward recovery at Gratitude Lodge is simple, fast, and fully supported. We offer same-day and next-day admissions, because when you’re ready to get help, there shouldn’t be any delays. Walk-ins are also welcome—we’re here when you’re ready to take that first step. From the moment you reach out, our compassionate admissions team will guide you through every part of the process, from insurance verification to creating a personalized treatment plan tailored to your needs. Our goal is to make the process stress-free, so you can focus on what matters most: your healing and recovery."
+        - link "Learn More" [ref=f12e622] [cursor=pointer]:
+          - /url: /contact-us/
+      - generic "Accordion. Open links with Enter or Space, close with Escape, and navigate with Arrow Keys" [ref=f12e627]:
+        - group [ref=f12e628]:
+          - generic "Medically-Supervised Detox" [ref=f12e629] [cursor=pointer]:
+            - generic [ref=f12e632]:
+              - generic [ref=f12e633]: 
+              - text: 
+          - region "Medically-Supervised Detox A supervised medical process that manages withdrawal symptoms to prepare individuals for ongoing treatment." [ref=f12e635]:
+            - paragraph [ref=f12e638]: A supervised medical process that manages withdrawal symptoms to prepare individuals for ongoing treatment.
+        - group [ref=f12e639]:
+          - generic "Inpatient Residential Addiction & Mental Health Treatment" [ref=f12e640] [cursor=pointer]:
+            - generic [ref=f12e643]:
+              - text: 
+              - generic [ref=f12e644]: 
+        - group [ref=f12e646]:
+          - generic "Partial Hospitalization Program (PHP)" [ref=f12e647] [cursor=pointer]:
+            - generic [ref=f12e650]:
+              - text: 
+              - generic [ref=f12e651]: 
+        - group [ref=f12e653]:
+          - generic "Intensive Outpatient Program (IOP)" [ref=f12e654] [cursor=pointer]:
+            - generic [ref=f12e657]:
+              - text: 
+              - generic [ref=f12e658]: 
+        - group [ref=f12e660]:
+          - generic "Outpatient Program (OP)" [ref=f12e661] [cursor=pointer]:
+            - generic [ref=f12e664]:
+              - text: 
+              - generic [ref=f12e665]: 
+        - group [ref=f12e667]:
+          - generic "Aftercare" [ref=f12e668] [cursor=pointer]:
+            - generic [ref=f12e671]:
+              - text: 
+              - generic [ref=f12e672]: 
+    - generic [ref=f12e675]:
+      - heading "Gratitude Lodge Admissions" [level=2] [ref=f12e678]
+      - paragraph [ref=f12e681]: "Starting your journey toward recovery at Gratitude Lodge is simple, fast, and fully supported. We offer same-day and next-day admissions, because when you’re ready to get help, there shouldn’t be any delays. Walk-ins are also welcome—we’re here when you’re ready to take that first step. From the moment you reach out, our compassionate admissions team will guide you through every part of the process, from insurance verification to creating a personalized treatment plan tailored to your needs. Our goal is to make the process stress-free, so you can focus on what matters most: your healing and recovery."
+      - link "Contact Us" [ref=f12e685] [cursor=pointer]:
+        - /url: /contact-us/
+    - generic [ref=f12e691]:
+      - heading "Our Treatment Network Locations Across US" [level=2] [ref=f12e694]
+      - paragraph [ref=f12e697]: Gratitude Lodge belongs to a trusted network of addiction & mental health recovery centers across the nation.
+      - link [ref=f12e700] [cursor=pointer]:
+        - /url: https://www.gratitudelodge.com/wp-content/uploads/2025/10/States-where-Gratitude-Lodge-clients-have-come-from-and-been-treated-in-recovery.webp
+        - img "States where Gratitude Lodge clients have come from and been treated in recovery" [ref=f12e701]
+      - paragraph [ref=f12e704]: "*Red Pins: Our Locations / Blue Pins: States Patients Have Traveled From"
+    - generic [ref=f12e711]:
+      - heading "Related Pages" [level=2] [ref=f12e714]
+      - generic [ref=f12e718]:
+        - list [ref=f12e719]:
+          - listitem [ref=f12e720]:
+            - link [ref=f12e721] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/california/orange-county/los-alamitos/
+              - 'heading "Drug & Alcohol Rehab near Los Alamitos: Addiction Treatment and Detox Centers" [level=3] [ref=f12e722]'
+          - listitem [ref=f12e723]:
+            - link [ref=f12e724] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/outpatient/california/southern/orange-county/los-alamitos/
+              - 'heading "Outpatient Drug & Alcohol Rehab near Los Alamitos: Addiction Treatment Center" [level=3] [ref=f12e725]'
+          - listitem [ref=f12e726]:
+            - link [ref=f12e727] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/pet-friendly/california/southern/orange-county/los-alamitos/
+              - heading "Pet Friendly Addiction Treatment Center near Los Alamitos" [level=3] [ref=f12e728]
+          - listitem [ref=f12e729]:
+            - link [ref=f12e730] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/fentanyl/california/southern/orange-county/los-alamitos/
+              - heading "Fentanyl Rehab & Addiction Treatment near Los Alamitos" [level=3] [ref=f12e731]
+          - listitem [ref=f12e732]:
+            - link [ref=f12e733] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/iop/california/southern/orange-county/los-alamitos/
+              - 'heading "IOP Program Near Los Alamitos: Intensive Outpatient Addiction Treatment & Rehab" [level=3] [ref=f12e734]'
+          - listitem [ref=f12e735]:
+            - link [ref=f12e736] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/rehab-for-couples/california/southern/orange-county/los-alamitos/
+              - heading "Couples Detox and Rehab Treatment Center near Los Alamitos" [level=3] [ref=f12e737]
+          - listitem [ref=f12e738]:
+            - link [ref=f12e739] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/meth/california/southern/orange-county/los-alamitos/
+              - heading "Meth Rehab & Detox Centers near Los Alamitos (Addiction Treatment)" [level=3] [ref=f12e740]
+          - listitem [ref=f12e741]:
+            - link [ref=f12e742] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/30-60-90-day-long-term/california/southern/orange-county/los-alamitos/
+              - heading "Long-Term 30/60/90 Day Rehab for Addiction Recovery near Los Alamitos" [level=3] [ref=f12e743]
+          - listitem [ref=f12e744]:
+            - link [ref=f12e745] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/short-term-rehab/california/southern/orange-county/los-alamitos/
+              - heading "Short Term Rehab near Los Alamitos (Addiction Treatment)" [level=3] [ref=f12e746]
+          - listitem [ref=f12e747]:
+            - link [ref=f12e748] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/mat-medication-assisted-treatment/california/southern/orange-county/los-alamitos/
+              - heading "MAT Medication Assisted Treatment Program near Los Alamitos (Methadone/Buprenorphine) Detox" [level=3] [ref=f12e749]
+          - listitem [ref=f12e750]:
+            - link [ref=f12e751] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/veterans/california/southern/orange-county/los-alamitos/
+              - heading "Addiction Treatment & Recovery Programs for Veterans near Los Alamitos" [level=3] [ref=f12e752]
+          - listitem [ref=f12e753]:
+            - link [ref=f12e754] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/12-step/california/southern/orange-county/los-alamitos/
+              - heading "12-Step Addiction Rehab & Recovery Program near Los Alamitos" [level=3] [ref=f12e755]
+          - listitem [ref=f12e756]:
+            - link [ref=f12e757] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/intervention/california/southern/orange-county/santa-ana/
+              - heading "Intervention Rehab near Santa Ana (Addiction Treatment)" [level=3] [ref=f12e758]
+          - listitem [ref=f12e759]:
+            - link [ref=f12e760] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/intervention/california/southern/orange-county/irvine/
+              - heading "Intervention Rehab near Irvine (Addiction Treatment)" [level=3] [ref=f12e761]
+          - listitem [ref=f12e762]:
+            - link [ref=f12e763] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/intervention/california/southern/orange-county/huntington-beach/
+              - heading "Huntington Beach Intervention Rehab & Addiction Treatment" [level=3] [ref=f12e764]
+          - listitem [ref=f12e765]:
+            - link [ref=f12e766] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/intervention/california/southern/orange-county/garden-grove/
+              - heading "Intervention Rehab near Garden Grove (Addiction Treatment)" [level=3] [ref=f12e767]
+          - listitem [ref=f12e768]:
+            - link [ref=f12e769] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/intervention/california/southern/orange-county/costa-mesa/
+              - heading "Intervention Rehab near Costa Mesa (Addiction Treatment)" [level=3] [ref=f12e770]
+          - listitem [ref=f12e771]:
+            - link [ref=f12e772] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/intervention/california/southern/orange-county/mission-viejo/
+              - heading "Intervention Rehab near Mission Viejo (Addiction Treatment)" [level=3] [ref=f12e773]
+          - listitem [ref=f12e774]:
+            - link [ref=f12e775] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/intervention/california/southern/orange-county/westminster/
+              - heading "Intervention Rehab near Westminster (Addiction Treatment)" [level=3] [ref=f12e776]
+          - listitem [ref=f12e777]:
+            - link [ref=f12e778] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/intervention/california/southern/orange-county/newport-beach/
+              - heading "Newport Beach Intervention Rehab & Addiction Treatment" [level=3] [ref=f12e779]
+          - listitem [ref=f12e780]:
+            - link [ref=f12e781] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/intervention/california/southern/los-angeles/
+              - heading "Los Angeles Intervention Rehab & Addiction Treatment" [level=3] [ref=f12e782]
+          - listitem [ref=f12e783]:
+            - link [ref=f12e784] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/intervention/california/southern/san-diego/
+              - heading "Intervention Rehab near San Diego (Addiction Treatment)" [level=3] [ref=f12e785]
+          - listitem [ref=f12e786]:
+            - link [ref=f12e787] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/intervention/california/southern/orange-county/
+              - heading "Orange County Intervention Rehab & Addiction Treatment" [level=3] [ref=f12e788]
+          - listitem [ref=f12e789]:
+            - link [ref=f12e790] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/intervention/california/southern/riverside/
+              - heading "Intervention Rehab near Riverside (Addiction Treatment)" [level=3] [ref=f12e791]
+          - listitem [ref=f12e792]:
+            - link [ref=f12e793] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/intervention/california/southern/san-bernardino/
+              - heading "Intervention Rehab near San Bernardino (Addiction Treatment)" [level=3] [ref=f12e794]
+          - listitem [ref=f12e795]:
+            - link [ref=f12e796] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/intervention/california/southern/ventura/
+              - heading "Intervention Rehab near Ventura (Addiction Treatment)" [level=3] [ref=f12e797]
+          - listitem [ref=f12e798]:
+            - link [ref=f12e799] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/intervention/california/southern/los-angeles/long-beach/
+              - heading "Long Beach Intervention Rehab & Addiction Treatment" [level=3] [ref=f12e800]
+          - listitem [ref=f12e801]:
+            - link [ref=f12e802] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/intervention/california/southern/santa-barbara/
+              - heading "Intervention Rehab near Santa Barbara (Addiction Treatment)" [level=3] [ref=f12e803]
+          - listitem [ref=f12e804]:
+            - link [ref=f12e805] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/pet-friendly/california/southern/orange-county/anaheim/
+              - heading "Pet Friendly Drug & Alcohol Rehab near Anaheim" [level=3] [ref=f12e806]
+          - listitem [ref=f12e807]:
+            - link [ref=f12e808] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/pet-friendly/california/southern/orange-county/santa-ana/
+              - heading "Pet Friendly Addiction Treatment Center near Santa Ana" [level=3] [ref=f12e809]
+          - listitem [ref=f12e810]:
+            - link [ref=f12e811] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/pet-friendly/california/southern/orange-county/irvine/
+              - heading "Pet Friendly Addiction Treatment Center near Irvine" [level=3] [ref=f12e812]
+          - listitem [ref=f12e813]:
+            - link [ref=f12e814] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/pet-friendly/california/southern/orange-county/huntington-beach/
+              - heading "Pet Friendly Drug Rehab in Huntington Beach" [level=3] [ref=f12e815]
+          - listitem [ref=f12e816]:
+            - link [ref=f12e817] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/pet-friendly/california/southern/orange-county/garden-grove/
+              - heading "Pet Friendly Addiction Treatment Center near Garden Grove" [level=3] [ref=f12e818]
+          - listitem [ref=f12e819]:
+            - link [ref=f12e820] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/pet-friendly/california/southern/orange-county/fullerton/
+              - heading "Pet Friendly Drug & Alcohol Rehab near Fullerton" [level=3] [ref=f12e821]
+          - listitem [ref=f12e822]:
+            - link [ref=f12e823] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/pet-friendly/california/southern/orange-county/costa-mesa/
+              - heading "Pet Friendly Addiction Treatment Center near Costa Mesa" [level=3] [ref=f12e824]
+          - listitem [ref=f12e825]:
+            - link [ref=f12e826] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/pet-friendly/california/southern/orange-county/mission-viejo/
+              - heading "Pet Friendly Addiction Treatment Center near Mission Viejo" [level=3] [ref=f12e827]
+          - listitem [ref=f12e828]:
+            - link [ref=f12e829] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/rehab-for-couples/california/southern/orange-county/anaheim/
+              - heading "Couples Detox and Rehab Treatment Center near Anaheim" [level=3] [ref=f12e830]
+          - listitem [ref=f12e831]:
+            - link [ref=f12e832] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/rehab-for-couples/california/southern/orange-county/santa-ana/
+              - heading "Couples Detox and Rehab Treatment Center near Santa Ana" [level=3] [ref=f12e833]
+          - listitem [ref=f12e834]:
+            - link [ref=f12e835] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/rehab-for-couples/california/southern/orange-county/irvine/
+              - heading "Couples Detox and Rehab Treatment Center near Irvine" [level=3] [ref=f12e836]
+          - listitem [ref=f12e837]:
+            - link [ref=f12e838] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/rehab-for-couples/california/southern/orange-county/huntington-beach/
+              - heading "Huntington Beach Couples Detox and Rehab Treatment Center" [level=3] [ref=f12e839]
+          - listitem [ref=f12e840]:
+            - link [ref=f12e841] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/rehab-for-couples/california/southern/orange-county/garden-grove/
+              - heading "Couples Detox and Rehab Treatment Center near Garden Grove" [level=3] [ref=f12e842]
+          - listitem [ref=f12e843]:
+            - link [ref=f12e844] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/rehab-for-couples/california/southern/orange-county/fullerton/
+              - heading "Couples Rehab Treatment Center near Fullerton" [level=3] [ref=f12e845]
+          - listitem [ref=f12e846]:
+            - link [ref=f12e847] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/rehab-for-couples/california/southern/orange-county/orange/
+              - heading "Couples Rehab Treatment Center near Orange" [level=3] [ref=f12e848]
+          - listitem [ref=f12e849]:
+            - link [ref=f12e850] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/rehab-for-couples/california/southern/orange-county/costa-mesa/
+              - heading "Couples Detox and Rehab Treatment Center near Costa Mesa" [level=3] [ref=f12e851]
+          - listitem [ref=f12e852]:
+            - link [ref=f12e853] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/how-to-set-up-intervention/
+              - heading "How to Set Up an Intervention" [level=3] [ref=f12e854]
+          - listitem [ref=f12e855]:
+            - link [ref=f12e856] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/what-is-an-intervention/
+              - heading "What is an Intervention?" [level=3] [ref=f12e857]
+          - listitem [ref=f12e858]:
+            - link [ref=f12e859] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/what-happens-intervention/
+              - heading "What Happens at an Intervention?" [level=3] [ref=f12e860]
+          - listitem [ref=f12e861]:
+            - link [ref=f12e862] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/what-to-do-after-intervention/
+              - heading "What to Do After An Intervention" [level=3] [ref=f12e863]
+        - button "Load More" [ref=f12e865] [cursor=pointer]
+    - generic [ref=f12e866]:
+      - generic [ref=f12e867]:
+        - heading "Connect on Our Socials" [level=3] [ref=f12e870]
+        - paragraph [ref=f12e873]: Check out our social content for facility videos, client interviews, recovery content, & more!
+        - link "Follow Us" [ref=f12e877] [cursor=pointer]:
+          - /url: https://linktr.ee/Gratitudelodge
+      - generic [ref=f12e881]:
+        - region "Carousel" [ref=f12e882]:
+          - generic [ref=f12e883]:
+            - group "1 of 8" [ref=f12e884]
+            - group "2 of 8" [ref=f12e889]
+            - group "3 of 8" [ref=f12e894]
+            - group "4 of 8" [ref=f12e899]
+            - group "5 of 8" [ref=f12e904]
+            - group "6 of 8" [ref=f12e909]
+            - group "7 of 8" [ref=f12e914]
+            - group "8 of 8" [ref=f12e919]
+        - button "Previous": 
+        - button "Next": 
+    - generic [ref=f12e926]:
+      - heading "FAQs for Our Intervention Services Near Los Alamitos" [level=2] [ref=f12e929]
+      - paragraph [ref=f12e933]: No accordion items found.
+    - generic [ref=f12e936]:
+      - generic [ref=f12e940]:
+        - link "844-576-0144" [ref=f12e944] [cursor=pointer]:
+          - /url: tel:844-576-0144
+        - link "VERIFY INSURANCE" [ref=f12e950] [cursor=pointer]:
+          - /url: "#elementor-action%3Aaction%3Dpopup%3Aopen%26settings%3DeyJpZCI6IjM1MTM0IiwidG9nZ2xlIjpmYWxzZX0%3D"
+      - generic [ref=f12e957]:
+        - generic [ref=f12e959]:
+          - link [ref=f12e964] [cursor=pointer]:
+            - /url: https://www.gratitudelodge.com/check-my-insurance/bcbs/
+            - img "an image of an insurance provider" [ref=f12e965]
+          - img "an image of an insurance provider" [ref=f12e970]
+          - img "an image of an insurance provider" [ref=f12e975]
+          - link [ref=f12e980] [cursor=pointer]:
+            - /url: https://www.gratitudelodge.com/check-my-insurance/aetna/
+            - img "an image of an insurance provider" [ref=f12e981]
+          - img "an image of an insurance provider" [ref=f12e986]
+          - link [ref=f12e991] [cursor=pointer]:
+            - /url: https://www.gratitudelodge.com/check-my-insurance/cigna/
+            - img "an image of an insurance provider" [ref=f12e992]
+        - text:  
+    - generic [ref=f12e999]:
+      - heading "Scholarship Opportunity" [level=2] [ref=f12e1002]
+      - paragraph [ref=f12e1005]:
+        - text: At Gratitude Lodge, we’re committed to helping individuals reach their full potential and build brighter futures. Our
+        - strong [ref=f12e1006]: $1,000
+        - text: scholarships are one way we give back, empowering students to achieve their goals. With a 500-word essay, you can apply for 2025. Click below to learn more, hear from past winners, and apply today!
+      - link "Apply Now" [ref=f12e1010] [cursor=pointer]:
+        - /url: /scholarship/
+    - generic [ref=f12e1015]:
+      - heading "Our Faculty Members" [level=2] [ref=f12e1018]
+      - list [ref=f12e1021]:
+        - generic [ref=f12e1023]:
+          - link [ref=f12e1026] [cursor=pointer]:
+            - /url: https://www.gratitudelodge.com/authors/emma-psomas/
+          - generic [ref=f12e1027]:
+            - generic [ref=f12e1028]:
+              - link [ref=f12e1031] [cursor=pointer]:
+                - /url: https://www.gratitudelodge.com/authors/emma-psomas/
+                - heading "Emma Psomas" [level=3] [ref=f12e1032]:
+                  - text: Emma
+                  - generic [ref=f12e1033]: Psomas
+              - heading "Associate Therapist - AMFT" [level=4] [ref=f12e1037]
+            - link [ref=f12e1042] [cursor=pointer]:
+              - /url: https://www.linkedin.com/in/emmagui-psomas/
+              - generic [ref=f12e1043]: 
+        - generic [ref=f12e1045]:
+          - link [ref=f12e1048] [cursor=pointer]:
+            - /url: https://www.gratitudelodge.com/authors/sean-oneill/
+          - generic [ref=f12e1049]:
+            - generic [ref=f12e1050]:
+              - link [ref=f12e1053] [cursor=pointer]:
+                - /url: https://www.gratitudelodge.com/authors/sean-oneill/
+                - heading "Sean O'Neill" [level=3] [ref=f12e1054]:
+                  - text: Sean
+                  - generic [ref=f12e1055]: O'Neill
+              - heading "Clinical Director - LMFT" [level=4] [ref=f12e1059]
+            - link [ref=f12e1064] [cursor=pointer]:
+              - /url: https://www.linkedin.com/company/gratitude-lodge
+              - generic [ref=f12e1065]: 
+    - heading "Contact Us" [level=2] [ref=f12e1071]
+  - contentinfo [ref=f12e1107]:
+    - generic [ref=f12e1109]:
+      - generic [ref=f12e1111]:
+        - link [ref=f12e1114] [cursor=pointer]:
+          - /url: https://www.gratitudelodge.com
+          - img "Site logo" [ref=f12e1115]
+        - paragraph [ref=f12e1118]:
+          - link "Licensed by the Department of Health Care Services" [ref=f12e1120] [cursor=pointer]:
+            - /url: https://data.chhs.ca.gov/dataset/sud-recovery-treatment-facilities
+        - link [ref=f12e1123] [cursor=pointer]:
+          - /url: https://data.chhs.ca.gov/dataset/sud-recovery-treatment-facilities
+          - img "DHCS logo" [ref=f12e1124]
+        - paragraph [ref=f12e1127]: License details
+        - list [ref=f12e1130]:
+          - listitem [ref=f12e1131]:
+            - generic [ref=f12e1132]: Belmont 190119BP EXP 5/31/28
+          - listitem [ref=f12e1133]:
+            - generic [ref=f12e1134]: Chatwin 19011AP EXP 10/31/26
+          - listitem [ref=f12e1135]:
+            - generic [ref=f12e1136]: Orchard 300280GP EXP 5/31/27
+          - listitem [ref=f12e1137]:
+            - generic [ref=f12e1138]: Redlands 300280FP EXP 4/30/27
+      - generic [ref=f12e1140]:
+        - paragraph [ref=f12e1143]: Explore Our Links
+        - list [ref=f12e1146]:
+          - listitem [ref=f12e1147]:
+            - link "Rehab Admissions" [ref=f12e1148] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/rehab-admissions/
+          - listitem [ref=f12e1150]:
+            - link "Check My Insurance" [ref=f12e1151] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/check-my-insurance/
+          - listitem [ref=f12e1153]:
+            - link "SUD Recovery Treatment Facilities" [ref=f12e1154] [cursor=pointer]:
+              - /url: https://data.chhs.ca.gov/dataset/sud-recovery-treatment-facilities
+        - list [ref=f12e1158]:
+          - listitem [ref=f12e1159]:
+            - link "Facebook" [ref=f12e1160] [cursor=pointer]:
+              - /url: https://www.facebook.com/gratitudelodgeca
+              - generic [ref=f12e1162]: 
+          - listitem [ref=f12e1163]:
+            - link "Linkedin" [ref=f12e1164] [cursor=pointer]:
+              - /url: https://www.linkedin.com/company/gratitude-lodge
+              - generic [ref=f12e1166]: 
+          - listitem [ref=f12e1167]:
+            - link "Instagram" [ref=f12e1168] [cursor=pointer]:
+              - /url: https://www.linkedin.com/company/gratitude-lodge
+              - generic [ref=f12e1170]: 
+          - listitem [ref=f12e1171]:
+            - link "Pinterest" [ref=f12e1172] [cursor=pointer]:
+              - /url: https://www.pinterest.com/Gratitude_Lodge/
+              - generic [ref=f12e1174]: 
+          - listitem [ref=f12e1175]:
+            - link "Youtube" [ref=f12e1176] [cursor=pointer]:
+              - /url: https://www.youtube.com/channel/UCq_JeSiUcrxsf0bp39HTdig
+              - generic [ref=f12e1178]: 
+          - listitem [ref=f12e1179]:
+            - link "Twitter" [ref=f12e1180] [cursor=pointer]:
+              - /url: https://twitter.com/gratitudelodge/
+              - generic [ref=f12e1182]: 
+      - generic [ref=f12e1184]:
+        - paragraph [ref=f12e1187]: Contact Info
+        - list [ref=f12e1190]:
+          - listitem [ref=f12e1191]:
+            - link "info@gratitudelodge.com" [ref=f12e1192] [cursor=pointer]:
+              - /url: mailto:%20info@gratitudelodge.com
+              - generic [ref=f12e1193]: 
+          - listitem [ref=f12e1196]:
+            - link "949-676-9364" [ref=f12e1197] [cursor=pointer]:
+              - /url: tel:949-676-9364
+              - generic [ref=f12e1198]: 
+        - generic [ref=f12e1202]:
+          - link [ref=f12e1207] [cursor=pointer]:
+            - /url: https://www.legitscript.com/websites/?checker_keywords=gratitudelodge.com
+          - link [ref=f12e1212] [cursor=pointer]:
+            - /url: https://www.jointcommission.org/en-us/about-us/recognizing-excellence/find-accredited-organizations/632282
+            - img "an image of the Joint Commission's Gold Seal of Approval" [ref=f12e1213]
+          - link [ref=f12e1222] [cursor=pointer]:
+            - /url: https://recovery.com/gratitude-lodge-california/
+        - generic:
+          - generic:
+            - generic:
+              - generic:
+                - link:
+                  - /url: https://www.psychologytoday.com/profile/1063096
+      - generic [ref=f12e1224]:
+        - paragraph [ref=f12e1227]: Locations
+        - paragraph [ref=f12e1230]: Long Beach, CA
+        - paragraph [ref=f12e1233]:
+          - link "3849 Chatwin Ave Long Beach, CA 90808" [ref=f12e1234] [cursor=pointer]:
+            - /url: https://maps.app.goo.gl/dagDE2A6vJqbZjd57
+            - text: 3849 Chatwin AveLong Beach, CA 90808
+        - paragraph [ref=f12e1237]: Los Angeles County, CA
+        - paragraph [ref=f12e1240]:
+          - link "3010 E 1st St Long Beach, CA 90803" [ref=f12e1241] [cursor=pointer]:
+            - /url: https://maps.app.goo.gl/8vLjP8LVPRjrHzmQ9
+            - text: 3010 E 1st StLong Beach, CA 90803
+        - paragraph [ref=f12e1244]: Newport Beach, CA
+        - paragraph [ref=f12e1247]:
+          - link "20132 Redlands Dr Newport Beach, CA 92660" [ref=f12e1248] [cursor=pointer]:
+            - /url: https://maps.app.goo.gl/QbUTP52kZZzXT81M7
+            - text: 20132 Redlands DrNewport Beach, CA 92660
+        - paragraph [ref=f12e1251]: Orange County, CA
+        - paragraph [ref=f12e1254]:
+          - link "1661 Orchard Dr Newport Beach, CA 92660" [ref=f12e1255] [cursor=pointer]:
+            - /url: https://maps.app.goo.gl/9JVBbWRNgzZ7NyFX8
+            - text: 1661 Orchard DrNewport Beach, CA 92660
+    - text:        
+    - generic [ref=f12e1259]:
+      - generic [ref=f12e1260]: Copyright © 2026. All rights reserved.
+      - list [ref=f12e1264]:
+        - listitem [ref=f12e1265]:
+          - link "Gratitude Lodge" [ref=f12e1266] [cursor=pointer]:
+            - /url: https://www.gratitudelodge.com/
+            - generic [ref=f12e1267]: 
+        - listitem [ref=f12e1270]:
+          - link "Privacy Policy" [ref=f12e1271] [cursor=pointer]:
+            - /url: https://www.gratitudelodge.com/privacy-policy/
+            - generic [ref=f12e1272]: 
+        - listitem [ref=f12e1275]:
+          - link "Sitemap" [ref=f12e1276] [cursor=pointer]:
+            - /url: /sitemap/
+            - generic [ref=f12e1277]: 
+  - text: 
