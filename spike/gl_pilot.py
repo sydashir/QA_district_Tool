@@ -26,6 +26,7 @@ import anthropic
 
 from auditor import crawl as C
 from auditor.config import load_brand
+from auditor.css_cache import BrandCSS
 from auditor.parse import parse_html
 
 ALLOWLIST = Path(__file__).resolve().parent.parent / "auditor" / "ai" / "allowlist.json"
@@ -104,11 +105,17 @@ async def collect(n_pages: int) -> tuple[list[str], int, int, int]:
         step = max(1, len(urls) // n_pages)
         sample = urls[::step][:n_pages]
         per_page: list[tuple[str, list[str]]] = []
+        brand_css = BrandCSS()
         for u in sample:
             st, _f2, html, _e, _h = await C._request(client, u, max_retries=2)
             if st != 200 or not html:
                 continue
-            per_page.append((u, blocks(parse_html(html, page_url=u, base_url=u).visible_text)))
+            # One fetch per brand. GL links zero stylesheets (all inlined) so this is a no-op here,
+            # but the same collector runs for the other eight brands, six of which link 12-47.
+            await brand_css.load(client, html, u, max_retries=2)
+            parsed = parse_html(html, page_url=u, base_url=u,
+                                extra_css=brand_css.css, css_status=brand_css.status)
+            per_page.append((u, blocks(parsed.visible_text)))
             await asyncio.sleep(cfg.crawl.delay_seconds)
 
     pages = len(per_page)
