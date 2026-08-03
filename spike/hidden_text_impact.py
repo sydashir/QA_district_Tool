@@ -1,7 +1,8 @@
 """Measure what the hidden-text bug did to EVERY check that reads visible_text.
 
 Until commit 7d8c759, ``visible_text`` included content the rendered page does not show
-(``display:none`` spans, ``[hidden]`` elements). On GL that was 38.8% of the extracted text.
+(``display:none`` spans, ``[hidden]`` elements). On GL that is 20.9% of the extracted text (the 38.8% first measured came from an over-aggressive
+first implementation that also honoured :hover rules — content that IS visible normally).
 
 Six checks read ``visible_text``: blank, placeholder, scope, misspelling, phone, empty_slot. The
 blank check is the one that matters most — it is the client's #1 stated need (catch a silently
@@ -45,10 +46,19 @@ def old_visible_text(html: str) -> str:
 async def measure(brand: str, n_pages: int) -> None:
     cfg = load_brand(brand)
     async with C.make_client(cfg.crawl) as client:
+        # UNION scope, same as run_audit. DBH and MHD are REST-heavy — their sitemaps enumerate
+        # almost nothing (DBH: 15 sitemap URLs vs 574 audited), so sitemap-only sampling skips them
+        # entirely and would silently report "no data" for two of the nine brands.
         urls, _b, _c, _f = await C.enumerate_sitemap(client, cfg.sitemap_url, max_retries=3)
         urls = C._apply_exclude(urls, cfg.crawl.exclude)
+        if cfg.wp_rest and cfg.wp_rest.enabled:
+            rest, _authed = await C.enumerate_wp_rest(
+                client, cfg.wp_rest, max_retries=cfg.crawl.max_retries)
+            rest = C._apply_exclude(rest, cfg.crawl.exclude)
+            seen = set(urls)
+            urls = urls + [u for u in rest if u not in seen]
         if not urls:
-            print(f"{brand.upper():5} no urls enumerated — SKIPPED")
+            print(f"{brand.upper():5} no urls enumerated (sitemap AND wp-rest) — SKIPPED")
             return
         step = max(1, len(urls) // n_pages)
         sample = urls[::step][:n_pages]
