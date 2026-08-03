@@ -566,3 +566,98 @@ which is still **not wired** (we read a snapshot). That remains Decision D2 from
    add to it? **I will not invent the list.**
 5. **Scope of the first AI pass** — all 9 brands, or GL only as a pilot? (GL has the best
    ground-truth fixture and a sent report to compare against.)
+
+---
+
+## D9. RESULT — Phase 2 was tested end to end and is NOT being shipped
+
+**Status: measured, documented, shelved. Do not rebuild this without reading this section.**
+Two models, four full-corpus runs, 473 + 282 + 216 findings hand-adjudicated by independent judges
+with an adversarial refute pass. The deterministic layer beat it on this corpus. The numbers and the
+reasons are below so nobody spends $111 rediscovering them.
+
+### What was tested
+
+The full §D6 pipeline on Gratitude Lodge: boilerplate excluded, blocks deduped, a 2,488-term
+proper-noun allowlist (§D3) in a prompt-cached system prompt, structured JSON output, degenerate
+findings filtered. Corpus 2,086–2,404 unique client-authored blocks from 25 pages. Both candidate
+tiers: `claude-haiku-4-5` and `claude-sonnet-5`.
+
+Adjudication was deliberately not self-graded: findings went to independent classifier agents against
+a fixed rubric, then every finding called REAL went to a second adversarial pass instructed to refute
+it and to default to "not real" when uncertain. The reported precision is that strict survivor rate.
+
+### The numbers
+
+| | Haiku 4.5 | Sonnet 5 |
+|---|---|---|
+| findings (2,086 blocks, restricted prompt) | 121 | 95 |
+| survived adversarial refute | **5 (4.1%)** | **6 (6.3%)** |
+| surviving defect types | misspelling 2, broken_word 2, space_before_punct 1 | misspelling 2, missing_space 2, broken_word 1, space_before_punct 1 |
+| projected network cost (batch input) | **$33** | **$111** |
+
+Cost is per-model because `count_tokens` is model-specific: the identical corpus is 66.8M tokens to
+Haiku and 111.2M to Sonnet. Do not price one model with another's token count.
+
+An earlier, looser prompt ("spelling, grammar, punctuation") scored higher on paper — Sonnet 55%
+strict — but its output was dominated by word-choice rewrites the client would reject
+("relapse probability" → "relapse risk", "has tons of fun" → "offer many fun"). Restricting the
+prompt to six mechanical defect types removed the noise and revealed the real yield.
+
+### Why the deterministic layer wins on THIS corpus
+
+Every class that survived adversarial review is already caught for free:
+
+| Surviving class | Already caught by |
+|---|---|
+| misspelling | `checks/misspelling.py` (exact list, ERROR, incl. slug/URL) |
+| broken word ("program s") | `checks/empty_slot.py` `truncated_word` |
+| missing space / space before punctuation | now a non-issue — it was a `parse.py` artifact (see below) |
+| missing distance unit ("within 15 of Costa Mesa") | `checks/empty_slot.py` `missing_unit` — this was 4 of the 6 real AI findings in the first pilot and is a regex, not a judgement |
+
+The AI tier's marginal contribution over the deterministic layer, on a corpus the deterministic
+layer has already swept, is a handful of findings per thousand blocks at $33–111 per network run.
+
+### The result that keeps the door open — recall is genuinely good
+
+Precision is the wrong number to judge the tier by alone, so recall was measured against seeded
+ground truth (`spike/seeded_control.py`): one word per real page block corrupted, split into
+misspellings the client had already reported versus **novel typos on no list anywhere**.
+
+**Both models: 13/13, including 9/9 novel.** Every seeded word was verified absent from the
+allowlist first, so the prompt could not have suppressed them. Zero proper-noun false positives
+across four runs.
+
+So the model **does** find typos nobody has reported — the "next `paramFount`" case. It simply does
+not beat regexes on a corpus we have already swept deterministically. If the corpus changes — a new
+brand, freshly spun content that v1 has never seen, or a client request for genuine prose quality
+rather than mechanical defects — this conclusion should be re-tested, not assumed to still hold.
+
+### What the exercise actually bought us
+
+The pilot's real value was as a **detector for defects in our own extraction**. Chasing its false
+positives found four content-fabricating bugs in `parse.py`, all now fixed and gated:
+
+1. `get_text(" ")` welded an `<h2>` into the `<p>` below it — a sentence not on the page.
+2. Emitting a space after every inline node turned `<strong>phone rings</strong>.` into
+   `"phone rings ."` — the ORIGINAL code had this too, so it was in every report shipped before.
+3. Hidden content (`display:none`, `[hidden]`) was read as visible: **20.9% of GL's `visible_text`,
+   39.8% of AR's**. This mattered far beyond the AI layer — `visible_text` is what the blank/thin
+   check measures, so hidden text could make an empty ACF section look populated.
+4. A whitespace-only text node was dropped, fusing `here:` + `Outpatient`.
+
+All four are pinned by browser-verified fixtures in `tests/fixtures/parse/` (see `test_parse_fixtures.py`).
+Re-running every `visible_text` check across 8 brands after the fixes changed **no** finding on any
+brand — the shipped v1 numbers stand.
+
+### Known, deliberately unfixed: static vs interaction-state hiding
+
+`_strip_hidden` skips any CSS selector containing `:`, which was aimed at `:hover`. That also
+discards structural pseudo-classes, so content inside a **closed Elementor accordion**
+(`.e-n-accordion-item:not([open]) .e-con{display:none}`) is still extracted.
+
+This is **not** a regex tweak and was not patched. Accordion/FAQ content is real client copy revealed
+on click, and check #7 explicitly audits FAQ/accordion blocks — blanket-stripping every closed
+accordion would blind the auditor to a section the client asked us to check. The correct fix
+distinguishes **static hiding** (strip: the reader can never see it) from **interaction-state hiding**
+(keep: revealed on click), and needs a decision about which side accordion content falls on.
