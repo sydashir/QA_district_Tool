@@ -72,6 +72,18 @@ _EVALUATIVE = re.compile(
     r"grateful|blessed|life[- ]changing)\b", re.IGNORECASE)
 
 
+# The content filter alone cannot catch a bio with no credential in it — "Jack Petti comes from a
+# unique background, having struggled with addiction from the very early age of twelve years old"
+# reads like ordinary prose. But the PAGE it lives on gives it away, so the two signals are combined.
+_PERSONAL_PAGE = re.compile(
+    r"/(about-us|about|our-team|team|staff|leadership|meet-the-team|testimonial|testimonials|"
+    r"reviews|alumni)(/|$)", re.IGNORECASE)
+
+
+def is_personal_page(url: str) -> bool:
+    return bool(_PERSONAL_PAGE.search(url))
+
+
 def is_person_or_review(b: str) -> bool:
     """True when a block is a staff bio or a customer testimonial rather than client-authored copy."""
     if _CREDENTIALS.search(b) or _BIO_NARRATIVE.search(b) or _REVIEW_VOICE.search(b):
@@ -91,17 +103,17 @@ async def collect(n_pages: int) -> tuple[list[str], int, int, int]:
         urls = C._apply_exclude(urls, cfg.crawl.exclude)
         step = max(1, len(urls) // n_pages)
         sample = urls[::step][:n_pages]
-        per_page: list[list[str]] = []
+        per_page: list[tuple[str, list[str]]] = []
         for u in sample:
             st, _f2, html, _e, _h = await C._request(client, u, max_retries=2)
             if st != 200 or not html:
                 continue
-            per_page.append(blocks(parse_html(html, page_url=u, base_url=u).visible_text))
+            per_page.append((u, blocks(parse_html(html, page_url=u, base_url=u).visible_text)))
             await asyncio.sleep(cfg.crawl.delay_seconds)
 
     pages = len(per_page)
     freq: dict[str, int] = {}
-    for bl in per_page:
+    for _u, bl in per_page:
         for h in {hashlib.sha1(b.encode()).hexdigest() for b in bl}:
             freq[h] = freq.get(h, 0) + 1
     cutoff = max(2, int(0.30 * pages))
@@ -111,14 +123,15 @@ async def collect(n_pages: int) -> tuple[list[str], int, int, int]:
     total = 0
     boiler = 0
     personal = 0
-    for bl in per_page:
+    for u, bl in per_page:
+        page_is_personal = is_personal_page(u)
         for b in bl:
             total += 1
             h = hashlib.sha1(b.encode()).hexdigest()
             if freq[h] >= cutoff:
                 boiler += 1
                 continue
-            if is_person_or_review(b):
+            if page_is_personal or is_person_or_review(b):
                 personal += 1
                 continue
             if h not in seen:
