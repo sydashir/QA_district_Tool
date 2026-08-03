@@ -135,6 +135,25 @@ def test_snapshot_known_values():
     assert any(p.brand == "SLN" for p in nap.validate_canonical(brands))
 
 
+def test_xlsx_grid_is_cached_and_cache_matches_a_fresh_parse():
+    # load_brand() parses this workbook TWICE (canonical numbers + third-party hotlines) and
+    # openpyxl spends ~25s per parse, which made load_brand() a 51s call and the audit suite
+    # multi-minute. The cache is only safe if it returns exactly what a fresh parse returns, so
+    # assert equality rather than trusting it.
+    nap.grid_from_xlsx.cache_clear()
+    fresh = nap.grid_from_xlsx()
+    cached = nap.grid_from_xlsx()
+    assert cached is fresh, "second call re-parsed the workbook instead of serving the cache"
+
+    nap.grid_from_xlsx.cache_clear()
+    reparsed = nap.grid_from_xlsx()
+    assert reparsed is not fresh          # cache_clear really does force a re-read
+    assert reparsed == fresh              # ...and a re-read is identical, so caching changes nothing
+
+    # the derived model must be identical too, not merely the raw grid
+    assert nap.parse_nap_grid(reparsed).keys() == nap.parse_nap_grid(fresh).keys()
+
+
 if __name__ == "__main__":
     import sys
     raise SystemExit(pytest.main([__file__, "-q"]))
