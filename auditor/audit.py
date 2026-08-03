@@ -568,9 +568,9 @@ async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile:
                 extra["enumeration"] = enum_stats
             if config.canon is not None:  # name the phone-scope limitation IN the report
                 extra["phone_scope_caveat"] = (
-                    "Per-location numbers are validated brand-wide, not per-page; a valid number "
-                    "rendered on the wrong location's page is NOT flagged. Canonical from the NAP "
-                    "2026-07-02 snapshot; NAP_SHEET_ID unverified.")
+                    "Per-location numbers are validated brand-wide, not per-page; a valid "
+                    "number rendered on the wrong location's page is NOT flagged. Canonical "
+                    "from the 2026-07-20 snapshot of the verified live NAP sheet.")
             run = write_run(
                 findings, projections, brand=config.brand, base_url=config.base_url,
                 now=now, config=config, live=live, out_dir=out_dir, history_path=history,

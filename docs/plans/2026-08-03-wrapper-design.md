@@ -1,6 +1,6 @@
 # Wrapper design — scheduled runs + sheet output
 
-**Status: SKETCH for Syed's review. Nothing built. No sheet chosen.**
+**Status: APPROVED 2026-08-03. Syed provides the spreadsheet and the VM. Nothing built yet.**
 
 The auditor works and has found every headline defect in the project. What it does not have is a way
 to reach Jake without a person running a command and pasting a markdown file. That is the gap.
@@ -31,12 +31,22 @@ laptop is awake".
 **Two phases, because the first run per brand is the expensive one and every run after is cheap** —
 the content-hash cache means re-runs only re-audit changed pages.
 
-- **Seeding (~1 week, one-off):** one brand per night at 02:00 PST, largest first. RR gets its own
-  night. This builds the cache and the first baseline per brand.
+- **Seeding (~1 week, one-off): SMALLEST BRAND FIRST.** TDRC (21) → AH (160) → AR (474) → DBH (574)
+  → CAD (1,236) → COC (1,504) → GL (3,574) → RR (7,721) → MHD (15,635).
+  **Why small-first and not largest-first:** week one's real risk is not throughput, it is deploy
+  bugs — wrong path, missing env var, timer not firing, disk permissions, credentials not readable
+  by the service user. Those surface on the FIRST run regardless of size, so find them on a 21-page
+  run that fails in a minute, not by burning a whole night on RR. Largest-first optimises for
+  finishing sooner; smallest-first optimises for cheap failure, which is what week one is about.
+  RR still gets its own dedicated night once the pipeline has proven itself on the small brands.
 - **Steady state (nightly):** all nine brands sequentially in the 2–5am window. Only changed pages
   are re-audited, so the run is a fraction of the seed cost.
-- **Weekly (Sunday):** a forced full re-audit ignoring the cache, so a silently stale cache can
-  never hide a regression indefinitely.
+- **Weekly forced-full: STAGGERED, two brands per night on a rotation.** A forced full re-audit
+  ignores the cache, so a silently stale cache can never hide a regression indefinitely — but nine
+  of them in one night is 10h+ of crawling and would blow straight through the 2–5am window. Two per
+  night means every brand gets a forced-full each week and no single night is enormous:
+  Mon TDRC+AH · Tue AR+DBH · Wed CAD+COC · Thu GL · Fri RR · Sat MHD · Sun spare//catch-up.
+  RR and MHD get their own nights because either one alone fills the window.
 
 Per-brand crawl politeness stays exactly as configured today (RR concurrency 10, MHD 2 — permanent,
 already logged in config).
@@ -77,8 +87,12 @@ rot silently, so it gets three layers:
 
 1. **Start/finish rows.** The `Summary` tab gets a row at run START with status `running`, updated at
    the end to `ok` or `failed: <reason>`. A run that dies leaves a visible `running` row forever.
-2. **Push on failure.** `systemd OnFailure=` fires a notifier on any non-zero exit — email or a
-   webhook, whichever Syed prefers. Covers crashes, host-unreachable, auth expiry.
+2. **Push on failure — EMAIL, plain text.** `systemd OnFailure=` fires a mail on any non-zero exit.
+   Chosen over a webhook because a webhook needs somewhere to receive it, which is another service
+   to build and host. **The subject line carries the state**, so it is readable from a phone lock
+   screen without opening anything: `District auditor: RR run failed` /
+   `District auditor: no successful run in 36h`. Body = brand, timestamp, exit code, last 40 log
+   lines. Boring, and it works.
 3. **Dead-man's switch.** A separate tiny timer checks "was there a successful run in the last 36h?"
    and alerts if not. This is the one that catches the failure mode the other two miss: the job never
    started at all — timer disabled, VM rebooted, disk full. Silence must be loud.
@@ -101,7 +115,8 @@ lower-confidence) and `sitemap_partial` (⇒ coverage findings withheld).
 1. Which spreadsheet should the auditor write to? (A human creates it.)
 2. Grant edit to `app-service-account@lexical-sol-454719-s2.iam.gserviceaccount.com`.
 
-Also open: which notification channel for §5 (email vs webhook), and who pays for / provisions the VM.
+**Decided 2026-08-03:** notification = plain-text email to Syed; seed order = smallest brand first;
+weekly forced-full = staggered two-per-night. Syed provides the spreadsheet and the VM.
 
 **Verified as a side effect:** `NAP_SHEET_ID` (`1AU_wNukif…`) is correct — it reads as
 *"NAP Phone numbers / UTM Codes / DBAs"* with a `NAP (Current)` tab, matching the snapshot exactly.

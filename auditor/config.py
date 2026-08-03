@@ -104,7 +104,7 @@ def load_brand_config(path: str | Path) -> BrandConfig:
 
 def load_brand(brand: str) -> BrandConfig:
     """Load ``config/<brand>.toml`` by brand code (case-insensitive) and attach the
-    NAP-derived canonical numbers (2026-07-02 snapshot; NAP_SHEET_ID unverified)."""
+    NAP-derived canonical numbers (2026-07-20 snapshot of the VERIFIED live sheet)."""
     cfg = load_brand_config(CONFIG_DIR / f"{brand.lower()}.toml")
     cfg.canon = canon_for(cfg.brand)
     cfg.third_party = load_third_party()

@@ -43,7 +43,9 @@ NOT_LIVE_BRANDS = frozenset({"SLN"})
 # grid_from_xlsx -> grid_from_sheet, parse unchanged.
 NAP_SNAPSHOT = Path(__file__).resolve().parent.parent / "data" / "nap_snapshot.xlsx"
 NAP_TAB = "NAP (Current)"
-# Plan [c] ID — UNVERIFIED as the live canonical sheet; Syed confirms before live use.
+# VERIFIED 2026-08-03 as the live canonical sheet: reading it with the service account returns
+# title "NAP Phone numbers / UTM Codes / DBAs" with a "NAP (Current)" tab — exactly the tab this
+# module parses from the snapshot. Safe to use as the live source (D2).
 NAP_SHEET_ID = "1AU_wNukifVPc6yH7pvXW051llwOnf7RTDx9hZDVgF-c"
 
 

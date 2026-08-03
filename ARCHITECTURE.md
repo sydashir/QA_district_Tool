@@ -174,7 +174,9 @@ model. Design:
   read the sheet's geo columns yet). Named and deferred, not forgotten — a limitation we've named is
   honest; one we've forgotten is the Check #2 trap. This caveat also ships in the report (summary.json
   `phone_scope_caveat`).
-- **Freshness caveat:** the classification uses the **2026-07-02 snapshot** (`NAP_SHEET_ID` UNVERIFIED),
+- **Freshness:** the classification uses a snapshot of the **verified** live sheet (`NAP_SHEET_ID`
+  confirmed 2026-08-03 — it reads as "NAP Phone numbers / UTM Codes / DBAs" with the `NAP (Current)`
+  tab this module parses),
   carried in every finding's suggestion and in summary.json. The live-sheet read (D2) swaps
   `grid_from_xlsx` → `grid_from_sheet` with **no parse edit** (so no phone check-version churn); an
   identical-numbers swap is a version no-op because the ruler hashes canonical VALUES, not the source.

@@ -61,7 +61,7 @@ extending District AI.
 | Implementation plan | `~/Documents/workk/district/.tmp_dd/jake_doc.txt` (Google Doc: docs.google.com/document/d/1qkjFpz17v_Zhu02B0J20hpCkNcsjLOOoWpFD8en3IY4) | Architecture, stack, checks, milestones, client answers [a]–[n] |
 | Brand guide (general) | `~/Documents/workk/district/.tmp_dd/brand_guide_general.txt` (docs.google.com/document/d/12zpqSAseohE1H5GHcf74pRdfvi1nvVVV5ogHGo0mEyM) | Phase-2 spelling/terminology allowlist |
 | Brand guide (geo) | `~/Documents/workk/district/.tmp_dd/brand_guide_geo.txt` (docs.google.com/document/d/1E6BLBWzJik7a9kNcz1hY9dLK5_r8S-ZneLCQHpfyH14) | Per-section heading/content rules |
-| NAP / sites sheet | `~/Documents/workk/district/.tmp_dd/jake_sites_tab.csv` (+ `jake_sites.xlsx`); canonical gSheet: docs.google.com/spreadsheets/d/1AU_wNukifVPc6yH7pvXW051llwOnf7RTDx9hZDVgF-c | Per-brand base URL + canonical phone numbers |
+| NAP / sites sheet | `~/Documents/workk/district/.tmp_dd/jake_sites_tab.csv` (+ `jake_sites.xlsx`); canonical gSheet: docs.google.com/spreadsheets/d/1AU_wNukifVPc6yH7pvXW051llwOnf7RTDx9hZDVgF-c (**VERIFIED live 2026-08-03** — reads as "NAP Phone numbers / UTM Codes / DBAs", tab "NAP (Current)") | Per-brand base URL + canonical phone numbers |
 | GeoData Fetcher (existing tool) | `~/Documents/workk/district/` (git repo, Streamlit app) | Pre-import QA logic; Check #2; ACF token helper to reuse |
 | GL content fixture | `~/Documents/workk/district/.tmp_dd/problem_sheet.csv` | 161 GL CA drug-rehab pages w/ expected h1/meta/phone/slug — a validation fixture, NOT an issue list |
 
