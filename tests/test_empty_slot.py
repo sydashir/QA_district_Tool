@@ -45,6 +45,30 @@ def test_jakes_real_defects_are_caught(text, subtype):
         f"expected {subtype}, got {[f.details['class'] for f in fs]}"
 
 
+@pytest.mark.parametrize("text", [
+    # found live by the Phase-2 pilot on GL — the number survived, the unit did not
+    "There are more than 10 programs available within 15 of Costa Mesa, including LGBTQ care.",
+    "At least 27 programs accept private insurance within 30 of Ventura, reducing barriers.",
+    "3 facilities maintain a rating of 4 and have at least 10 reviews within 20.",
+])
+def test_missing_unit_is_caught(text):
+    fs = [f for f in _run(text) if f.details["class"] == "missing_unit"]
+    assert len(fs) >= 1 and fs[0].severity is Severity.ERROR
+
+
+@pytest.mark.parametrize("text", [
+    "Detox typically completes within 30 days of admission.",
+    "We return calls within 24 hours, seven days a week.",
+    "The facility is within 10 miles of Los Angeles.",
+    "Most clients are admitted within 48 hrs.",
+    "Coverage is confirmed within 15 minutes in most cases.",
+    "Programs are located within 5 mi of the coast.",
+])
+def test_real_units_never_fire(text):
+    assert [f for f in _run(text) if f.details["class"] == "missing_unit"] == [], \
+        f"false positive on a real unit: {text!r}"
+
+
 def test_empty_percent_is_caught():
     # "...overdose outcomes d compared to by %." — the percentage never populated
     fs = [f for f in _run("overdose outcomes changed compared to 2022 by %.")

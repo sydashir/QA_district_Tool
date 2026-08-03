@@ -57,6 +57,16 @@ _EMPTY_PERCENT = re.compile(r"(?<![\d.])\s%")
 _TRUNCATED_WORD = re.compile(
     r"(?<![\d.])\b[a-z]+\s+([bcdfghjklmnpqrstvwyz])\s+[a-z]+\b(?!\.)")
 
+# 5) "within 15 of Costa Mesa" / "at least 10 reviews within 20." — a distance/duration variable
+#    rendered its NUMBER but lost its UNIT. Found by the Phase-2 pilot as the single largest class of
+#    real AI findings (4 of 6), which is exactly the signal that it belongs here instead: it is a
+#    regex, not a judgement. Units that legitimately follow a bare number are excluded, so "within 30
+#    days" and "within 24 hours" stay silent.
+_UNITS = (r"miles?|mi|km|kilometers?|metres?|meters?|m|feet|ft|blocks?|minutes?|mins?|hours?|hrs?"
+          r"|days?|weeks?|months?|years?|percent|%")
+_MISSING_UNIT = re.compile(rf"\bwithin\s+\d+(?!\s*(?:{_UNITS})\b)(?!\s*[\d,.]*\s*(?:{_UNITS})\b)",
+                           re.IGNORECASE)
+
 _PATTERNS = (
     ("orphan_comma", _ORPHAN_COMMA, Severity.ERROR,
      "A variable rendered empty and left a dangling comma (e.g. \"In , the …\")."),
@@ -64,6 +74,9 @@ _PATTERNS = (
      "A variable rendered empty and left two prepositions together (e.g. \"within of California\")."),
     ("empty_percent", _EMPTY_PERCENT, Severity.ERROR,
      "A percentage variable rendered empty, leaving a bare % sign."),
+    ("missing_unit", _MISSING_UNIT, Severity.ERROR,
+     "A distance/duration variable kept its number but lost its unit "
+     "(e.g. \"within 15 of Costa Mesa\" — miles is missing)."),
     ("truncated_word", _TRUNCATED_WORD, Severity.WARNING,
      "A stranded single letter — usually the surviving fragment of an empty merge field "
      "(e.g. \"outcomes d compared to\")."),
