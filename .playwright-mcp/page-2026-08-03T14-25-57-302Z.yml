@@ -1,0 +1,142 @@
+- generic [active] [ref=f8e1]:
+  - link "Skip to content" [ref=f8e2] [cursor=pointer]:
+    - /url: "#content"
+  - banner [ref=f8e3]:
+    - generic [ref=f8e5]:
+      - link [ref=f8e8] [cursor=pointer]:
+        - /url: https://www.gratitudelodge.com
+        - img "Gratitude Lodge logo" [ref=f8e9]
+      - generic [ref=f8e12]:
+        - generic [ref=f8e13]: About Us
+        - generic [ref=f8e17]: Locations
+        - generic [ref=f8e21]: What We Treat
+        - generic [ref=f8e25]: Mental Health
+        - generic [ref=f8e29]: Admissions
+        - link "Contact" [ref=f8e33] [cursor=pointer]:
+          - /url: https://www.gratitudelodge.com/contact-us/
+      - link "844-917-4100" [ref=f8e37] [cursor=pointer]:
+        - /url: tel:+18449174100
+  - generic [ref=f8e43]:
+    - heading "Ooops No Page Found!!" [level=2] [ref=f8e46]
+    - link "Back to Home" [ref=f8e50] [cursor=pointer]:
+      - /url: https://www.gratitudelodge.com
+  - contentinfo [ref=f8e56]:
+    - generic [ref=f8e58]:
+      - generic [ref=f8e60]:
+        - link [ref=f8e63] [cursor=pointer]:
+          - /url: https://www.gratitudelodge.com
+          - img "Site logo" [ref=f8e64]
+        - paragraph [ref=f8e67]:
+          - link "Licensed by the Department of Health Care Services" [ref=f8e69] [cursor=pointer]:
+            - /url: https://data.chhs.ca.gov/dataset/sud-recovery-treatment-facilities
+        - link [ref=f8e72] [cursor=pointer]:
+          - /url: https://data.chhs.ca.gov/dataset/sud-recovery-treatment-facilities
+          - img "DHCS logo" [ref=f8e73]
+        - paragraph [ref=f8e76]: License details
+        - list [ref=f8e79]:
+          - listitem [ref=f8e80]:
+            - generic [ref=f8e81]: Belmont 190119BP EXP 5/31/28
+          - listitem [ref=f8e82]:
+            - generic [ref=f8e83]: Chatwin 19011AP EXP 10/31/26
+          - listitem [ref=f8e84]:
+            - generic [ref=f8e85]: Orchard 300280GP EXP 5/31/27
+          - listitem [ref=f8e86]:
+            - generic [ref=f8e87]: Redlands 300280FP EXP 4/30/27
+      - generic [ref=f8e89]:
+        - paragraph [ref=f8e92]: Explore Our Links
+        - list [ref=f8e95]:
+          - listitem [ref=f8e96]:
+            - link "Rehab Admissions" [ref=f8e97] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/rehab-admissions/
+          - listitem [ref=f8e99]:
+            - link "Check My Insurance" [ref=f8e100] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/check-my-insurance/
+          - listitem [ref=f8e102]:
+            - link "SUD Recovery Treatment Facilities" [ref=f8e103] [cursor=pointer]:
+              - /url: https://data.chhs.ca.gov/dataset/sud-recovery-treatment-facilities
+        - list [ref=f8e107]:
+          - listitem [ref=f8e108]:
+            - link "Facebook" [ref=f8e109] [cursor=pointer]:
+              - /url: https://www.facebook.com/gratitudelodgeca
+              - generic [ref=f8e111]: 
+          - listitem [ref=f8e112]:
+            - link "Linkedin" [ref=f8e113] [cursor=pointer]:
+              - /url: https://www.linkedin.com/company/gratitude-lodge
+              - generic [ref=f8e115]: 
+          - listitem [ref=f8e116]:
+            - link "Instagram" [ref=f8e117] [cursor=pointer]:
+              - /url: https://www.linkedin.com/company/gratitude-lodge
+              - generic [ref=f8e119]: 
+          - listitem [ref=f8e120]:
+            - link "Pinterest" [ref=f8e121] [cursor=pointer]:
+              - /url: https://www.pinterest.com/Gratitude_Lodge/
+              - generic [ref=f8e123]: 
+          - listitem [ref=f8e124]:
+            - link "Youtube" [ref=f8e125] [cursor=pointer]:
+              - /url: https://www.youtube.com/channel/UCq_JeSiUcrxsf0bp39HTdig
+              - generic [ref=f8e127]: 
+          - listitem [ref=f8e128]:
+            - link "Twitter" [ref=f8e129] [cursor=pointer]:
+              - /url: https://twitter.com/gratitudelodge/
+              - generic [ref=f8e131]: 
+      - generic [ref=f8e133]:
+        - paragraph [ref=f8e136]: Contact Info
+        - list [ref=f8e139]:
+          - listitem [ref=f8e140]:
+            - link "info@gratitudelodge.com" [ref=f8e141] [cursor=pointer]:
+              - /url: mailto:%20info@gratitudelodge.com
+              - generic [ref=f8e142]: 
+          - listitem [ref=f8e145]:
+            - link "844-917-4100" [ref=f8e146] [cursor=pointer]:
+              - /url: tel:+18449174100
+              - generic [ref=f8e147]: 
+        - generic [ref=f8e151]:
+          - link [ref=f8e156] [cursor=pointer]:
+            - /url: https://www.legitscript.com/websites/?checker_keywords=gratitudelodge.com
+          - link [ref=f8e161] [cursor=pointer]:
+            - /url: https://www.jointcommission.org/en-us/about-us/recognizing-excellence/find-accredited-organizations/632282
+            - img "an image of the Joint Commission's Gold Seal of Approval" [ref=f8e162]
+          - link [ref=f8e171] [cursor=pointer]:
+            - /url: https://recovery.com/gratitude-lodge-california/
+        - link "Gratitude Lodge" [ref=f8e176] [cursor=pointer]:
+          - /url: https://www.psychologytoday.com/profile/1063096
+      - generic [ref=f8e178]:
+        - paragraph [ref=f8e181]: Locations
+        - paragraph [ref=f8e184]: Long Beach, CA
+        - paragraph [ref=f8e187]:
+          - link "3849 Chatwin Ave Long Beach, CA 90808" [ref=f8e188] [cursor=pointer]:
+            - /url: https://maps.app.goo.gl/dagDE2A6vJqbZjd57
+            - text: 3849 Chatwin AveLong Beach, CA 90808
+        - paragraph [ref=f8e191]: Los Angeles County, CA
+        - paragraph [ref=f8e194]:
+          - link "3010 E 1st St Long Beach, CA 90803" [ref=f8e195] [cursor=pointer]:
+            - /url: https://maps.app.goo.gl/8vLjP8LVPRjrHzmQ9
+            - text: 3010 E 1st StLong Beach, CA 90803
+        - paragraph [ref=f8e198]: Newport Beach, CA
+        - paragraph [ref=f8e201]:
+          - link "20132 Redlands Dr Newport Beach, CA 92660" [ref=f8e202] [cursor=pointer]:
+            - /url: https://maps.app.goo.gl/QbUTP52kZZzXT81M7
+            - text: 20132 Redlands DrNewport Beach, CA 92660
+        - paragraph [ref=f8e205]: Orange County, CA
+        - paragraph [ref=f8e208]:
+          - link "1661 Orchard Dr Newport Beach, CA 92660" [ref=f8e209] [cursor=pointer]:
+            - /url: https://maps.app.goo.gl/9JVBbWRNgzZ7NyFX8
+            - text: 1661 Orchard DrNewport Beach, CA 92660
+    - text:        
+    - generic [ref=f8e213]:
+      - generic [ref=f8e214]: Copyright © 2026. All rights reserved.
+      - list [ref=f8e218]:
+        - listitem [ref=f8e219]:
+          - link "Gratitude Lodge" [ref=f8e220] [cursor=pointer]:
+            - /url: https://www.gratitudelodge.com/
+            - generic [ref=f8e221]: 
+        - listitem [ref=f8e224]:
+          - link "Privacy Policy" [ref=f8e225] [cursor=pointer]:
+            - /url: https://www.gratitudelodge.com/privacy-policy/
+            - generic [ref=f8e226]: 
+        - listitem [ref=f8e229]:
+          - link "Sitemap" [ref=f8e230] [cursor=pointer]:
+            - /url: /sitemap/
+            - generic [ref=f8e231]: 
+  - generic [ref=f8e234]: desktop
+  - button "Open Accessibility Menu" [ref=f8e235] [cursor=pointer]

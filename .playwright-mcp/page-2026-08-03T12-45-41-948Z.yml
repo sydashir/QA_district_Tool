@@ -1,0 +1,34 @@
+- generic [active] [ref=e1]:
+  - separator [ref=e2]
+  - paragraph [ref=e4]:
+    - text: While many people felt apprehensive beforehand, they often felt relieved once detox began under medical care near
+    - strong [ref=e5]: Palos Verdes Estates
+    - text: . Many say the support and monitoring made the process far less painful than they expected.
+  - separator [ref=e6]
+  - paragraph [ref=e8]:
+    - text: All these worries deserve thoughtful acknowledgment and understanding. Quality treatment access
+    - strong [ref=e9]: shouldn’t demand becoming an insurance expert first
+    - text: ", and financial stress shouldn’t interfere with your path to wellness."
+  - separator [ref=e10]
+  - generic [ref=e11]:
+    - heading "Sean O'Neill" [level=3] [ref=e12]
+    - paragraph [ref=e13]: Clinical Director - LMFT
+  - separator [ref=e14]
+  - generic [ref=e15]:
+    - link "Verify Insurance" [ref=e16] [cursor=pointer]:
+      - /url: "#elementor-action%3Aaction%3Dpopup%3Aopen%26settings%3DeyJpZCI6IjM1MTM0IiwidG9nZ2xlIjpmYWxzZX0%3D"
+    - link "Call Now" [ref=e17] [cursor=pointer]:
+      - /url: tel:844-576-0144
+  - separator [ref=e18]
+  - paragraph [ref=e20]:
+    - text: These legitimate questions reflect your dedication to purposeful healing. All individuals merit the opportunity to
+    - strong [ref=e21]: discover serenity, support, and authentic compassion
+    - text: during their therapeutic journey.
+  - separator [ref=e22]
+  - list [ref=e24]:
+    - listitem [ref=e25]: Belmont 190119BP EXP 5/31/28
+    - listitem [ref=e26]: Chatwin 19011AP EXP 10/31/26
+    - listitem [ref=e27]: Orchard 300280GP EXP 5/31/27
+    - listitem [ref=e28]: Redlands 300280FP EXP 4/30/27
+  - separator [ref=e29]
+  - paragraph [ref=e31]: Our team will call you back within one business day , and we will confirm your benefits before admission.

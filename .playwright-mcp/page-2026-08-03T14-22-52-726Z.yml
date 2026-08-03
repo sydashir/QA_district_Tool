@@ -1,0 +1,752 @@
+- generic [active] [ref=f6e1]:
+  - link "Skip to content" [ref=f6e2] [cursor=pointer]:
+    - /url: "#content"
+  - banner [ref=f6e3]:
+    - generic [ref=f6e5]:
+      - link [ref=f6e8] [cursor=pointer]:
+        - /url: https://www.gratitudelodge.com
+        - img "Gratitude Lodge logo" [ref=f6e9]
+      - generic [ref=f6e12]:
+        - generic [ref=f6e13]: About Us
+        - generic [ref=f6e17]: Locations
+        - generic [ref=f6e21]: What We Treat
+        - generic [ref=f6e25]: Mental Health
+        - generic [ref=f6e29]: Admissions
+        - link "Contact" [ref=f6e33] [cursor=pointer]:
+          - /url: https://www.gratitudelodge.com/contact-us/
+      - link "844-576-0144" [ref=f6e37] [cursor=pointer]:
+        - /url: tel:844-576-0144
+  - generic [ref=f6e40]:
+    - text:   
+    - generic [ref=f6e44]:
+      - heading "12-Step Addiction Rehab & Recovery Program near Palos Verdes Estates" [level=1] [ref=f6e47]
+      - generic [ref=f6e48]:
+        - heading "5000+ Patients Treated" [level=4] [ref=f6e54]
+        - heading "15 Licenses & Certifications" [level=4] [ref=f6e60]
+        - heading "Gym Access" [level=4] [ref=f6e66]
+        - generic [ref=f6e67]:
+          - img "gratitude-lodge-beach-icon" [ref=f6e70]
+          - heading "Walk to the Beach" [level=4] [ref=f6e73]
+        - heading "4.9 Review Rating (320+)" [level=4] [ref=f6e79]
+        - heading "Cooked & Catered Meals" [level=4] [ref=f6e85]
+      - generic [ref=f6e87]:
+        - link "844-576-0144" [ref=f6e91] [cursor=pointer]:
+          - /url: tel:844-576-0144
+        - link "VERIFY INSURANCE" [ref=f6e97] [cursor=pointer]:
+          - /url: "#elementor-action%3Aaction%3Dpopup%3Aopen%26settings%3DeyJpZCI6IjM1MTM0IiwidG9nZ2xlIjpmYWxzZX0%3D"
+    - generic [ref=f6e106]:
+      - heading "12-Step Rehab Center for Drug & Alcohol Addiction near Palos Verdes Estates" [level=2] [ref=f6e109]
+      - generic [ref=f6e111]:
+        - paragraph [ref=f6e112]:
+          - text: Overcoming addiction transforms into an achievable goal when you uncover
+          - strong [ref=f6e113]: a clear roadmap to healing
+          - text: ", particularly following experiences where past efforts seemed to yield minimal progress. With the 12-step approach, individuals receive access to a proven methodology offering consistent daily direction that helps reshape your path to recovery from the ground up."
+        - list [ref=f6e114]:
+          - listitem [ref=f6e115]:
+            - text: Crafted for people facing
+            - strong [ref=f6e116]: ongoing patterns of relapse
+          - listitem [ref=f6e117]:
+            - strong [ref=f6e118]: Delivers organized support
+            - text: across 12 detailed phases with continuous assistance
+          - listitem [ref=f6e119]:
+            - text: Facilitates
+            - strong [ref=f6e120]: changing harmful behaviors
+            - text: while building enduring sobriety
+          - listitem [ref=f6e121]:
+            - strong [ref=f6e122]: Focuses on inner healing
+            - text: as the cornerstone for permanent transformation
+        - paragraph [ref=f6e123]:
+          - text: Via Gratitude Lodge and the
+          - link "District Behavioral Health" [ref=f6e124] [cursor=pointer]:
+            - /url: https://districtbehavioralhealth.com/
+          - text: network, thorough 12-step-focused detoxification and
+          - strong [ref=f6e125]: residential treatment
+          - text: programs are offered near Palos Verdes Estates. Care commences with medically supervised detox, then transitions to residential programming where participants
+          - strong [ref=f6e126]: build strong foundations
+          - text: using 12-step principles alongside individualized and group therapy sessions. Inside our compassionate, healing-centered setting, individuals can
+          - strong [ref=f6e127]: develop personal accountability
+          - text: ", wellness routines, and restored hope."
+        - paragraph [ref=f6e128]: Establishing clear objectives proves vital when recovery challenges seem overwhelming.
+        - paragraph [ref=f6e129]:
+          - strong [ref=f6e130]: Click “Read More” to discover more about this treatment methodology.
+      - generic [ref=f6e134]:
+        - button "Read More" [ref=f6e135] [cursor=pointer]
+        - generic [ref=f6e139]:
+          - heading [level=2] [ref=f6e140]: Understanding the Twelve-Step Method for Substance Use Recovery
+          - paragraph [ref=f6e141]: Developed initially by Alcoholics Anonymous (AA), this dozen-principle system creates a structured pathway that guides people recovering from substance use disorders. Meaningful change happens when individuals embrace surrender, accept accountability, and build genuine relationships with others navigating similar recovery paths.
+          - paragraph [ref=f6e142]: Intentionally non-religious in structure, this spiritually-grounded approach empowers participants to define their “higher power” based on individual understanding rather than prescribed theological concepts. Starting with recognizing powerlessness over substances, participants advance through self-examination phases, mending broken relationships, and committing to ongoing personal growth. Fundamental principles stress honesty, humility, and service to others facing addiction challenges.
+          - paragraph [ref=f6e143]: Facilities like Gratitude Lodge incorporate twelve-step principles as complementary support alongside research-backed therapeutic approaches, enabling participants to address root emotional causes while building strong foundations for long-term recovery. Organized framework paired with community support offers numerous participants comfort and clarity while navigating recovery obstacles on their path to lasting sobriety.
+    - generic [ref=f6e145]:
+      - heading "Rehab That Supports the 12 Steps near Palos Verdes Estates" [level=2] [ref=f6e149]
+      - generic [ref=f6e154]:
+        - generic [ref=f6e155]:
+          - img "Gallery image" [ref=f6e157] [cursor=pointer]
+          - img "Gallery image" [ref=f6e161] [cursor=pointer]
+          - img "Gallery image" [ref=f6e165] [cursor=pointer]
+          - img "Gallery image" [ref=f6e169] [cursor=pointer]
+          - img "Gallery image" [ref=f6e173] [cursor=pointer]
+          - img "Gallery image" [ref=f6e177] [cursor=pointer]
+          - img "Gallery image" [ref=f6e181] [cursor=pointer]
+          - img "Gallery image" [ref=f6e185] [cursor=pointer]
+          - img "Gallery image" [ref=f6e189] [cursor=pointer]
+          - img "Gallery image" [ref=f6e193] [cursor=pointer]
+          - img "Gallery image" [ref=f6e197] [cursor=pointer]
+          - img "Gallery image" [ref=f6e201] [cursor=pointer]
+          - img "Gallery image" [ref=f6e205] [cursor=pointer]
+        - button "Show all photos ↓" [ref=f6e208] [cursor=pointer]
+    - generic [ref=f6e211]:
+      - iframe [ref=f6e214]:
+        
+      - heading "When Recovery Needs Consistency, Not Just Intention" [level=2] [ref=f6e217]
+      - generic [ref=f6e219]:
+        - paragraph [ref=f6e220]: For many individuals, drug use slowly narrows daily life. Recovery attempts may involve cycles of stopping and restarting, emotional exhaustion, or trying to manage urges without enough support. Over time, motivation alone may not be enough to create lasting change without structure and routine in place.
+        - paragraph [ref=f6e221]: If you’re feeling worn down by repeated attempts to stay sober, you’re not alone.
+        - paragraph [ref=f6e222]: Support options exist because many people reach this stage and need a reliable recovery framework. There are more than 1 12-step drug rehab programs available within 15 of Palos Verdes Estates, combining peer accountability with therapeutic guidance. Financial stress can complicate decisions, which is why it matters that at least 3 programs accept private insurance within 20 of Palos Verdes Estates, helping lower barriers when emotional energy may already feel limited.
+        - paragraph [ref=f6e223]:
+          - text: If you’re considering 12-step drug rehab near Palos Verdes Estates, view
+          - link "Gratitude Lodge’s top-rated reviews" [ref=f6e224] [cursor=pointer]:
+            - /url: https://www.gratitudelodge.com/testimonials/
+          - text: for our addiction and mental health treatment programs, which offer journey guidance and comprehensive treatment options to help you move forward with care and understanding.
+      - link "Call Now" [ref=f6e228] [cursor=pointer]:
+        - /url: tel:+18006929850
+    - generic [ref=f6e231]: Recovery Success Stories
+    - generic [ref=f6e238]:
+      - generic [ref=f6e239]:
+        - heading "Location Overview" [level=2] [ref=f6e242]
+        - paragraph [ref=f6e245]: Our clean and modern facilities are located near beautiful beaches and a thriving sober community. Clients enjoy easy access to local hiking spots, beaches, restaurants & more nearby.
+      - generic [ref=f6e246]:
+        - generic [ref=f6e247]:
+          - list [ref=f6e250]:
+            - listitem [ref=f6e251]:
+              - generic [ref=f6e255]: Close to The Beach
+          - list [ref=f6e258]:
+            - listitem [ref=f6e259]:
+              - generic [ref=f6e263]: National Parks Nearby
+        - generic [ref=f6e264]:
+          - list [ref=f6e267]:
+            - listitem [ref=f6e268]:
+              - generic [ref=f6e272]: Mild, Comfortable Weather
+          - list [ref=f6e275]:
+            - listitem [ref=f6e276]:
+              - generic [ref=f6e280]: Strong Local Sober Community
+    - generic [ref=f6e282]:
+      - heading "When Peer Connection Strengthens Long-Term Recovery Near Palos Verdes Estates" [level=2] [ref=f6e287]
+      - generic [ref=f6e289]:
+        - paragraph [ref=f6e290]: Healing often deepens when people feel understood rather than judged. Twelve-step drug rehab focuses on shared experience, consistent meetings, and mutual accountability, creating space for people to rebuild trust, routine, and perspective alongside others on a similar path.
+        - paragraph [ref=f6e291]: If you’re looking for recovery support that doesn’t rely on isolation, you’re not alone.
+        - paragraph [ref=f6e292]: Programs evolved as more people needed recovery environments centered on connection and continuity. No fewer than 3 facilities maintain ratings of at least 4 with a minimum of 10 reviews within 20 of Palos Verdes Estates, reflecting treatment experiences where people felt welcomed, supported, and encouraged throughout their recovery journey.
+        - paragraph [ref=f6e293]:
+          - text: If you’re considering 12-step drug rehab near Palos Verdes Estates, view
+          - link "Gratitude Lodge’s top-rated reviews" [ref=f6e294] [cursor=pointer]:
+            - /url: https://www.gratitudelodge.com/testimonials/
+          - text: for our addiction and mental health treatment programs, which offer journey guidance and comprehensive treatment options to help you move forward with care and understanding.
+      - link "Call Now" [ref=f6e298] [cursor=pointer]:
+        - /url: tel:+18006929850
+    - generic [ref=f6e301]:
+      - heading "Learn About Gratitude Lodge" [level=2] [ref=f6e304]
+      - generic "Accordion. Open links with Enter or Space, close with Escape, and navigate with Arrow Keys" [ref=f6e307]:
+        - group [ref=f6e308]:
+          - generic "Our Admissions Process" [ref=f6e309] [cursor=pointer]:
+            - generic [ref=f6e312]:
+              - generic [ref=f6e313]: 
+              - text: 
+          - 'region "Our Admissions Process Gratitude Lodge Rehab Admission Process: Step-by-Step Step 1 Share your story: Connect with us and let us understand your background, challenges, and goals for recovery. Step 2 Complete a simple pre-screening: Answer a few questions so we can assess your needs and coverage. Step 3 Get your personalized treatment plan: We’ll recommend the program best suited to your situation and goals. Step 4 Coordinate your journey: Our team helps you arrange travel, admissions details, and next steps. Step 5 Begin your recovery: Arrive at your chosen facility and start the healing process with confidence." [ref=f6e315]':
+            - table [ref=f6e318]:
+              - rowgroup [ref=f6e319]:
+                - row [ref=f6e320]:
+                  - columnheader [ref=f6e321]:
+                    - 'heading "Gratitude Lodge Rehab Admission Process: Step-by-Step" [level=3] [ref=f6e322]'
+              - rowgroup [ref=f6e323]:
+                - row [ref=f6e324]:
+                  - cell [ref=f6e325]:
+                    - strong [ref=f6e326]: Step 1
+                  - cell [ref=f6e327]:
+                    - strong [ref=f6e328]: "Share your story:"
+                    - text: Connect with us and let us understand your background, challenges, and goals for recovery.
+                - row [ref=f6e329]:
+                  - cell [ref=f6e330]:
+                    - strong [ref=f6e331]: Step 2
+                  - cell [ref=f6e332]:
+                    - strong [ref=f6e333]: "Complete a simple pre-screening:"
+                    - text: Answer a few questions so we can assess your needs and coverage.
+                - row [ref=f6e334]:
+                  - cell [ref=f6e335]:
+                    - strong [ref=f6e336]: Step 3
+                  - cell [ref=f6e337]:
+                    - strong [ref=f6e338]: "Get your personalized treatment plan:"
+                    - text: We’ll recommend the program best suited to your situation and goals.
+                - row [ref=f6e339]:
+                  - cell [ref=f6e340]:
+                    - strong [ref=f6e341]: Step 4
+                  - cell [ref=f6e342]:
+                    - strong [ref=f6e343]: "Coordinate your journey:"
+                    - text: Our team helps you arrange travel, admissions details, and next steps.
+                - row [ref=f6e344]:
+                  - cell [ref=f6e345]:
+                    - strong [ref=f6e346]: Step 5
+                  - cell [ref=f6e347]:
+                    - strong [ref=f6e348]: "Begin your recovery:"
+                    - text: Arrive at your chosen facility and start the healing process with confidence.
+        - group [ref=f6e349]:
+          - generic "Accreditations" [ref=f6e350] [cursor=pointer]:
+            - generic [ref=f6e353]:
+              - text: 
+              - generic [ref=f6e354]: 
+        - group [ref=f6e356]:
+          - generic "Our Staff" [ref=f6e357] [cursor=pointer]:
+            - generic [ref=f6e360]:
+              - text: 
+              - generic [ref=f6e361]: 
+        - group [ref=f6e363]:
+          - generic "What Addictions Do We Treat?" [ref=f6e364] [cursor=pointer]:
+            - generic [ref=f6e367]:
+              - text: 
+              - generic [ref=f6e368]: 
+        - group [ref=f6e370]:
+          - generic "Levels of Addiction Treatment" [ref=f6e371] [cursor=pointer]:
+            - generic [ref=f6e374]:
+              - text: 
+              - generic [ref=f6e375]: 
+        - group [ref=f6e377]:
+          - generic "Treatment Therapies" [ref=f6e378] [cursor=pointer]:
+            - generic [ref=f6e381]:
+              - text: 
+              - generic [ref=f6e382]: 
+    - generic [ref=f6e385]:
+      - heading "How Do Palos Verdes Estates Recovery Centers Assist Those in 12-Step Programs?" [level=2] [ref=f6e389]
+      - generic [ref=f6e391]:
+        - paragraph [ref=f6e392]: True healing often starts when individuals choose to release outdated survival strategies—including withdrawal from others, dodging difficult emotions, or shouldering burdens in isolation. Located near Palos Verdes Estates, Gratitude Lodge creates a nurturing space where people can start reconstructing their lives with focused determination and clear purpose.
+        - paragraph [ref=f6e393]: Evidence-based therapeutic approaches form the backbone of our comprehensive program, tailored to support each person regardless of their current stage in recovery. Those who discover strength and guidance through 12 step rehab find encouragement along this pathway via accessible meetings, meaningful peer relationships, and structured accountability measures. Through consistent daily programming, professional clinical support, and an engaged recovery network, individuals develop essential skills for purposeful progress—establishing solid groundwork that sustains lifelong wellness.
+      - link "Verify Your Insurance" [ref=f6e397] [cursor=pointer]:
+        - /url: "#elementor-action%3Aaction%3Dpopup%3Aopen%26settings%3DeyJpZCI6IjM1MTM0IiwidG9nZ2xlIjpmYWxzZX0%3D"
+    - generic [ref=f6e401]:
+      - heading "Why Trust Us With Your Care" [level=2] [ref=f6e404]
+      - generic [ref=f6e405]:
+        - generic [ref=f6e406]:
+          - generic [ref=f6e409]:
+            - paragraph [ref=f6e410]: Lives Treated
+            - generic [ref=f6e411]:
+              - generic [ref=f6e413]: "0"
+              - generic [ref=f6e414]: +
+          - generic [ref=f6e415]: Real people. Real recovery. Real impact.
+        - generic [ref=f6e417]:
+          - generic [ref=f6e420]:
+            - paragraph [ref=f6e421]: Licensed Professionals
+            - generic [ref=f6e422]: "0"
+          - generic [ref=f6e426]: Experienced, compassionate, and committed to your healing.
+        - generic [ref=f6e428]:
+          - generic [ref=f6e431]:
+            - paragraph [ref=f6e432]: States Served
+            - generic [ref=f6e433]:
+              - generic [ref=f6e435]: "0"
+              - generic [ref=f6e436]: +
+          - generic [ref=f6e437]: Patients travel from almost every state to come to our California Rehab.
+        - generic [ref=f6e439]:
+          - generic [ref=f6e442]:
+            - paragraph [ref=f6e443]: Verified Reviews
+            - generic [ref=f6e444]:
+              - generic [ref=f6e446]: "0"
+              - generic [ref=f6e447]: +
+          - generic [ref=f6e448]: Clients trust us and share their stories.
+      - region "Carousel" [ref=f6e454]:
+        - generic [ref=f6e455]:
+          - group "1 of 5" [ref=f6e456]:
+            - link [ref=f6e461] [cursor=pointer]:
+              - /url: https://www.legitscript.com/websites/?checker_keywords=gratitudelodge.com
+          - group "2 of 5" [ref=f6e462]:
+            - link [ref=f6e467] [cursor=pointer]:
+              - /url: https://www.jointcommission.org/en-us/about-us/recognizing-excellence/find-accredited-organizations/632282
+              - img "an image of the Joint Commission's Gold Seal of Approval" [ref=f6e468]
+          - group "3 of 5" [ref=f6e469]
+          - group "4 of 5" [ref=f6e474]
+          - group "5 of 5" [ref=f6e479]:
+            - link [ref=f6e484] [cursor=pointer]:
+              - /url: https://recovery.com/gratitude-lodge-california/
+    - generic [ref=f6e486]:
+      - 'heading "The Reality of Relapse: Why Rehab Matters" [level=2] [ref=f6e490]'
+      - generic [ref=f6e491]:
+        - generic [ref=f6e492]:
+          - heading "85% Relapse" [level=2] [ref=f6e497]
+          - heading "Without treatment" [level=4] [ref=f6e500]
+          - paragraph [ref=f6e503]: Within the 1st year of sobriety. Most people struggling with substance use disorder who do not get treatment relapse within months.
+        - generic [ref=f6e504]:
+          - heading "25-50% More Success" [level=2] [ref=f6e509]
+          - heading "With treatment" [level=4] [ref=f6e512]
+          - paragraph [ref=f6e515]: Recovery rates improve with each level of care completed in the addiction treatment journey.
+    - generic [ref=f6e516]:
+      - generic [ref=f6e517]:
+        - generic [ref=f6e518]:
+          - heading "The Addiction Therapies We Use" [level=2] [ref=f6e521]
+          - paragraph [ref=f6e524]: Gratitude Lodge uses addiction therapies that are backed by latest science in addiction treatment and are administered by our expert clinicians.
+        - link "Learn More" [ref=f6e529] [cursor=pointer]:
+          - /url: /contact-us/
+      - generic "Accordion. Open links with Enter or Space, close with Escape, and navigate with Arrow Keys" [ref=f6e534]:
+        - group [ref=f6e535]:
+          - generic "Cognitive Behavioral Therapy (CBT)" [ref=f6e536] [cursor=pointer]:
+            - generic [ref=f6e539]:
+              - generic [ref=f6e540]: 
+              - text: 
+          - region "Cognitive Behavioral Therapy (CBT) CBT helps individuals identify and change negative thought patterns and behaviors that contribute to addiction and mental health challenges. By learning practical coping strategies, clients gain healthier ways to manage stress and triggers in daily life." [ref=f6e542]:
+            - paragraph [ref=f6e545]: CBT helps individuals identify and change negative thought patterns and behaviors that contribute to addiction and mental health challenges. By learning practical coping strategies, clients gain healthier ways to manage stress and triggers in daily life.
+        - group [ref=f6e546]:
+          - generic "Dialectical Behavior Therapy (DBT)" [ref=f6e547] [cursor=pointer]:
+            - generic [ref=f6e550]:
+              - text: 
+              - generic [ref=f6e551]: 
+        - group [ref=f6e553]:
+          - generic "Medication-Assisted Treatment (MAT)" [ref=f6e554] [cursor=pointer]:
+            - generic [ref=f6e557]:
+              - text: 
+              - generic [ref=f6e558]: 
+        - group [ref=f6e560]:
+          - generic "Group & Family Therapy" [ref=f6e561] [cursor=pointer]:
+            - generic [ref=f6e564]:
+              - text: 
+              - generic [ref=f6e565]: 
+        - group [ref=f6e567]:
+          - generic "Couples Rehab" [ref=f6e568] [cursor=pointer]:
+            - generic [ref=f6e571]:
+              - text: 
+              - generic [ref=f6e572]: 
+    - generic [ref=f6e574]:
+      - generic [ref=f6e575]:
+        - generic [ref=f6e576]:
+          - heading "Levels of Care in Addiction Treatment" [level=2] [ref=f6e579]
+          - paragraph [ref=f6e582]: "Starting your journey toward recovery at Gratitude Lodge is simple, fast, and fully supported. We offer same-day and next-day admissions, because when you’re ready to get help, there shouldn’t be any delays. Walk-ins are also welcome—we’re here when you’re ready to take that first step. From the moment you reach out, our compassionate admissions team will guide you through every part of the process, from insurance verification to creating a personalized treatment plan tailored to your needs. Our goal is to make the process stress-free, so you can focus on what matters most: your healing and recovery."
+        - link "Learn More" [ref=f6e587] [cursor=pointer]:
+          - /url: /contact-us/
+      - generic "Accordion. Open links with Enter or Space, close with Escape, and navigate with Arrow Keys" [ref=f6e592]:
+        - group [ref=f6e593]:
+          - generic "Medically-Supervised Detox" [ref=f6e594] [cursor=pointer]:
+            - generic [ref=f6e597]:
+              - generic [ref=f6e598]: 
+              - text: 
+          - region "Medically-Supervised Detox A supervised medical process that manages withdrawal symptoms to prepare individuals for ongoing treatment." [ref=f6e600]:
+            - paragraph [ref=f6e603]: A supervised medical process that manages withdrawal symptoms to prepare individuals for ongoing treatment.
+        - group [ref=f6e604]:
+          - generic "Inpatient Residential Addiction & Mental Health Treatment" [ref=f6e605] [cursor=pointer]:
+            - generic [ref=f6e608]:
+              - text: 
+              - generic [ref=f6e609]: 
+        - group [ref=f6e611]:
+          - generic "Partial Hospitalization Program (PHP)" [ref=f6e612] [cursor=pointer]:
+            - generic [ref=f6e615]:
+              - text: 
+              - generic [ref=f6e616]: 
+        - group [ref=f6e618]:
+          - generic "Intensive Outpatient Program (IOP)" [ref=f6e619] [cursor=pointer]:
+            - generic [ref=f6e622]:
+              - text: 
+              - generic [ref=f6e623]: 
+        - group [ref=f6e625]:
+          - generic "Outpatient Program (OP)" [ref=f6e626] [cursor=pointer]:
+            - generic [ref=f6e629]:
+              - text: 
+              - generic [ref=f6e630]: 
+        - group [ref=f6e632]:
+          - generic "Aftercare" [ref=f6e633] [cursor=pointer]:
+            - generic [ref=f6e636]:
+              - text: 
+              - generic [ref=f6e637]: 
+    - generic [ref=f6e640]:
+      - heading "Gratitude Lodge Admissions" [level=2] [ref=f6e643]
+      - paragraph [ref=f6e646]: "Starting your journey toward recovery at Gratitude Lodge is simple, fast, and fully supported. We offer same-day and next-day admissions, because when you’re ready to get help, there shouldn’t be any delays. Walk-ins are also welcome—we’re here when you’re ready to take that first step. From the moment you reach out, our compassionate admissions team will guide you through every part of the process, from insurance verification to creating a personalized treatment plan tailored to your needs. Our goal is to make the process stress-free, so you can focus on what matters most: your healing and recovery."
+      - link "Contact Us" [ref=f6e650] [cursor=pointer]:
+        - /url: /contact-us/
+    - generic [ref=f6e656]:
+      - heading "Our Treatment Network Locations Across US" [level=2] [ref=f6e659]
+      - paragraph [ref=f6e662]: Gratitude Lodge belongs to a trusted network of addiction & mental health recovery centers across the nation.
+      - link [ref=f6e665] [cursor=pointer]:
+        - /url: https://www.gratitudelodge.com/wp-content/uploads/2025/10/States-where-Gratitude-Lodge-clients-have-come-from-and-been-treated-in-recovery.webp
+        - img "States where Gratitude Lodge clients have come from and been treated in recovery" [ref=f6e666]
+      - paragraph [ref=f6e669]: "*Red Pins: Our Locations / Blue Pins: States Patients Have Traveled From"
+    - generic [ref=f6e676]:
+      - heading "Related Pages" [level=2] [ref=f6e679]
+      - generic [ref=f6e683]:
+        - list [ref=f6e684]:
+          - listitem [ref=f6e685]:
+            - link [ref=f6e686] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/california/los-angeles/palos-verdes-estates/
+              - 'heading "Drug & Alcohol Rehab near Palos Verdes Estates: Addiction Treatment and Detox Centers" [level=3] [ref=f6e687]'
+          - listitem [ref=f6e688]:
+            - link [ref=f6e689] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/outpatient/california/southern/los-angeles/palos-verdes-estates/
+              - 'heading "Outpatient Drug & Alcohol Rehab near Palos Verdes Estates: Addiction Treatment Center" [level=3] [ref=f6e690]'
+          - listitem [ref=f6e691]:
+            - link [ref=f6e692] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/pet-friendly/california/southern/los-angeles/palos-verdes-estates/
+              - heading "Pet Friendly Addiction Treatment Center near Palos Verdes Estates" [level=3] [ref=f6e693]
+          - listitem [ref=f6e694]:
+            - link [ref=f6e695] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/fentanyl/california/southern/los-angeles/palos-verdes-estates/
+              - heading "Fentanyl Rehab & Addiction Treatment near Palos Verdes Estates" [level=3] [ref=f6e696]
+          - listitem [ref=f6e697]:
+            - link [ref=f6e698] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/iop/california/southern/los-angeles/palos-verdes-estates/
+              - 'heading "IOP Program Near Palos Verdes Estates: Intensive Outpatient Addiction Treatment & Rehab" [level=3] [ref=f6e699]'
+          - listitem [ref=f6e700]:
+            - link [ref=f6e701] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/rehab-for-couples/california/southern/los-angeles/palos-verdes-estates/
+              - heading "Couples Detox and Rehab Treatment Center near Palos Verdes Estates" [level=3] [ref=f6e702]
+          - listitem [ref=f6e703]:
+            - link [ref=f6e704] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/meth/california/southern/los-angeles/palos-verdes-estates/
+              - heading "Meth Rehab & Detox Centers near Palos Verdes Estates (Addiction Treatment)" [level=3] [ref=f6e705]
+          - listitem [ref=f6e706]:
+            - link [ref=f6e707] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/30-60-90-day-long-term/california/southern/los-angeles/palos-verdes-estates/
+              - heading "Long-Term 30/60/90 Day Rehab for Addiction Recovery near Palos Verdes Estates" [level=3] [ref=f6e708]
+          - listitem [ref=f6e709]:
+            - link [ref=f6e710] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/short-term-rehab/california/southern/los-angeles/palos-verdes-estates/
+              - heading "Short Term Rehab near Palos Verdes Estates (Addiction Treatment)" [level=3] [ref=f6e711]
+          - listitem [ref=f6e712]:
+            - link [ref=f6e713] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/mat-medication-assisted-treatment/california/southern/los-angeles/palos-verdes-estates/
+              - heading "MAT Medication Assisted Treatment Program near Palos Verdes Estates (Methadone/Buprenorphine) Detox" [level=3] [ref=f6e714]
+          - listitem [ref=f6e715]:
+            - link [ref=f6e716] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/veterans/california/southern/los-angeles/palos-verdes-estates/
+              - heading "Addiction Treatment & Recovery Programs for Veterans near Palos Verdes Estates" [level=3] [ref=f6e717]
+          - listitem [ref=f6e718]:
+            - link [ref=f6e719] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/php-partial-hospitalization-program/california/southern/los-angeles/palos-verdes-estates/
+              - 'heading "PHP (Partial Hospitalization Treatment Program) near Palos Verdes Estates: PHP Rehab" [level=3] [ref=f6e720]'
+          - listitem [ref=f6e721]:
+            - link [ref=f6e722] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/12-step/california/southern/los-angeles/long-beach/
+              - heading "12-Step Addiction Recovery Center in Long Beach" [level=3] [ref=f6e723]
+          - listitem [ref=f6e724]:
+            - link [ref=f6e725] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/12-step/california/southern/los-angeles/torrance/
+              - heading "12-Step Addiction Rehab & Recovery Program near Torrance" [level=3] [ref=f6e726]
+          - listitem [ref=f6e727]:
+            - link [ref=f6e728] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/12-step/california/southern/los-angeles/carson/
+              - heading "12-Step Addiction Rehab & Recovery Program near Carson" [level=3] [ref=f6e729]
+          - listitem [ref=f6e730]:
+            - link [ref=f6e731] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/12-step/california/southern/los-angeles/compton/
+              - heading "12-Step Addiction Rehab & Recovery Program near Compton" [level=3] [ref=f6e732]
+          - listitem [ref=f6e733]:
+            - link [ref=f6e734] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/12-step/california/southern/los-angeles/lakewood/
+              - heading "12-Step Addiction Rehab & Recovery Program near Lakewood" [level=3] [ref=f6e735]
+          - listitem [ref=f6e736]:
+            - link [ref=f6e737] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/12-step/california/southern/los-angeles/redondo-beach/
+              - heading "12-Step Addiction Rehab & Recovery Program near Redondo Beach" [level=3] [ref=f6e738]
+          - listitem [ref=f6e739]:
+            - link [ref=f6e740] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/12-step/california/southern/los-angeles/san-pedro/
+              - heading "12-Step Addiction Rehab & Recovery Program near San Pedro, Los Angeles" [level=3] [ref=f6e741]
+          - listitem [ref=f6e742]:
+            - link [ref=f6e743] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/12-step/california/southern/los-angeles/gardena/
+              - heading "12-Step Addiction Rehab & Recovery Program near Gardena" [level=3] [ref=f6e744]
+          - listitem [ref=f6e745]:
+            - link [ref=f6e746] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/12-step/california/southern/los-angeles/
+              - heading "12-Step Addiction Recovery Center in Los Angeles" [level=3] [ref=f6e747]
+          - listitem [ref=f6e748]:
+            - link [ref=f6e749] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/12-step/california/southern/san-diego/
+              - heading "12-Step Addiction Rehab & Recovery Program near San Diego" [level=3] [ref=f6e750]
+          - listitem [ref=f6e751]:
+            - link [ref=f6e752] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/12-step/california/southern/orange-county/
+              - heading "12-Step Addiction Recovery Center in Orange County" [level=3] [ref=f6e753]
+          - listitem [ref=f6e754]:
+            - link [ref=f6e755] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/12-step/california/southern/riverside/
+              - heading "12-Step Addiction Rehab & Recovery Program near Riverside" [level=3] [ref=f6e756]
+          - listitem [ref=f6e757]:
+            - link [ref=f6e758] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/12-step/california/southern/san-bernardino/
+              - heading "12-Step Addiction Rehab & Recovery Program near San Bernardino" [level=3] [ref=f6e759]
+          - listitem [ref=f6e760]:
+            - link [ref=f6e761] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/12-step/california/southern/ventura/
+              - heading "12-Step Addiction Rehab & Recovery Program near Ventura" [level=3] [ref=f6e762]
+          - listitem [ref=f6e763]:
+            - link [ref=f6e764] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/12-step/california/southern/santa-barbara/
+              - heading "12-Step Addiction Rehab & Recovery Program near Santa Barbara" [level=3] [ref=f6e765]
+          - listitem [ref=f6e766]:
+            - link [ref=f6e767] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/pet-friendly/california/southern/los-angeles/long-beach/
+              - heading "Pet Friendly Drug Rehab in Long Beach" [level=3] [ref=f6e768]
+          - listitem [ref=f6e769]:
+            - link [ref=f6e770] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/pet-friendly/california/southern/los-angeles/glendale/
+              - heading "Pet-Friendly Rehab near Glendale for Drug & Alcohol Addiction" [level=3] [ref=f6e771]
+          - listitem [ref=f6e772]:
+            - link [ref=f6e773] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/pet-friendly/california/southern/los-angeles/torrance/
+              - heading "Pet Friendly Addiction Treatment Center near Torrance" [level=3] [ref=f6e774]
+          - listitem [ref=f6e775]:
+            - link [ref=f6e776] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/pet-friendly/california/southern/los-angeles/burbank/
+              - heading "Pet Friendly Drug & Alcohol Rehab near Burbank" [level=3] [ref=f6e777]
+          - listitem [ref=f6e778]:
+            - link [ref=f6e779] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/pet-friendly/california/southern/los-angeles/carson/
+              - heading "Pet Friendly Addiction Treatment Center near Carson" [level=3] [ref=f6e780]
+          - listitem [ref=f6e781]:
+            - link [ref=f6e782] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/pet-friendly/california/southern/los-angeles/compton/
+              - heading "Pet Friendly Addiction Treatment Center near Compton" [level=3] [ref=f6e783]
+          - listitem [ref=f6e784]:
+            - link [ref=f6e785] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/pet-friendly/california/southern/los-angeles/santa-monica/
+              - heading "Pet-Friendly Drug Rehab Programs near Santa Monica" [level=3] [ref=f6e786]
+          - listitem [ref=f6e787]:
+            - link [ref=f6e788] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/pet-friendly/california/southern/los-angeles/san-pedro/
+              - heading "Pet Friendly Addiction Treatment Center near San Pedro, Los Angeles" [level=3] [ref=f6e789]
+          - listitem [ref=f6e790]:
+            - link [ref=f6e791] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/rehab-for-couples/california/southern/los-angeles/long-beach/
+              - heading "Long Beach Couples Detox and Rehab Treatment Center" [level=3] [ref=f6e792]
+          - listitem [ref=f6e793]:
+            - link [ref=f6e794] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/rehab-for-couples/california/southern/los-angeles/santa-clarita/
+              - heading "Couples Rehab Treatment Center near Santa Clarita" [level=3] [ref=f6e795]
+          - listitem [ref=f6e796]:
+            - link [ref=f6e797] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/rehab-for-couples/california/southern/los-angeles/glendale/
+              - heading "Couples Rehab Treatment Center near Glendale" [level=3] [ref=f6e798]
+          - listitem [ref=f6e799]:
+            - link [ref=f6e800] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/rehab-for-couples/california/southern/los-angeles/lancaster/
+              - heading "Couples Rehab Treatment Center near Lancaster" [level=3] [ref=f6e801]
+          - listitem [ref=f6e802]:
+            - link [ref=f6e803] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/rehab-for-couples/california/southern/los-angeles/palmdale/
+              - heading "Couples Detox and Rehab Treatment Center near Palmdale" [level=3] [ref=f6e804]
+          - listitem [ref=f6e805]:
+            - link [ref=f6e806] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/rehab-for-couples/california/southern/los-angeles/pomona/
+              - heading "Couples Detox and Rehab Treatment Center near Pomona" [level=3] [ref=f6e807]
+          - listitem [ref=f6e808]:
+            - link [ref=f6e809] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/rehab-for-couples/california/southern/los-angeles/torrance/
+              - heading "Couples Detox and Rehab Treatment Center near Torrance" [level=3] [ref=f6e810]
+          - listitem [ref=f6e811]:
+            - link [ref=f6e812] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/rehab-for-couples/california/southern/los-angeles/pasadena/
+              - heading "Couples Rehab Treatment Center near Pasadena" [level=3] [ref=f6e813]
+        - button "Load More" [ref=f6e815] [cursor=pointer]
+    - generic [ref=f6e816]:
+      - generic [ref=f6e817]:
+        - heading "Connect on Our Socials" [level=3] [ref=f6e820]
+        - paragraph [ref=f6e823]: Check out our social content for facility videos, client interviews, recovery content, & more!
+        - link "Follow Us" [ref=f6e827] [cursor=pointer]:
+          - /url: https://linktr.ee/Gratitudelodge
+      - generic [ref=f6e831]:
+        - region "Carousel" [ref=f6e832]:
+          - generic [ref=f6e833]:
+            - group "1 of 8" [ref=f6e834]
+            - group "2 of 8" [ref=f6e839]
+            - group "3 of 8" [ref=f6e844]
+            - group "4 of 8" [ref=f6e849]
+            - group "5 of 8" [ref=f6e854]
+            - group "6 of 8" [ref=f6e859]
+            - group "7 of 8" [ref=f6e864]
+            - group "8 of 8" [ref=f6e869]
+        - button "Previous": 
+        - button "Next": 
+    - generic [ref=f6e876]:
+      - heading "12 Step Rehab FAQs" [level=2] [ref=f6e879]
+      - generic [ref=f6e883]:
+        - generic [ref=f6e884]: What operational framework guides 12-step integrated rehab programs near Palos Verdes Estates?
+        - generic [ref=f6e889]: Must clients attend 12-step meetings during rehabilitation near Palos Verdes Estates?
+        - generic [ref=f6e894]: Through what mechanisms can 12-step involvement enhance addiction treatment near Palos Verdes Estates?
+        - generic [ref=f6e899]: Must 12-step rehab programs near Palos Verdes Estates involve religious commitment?
+        - generic [ref=f6e904]: Might I benefit from reconsidering the 12 steps after previous unsuccessful experiences?
+        - generic [ref=f6e909]: Apart from 12-step meetings near Palos Verdes Estates, which other support resources are available?
+        - generic [ref=f6e914]: Are 12-step-focused rehabs near Palos Verdes Estates capable of delivering extensive aftercare coordination?
+    - generic [ref=f6e921]:
+      - generic [ref=f6e925]:
+        - link "844-576-0144" [ref=f6e929] [cursor=pointer]:
+          - /url: tel:844-576-0144
+        - link "VERIFY INSURANCE" [ref=f6e935] [cursor=pointer]:
+          - /url: "#elementor-action%3Aaction%3Dpopup%3Aopen%26settings%3DeyJpZCI6IjM1MTM0IiwidG9nZ2xlIjpmYWxzZX0%3D"
+      - generic [ref=f6e942]:
+        - generic [ref=f6e944]:
+          - link [ref=f6e949] [cursor=pointer]:
+            - /url: https://www.gratitudelodge.com/check-my-insurance/bcbs/
+            - img "an image of an insurance provider" [ref=f6e950]
+          - img "an image of an insurance provider" [ref=f6e955]
+          - img "an image of an insurance provider" [ref=f6e960]
+          - link [ref=f6e965] [cursor=pointer]:
+            - /url: https://www.gratitudelodge.com/check-my-insurance/aetna/
+            - img "an image of an insurance provider" [ref=f6e966]
+          - img "an image of an insurance provider" [ref=f6e971]
+          - link [ref=f6e976] [cursor=pointer]:
+            - /url: https://www.gratitudelodge.com/check-my-insurance/cigna/
+            - img "an image of an insurance provider" [ref=f6e977]
+        - text:  
+    - generic [ref=f6e984]:
+      - heading "Scholarship Opportunity" [level=2] [ref=f6e987]
+      - paragraph [ref=f6e990]:
+        - text: At Gratitude Lodge, we’re committed to helping individuals reach their full potential and build brighter futures. Our
+        - strong [ref=f6e991]: $1,000
+        - text: scholarships are one way we give back, empowering students to achieve their goals. With a 500-word essay, you can apply for 2025. Click below to learn more, hear from past winners, and apply today!
+      - link "Apply Now" [ref=f6e995] [cursor=pointer]:
+        - /url: /scholarship/
+    - generic [ref=f6e1000]:
+      - heading "Our Faculty Members" [level=2] [ref=f6e1003]
+      - list [ref=f6e1006]:
+        - generic [ref=f6e1008]:
+          - link [ref=f6e1011] [cursor=pointer]:
+            - /url: https://www.gratitudelodge.com/authors/emma-psomas/
+          - generic [ref=f6e1012]:
+            - generic [ref=f6e1013]:
+              - link [ref=f6e1016] [cursor=pointer]:
+                - /url: https://www.gratitudelodge.com/authors/emma-psomas/
+                - heading "Emma Psomas" [level=3] [ref=f6e1017]:
+                  - text: Emma
+                  - generic [ref=f6e1018]: Psomas
+              - heading "Associate Therapist - AMFT" [level=4] [ref=f6e1022]
+            - link [ref=f6e1027] [cursor=pointer]:
+              - /url: https://www.linkedin.com/in/emmagui-psomas/
+              - generic [ref=f6e1028]: 
+        - generic [ref=f6e1030]:
+          - link [ref=f6e1033] [cursor=pointer]:
+            - /url: https://www.gratitudelodge.com/authors/sean-oneill/
+          - generic [ref=f6e1034]:
+            - generic [ref=f6e1035]:
+              - link [ref=f6e1038] [cursor=pointer]:
+                - /url: https://www.gratitudelodge.com/authors/sean-oneill/
+                - heading "Sean O'Neill" [level=3] [ref=f6e1039]:
+                  - text: Sean
+                  - generic [ref=f6e1040]: O'Neill
+              - heading "Clinical Director - LMFT" [level=4] [ref=f6e1044]
+            - link [ref=f6e1049] [cursor=pointer]:
+              - /url: https://www.linkedin.com/company/gratitude-lodge
+              - generic [ref=f6e1050]: 
+    - heading "Contact Us" [level=2] [ref=f6e1056]
+  - contentinfo [ref=f6e1092]:
+    - generic [ref=f6e1094]:
+      - generic [ref=f6e1096]:
+        - link [ref=f6e1099] [cursor=pointer]:
+          - /url: https://www.gratitudelodge.com
+          - img "Site logo" [ref=f6e1100]
+        - paragraph [ref=f6e1103]:
+          - link "Licensed by the Department of Health Care Services" [ref=f6e1105] [cursor=pointer]:
+            - /url: https://data.chhs.ca.gov/dataset/sud-recovery-treatment-facilities
+        - link [ref=f6e1108] [cursor=pointer]:
+          - /url: https://data.chhs.ca.gov/dataset/sud-recovery-treatment-facilities
+          - img "DHCS logo" [ref=f6e1109]
+        - paragraph [ref=f6e1112]: License details
+        - list [ref=f6e1115]:
+          - listitem [ref=f6e1116]:
+            - generic [ref=f6e1117]: Belmont 190119BP EXP 5/31/28
+          - listitem [ref=f6e1118]:
+            - generic [ref=f6e1119]: Chatwin 19011AP EXP 10/31/26
+          - listitem [ref=f6e1120]:
+            - generic [ref=f6e1121]: Orchard 300280GP EXP 5/31/27
+          - listitem [ref=f6e1122]:
+            - generic [ref=f6e1123]: Redlands 300280FP EXP 4/30/27
+      - generic [ref=f6e1125]:
+        - paragraph [ref=f6e1128]: Explore Our Links
+        - list [ref=f6e1131]:
+          - listitem [ref=f6e1132]:
+            - link "Rehab Admissions" [ref=f6e1133] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/rehab-admissions/
+          - listitem [ref=f6e1135]:
+            - link "Check My Insurance" [ref=f6e1136] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/check-my-insurance/
+          - listitem [ref=f6e1138]:
+            - link "SUD Recovery Treatment Facilities" [ref=f6e1139] [cursor=pointer]:
+              - /url: https://data.chhs.ca.gov/dataset/sud-recovery-treatment-facilities
+        - list [ref=f6e1143]:
+          - listitem [ref=f6e1144]:
+            - link "Facebook" [ref=f6e1145] [cursor=pointer]:
+              - /url: https://www.facebook.com/gratitudelodgeca
+              - generic [ref=f6e1147]: 
+          - listitem [ref=f6e1148]:
+            - link "Linkedin" [ref=f6e1149] [cursor=pointer]:
+              - /url: https://www.linkedin.com/company/gratitude-lodge
+              - generic [ref=f6e1151]: 
+          - listitem [ref=f6e1152]:
+            - link "Instagram" [ref=f6e1153] [cursor=pointer]:
+              - /url: https://www.linkedin.com/company/gratitude-lodge
+              - generic [ref=f6e1155]: 
+          - listitem [ref=f6e1156]:
+            - link "Pinterest" [ref=f6e1157] [cursor=pointer]:
+              - /url: https://www.pinterest.com/Gratitude_Lodge/
+              - generic [ref=f6e1159]: 
+          - listitem [ref=f6e1160]:
+            - link "Youtube" [ref=f6e1161] [cursor=pointer]:
+              - /url: https://www.youtube.com/channel/UCq_JeSiUcrxsf0bp39HTdig
+              - generic [ref=f6e1163]: 
+          - listitem [ref=f6e1164]:
+            - link "Twitter" [ref=f6e1165] [cursor=pointer]:
+              - /url: https://twitter.com/gratitudelodge/
+              - generic [ref=f6e1167]: 
+      - generic [ref=f6e1169]:
+        - paragraph [ref=f6e1172]: Contact Info
+        - list [ref=f6e1175]:
+          - listitem [ref=f6e1176]:
+            - link "info@gratitudelodge.com" [ref=f6e1177] [cursor=pointer]:
+              - /url: mailto:%20info@gratitudelodge.com
+              - generic [ref=f6e1178]: 
+          - listitem [ref=f6e1181]:
+            - link "562-330-1644" [ref=f6e1182] [cursor=pointer]:
+              - /url: tel:562-330-1644
+              - generic [ref=f6e1183]: 
+        - generic [ref=f6e1187]:
+          - link [ref=f6e1192] [cursor=pointer]:
+            - /url: https://www.legitscript.com/websites/?checker_keywords=gratitudelodge.com
+          - link [ref=f6e1197] [cursor=pointer]:
+            - /url: https://www.jointcommission.org/en-us/about-us/recognizing-excellence/find-accredited-organizations/632282
+            - img "an image of the Joint Commission's Gold Seal of Approval" [ref=f6e1198]
+          - link [ref=f6e1207] [cursor=pointer]:
+            - /url: https://recovery.com/gratitude-lodge-california/
+        - generic:
+          - generic:
+            - generic:
+              - generic:
+                - link:
+                  - /url: https://www.psychologytoday.com/profile/1063096
+      - generic [ref=f6e1209]:
+        - paragraph [ref=f6e1212]: Locations
+        - paragraph [ref=f6e1215]: Long Beach, CA
+        - paragraph [ref=f6e1218]:
+          - link "3849 Chatwin Ave Long Beach, CA 90808" [ref=f6e1219] [cursor=pointer]:
+            - /url: https://maps.app.goo.gl/dagDE2A6vJqbZjd57
+            - text: 3849 Chatwin AveLong Beach, CA 90808
+        - paragraph [ref=f6e1222]: Los Angeles County, CA
+        - paragraph [ref=f6e1225]:
+          - link "3010 E 1st St Long Beach, CA 90803" [ref=f6e1226] [cursor=pointer]:
+            - /url: https://maps.app.goo.gl/8vLjP8LVPRjrHzmQ9
+            - text: 3010 E 1st StLong Beach, CA 90803
+        - paragraph [ref=f6e1229]: Newport Beach, CA
+        - paragraph [ref=f6e1232]:
+          - link "20132 Redlands Dr Newport Beach, CA 92660" [ref=f6e1233] [cursor=pointer]:
+            - /url: https://maps.app.goo.gl/QbUTP52kZZzXT81M7
+            - text: 20132 Redlands DrNewport Beach, CA 92660
+        - paragraph [ref=f6e1236]: Orange County, CA
+        - paragraph [ref=f6e1239]:
+          - link "1661 Orchard Dr Newport Beach, CA 92660" [ref=f6e1240] [cursor=pointer]:
+            - /url: https://maps.app.goo.gl/9JVBbWRNgzZ7NyFX8
+            - text: 1661 Orchard DrNewport Beach, CA 92660
+    - text:        
+    - generic [ref=f6e1244]:
+      - generic [ref=f6e1245]: Copyright © 2026. All rights reserved.
+      - list [ref=f6e1249]:
+        - listitem [ref=f6e1250]:
+          - link "Gratitude Lodge" [ref=f6e1251] [cursor=pointer]:
+            - /url: https://www.gratitudelodge.com/
+            - generic [ref=f6e1252]: 
+        - listitem [ref=f6e1255]:
+          - link "Privacy Policy" [ref=f6e1256] [cursor=pointer]:
+            - /url: https://www.gratitudelodge.com/privacy-policy/
+            - generic [ref=f6e1257]: 
+        - listitem [ref=f6e1260]:
+          - link "Sitemap" [ref=f6e1261] [cursor=pointer]:
+            - /url: /sitemap/
+            - generic [ref=f6e1262]: 
+  - text: 

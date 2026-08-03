@@ -1,0 +1,761 @@
+- generic [active] [ref=f9e1]:
+  - link "Skip to content" [ref=f9e2] [cursor=pointer]:
+    - /url: "#content"
+  - banner [ref=f9e3]:
+    - generic [ref=f9e5]:
+      - link [ref=f9e8] [cursor=pointer]:
+        - /url: https://www.gratitudelodge.com
+        - img "Gratitude Lodge logo" [ref=f9e9]
+      - generic [ref=f9e12]:
+        - generic [ref=f9e13]: About Us
+        - generic [ref=f9e17]: Locations
+        - generic [ref=f9e21]: What We Treat
+        - generic [ref=f9e25]: Mental Health
+        - generic [ref=f9e29]: Admissions
+        - link "Contact" [ref=f9e33] [cursor=pointer]:
+          - /url: https://www.gratitudelodge.com/contact-us/
+      - link "844-576-0144" [ref=f9e37] [cursor=pointer]:
+        - /url: tel:844-576-0144
+  - generic [ref=f9e40]:
+    - generic [ref=f9e42]:
+      - generic [ref=f9e43]:
+        - generic [ref=f9e44]:
+          - heading "Costa Mesa, CA" [level=5] [ref=f9e47]
+          - heading "LGBTQ Friendly Rehab Center for Drug & Alcohol Addiction near Costa Mesa" [level=1] [ref=f9e50]
+          - paragraph [ref=f9e53]: Explore personalized, LGBTQ-friendly rehab at a leading, inclusive treatment facility near you.
+          - generic [ref=f9e54]:
+            - link "949-676-9364" [ref=f9e58] [cursor=pointer]:
+              - /url: tel:949-676-9364
+            - link "Verify Insurance" [ref=f9e64] [cursor=pointer]:
+              - /url: "#elementor-action%3Aaction%3Dpopup%3Aopen%26settings%3DeyJpZCI6IjM1MTM0IiwidG9nZ2xlIjpmYWxzZX0%3D"
+          - generic [ref=f9e67]:
+            - heading "5000+ Patients Treated" [level=3] [ref=f9e78]
+            - heading "15 Licenses & Certifications" [level=3] [ref=f9e90]
+            - heading "Walk to the Beach" [level=3] [ref=f9e102]
+            - heading "4.9 Review Rating (320+)" [level=3] [ref=f9e113]
+            - heading "Cooked & Catered Meals" [level=3] [ref=f9e125]
+            - heading "Gym Access" [level=3] [ref=f9e137]
+        - region "Image Carousel" [ref=f9e141]:
+          - generic [ref=f9e142]:
+            - group "1 of 13" [ref=f9e143]:
+              - link [ref=f9e144] [cursor=pointer]:
+                - /url: https://www.gratitudelodge.com/wp-content/uploads/2025/12/24_03_26_GratitudeLodge_007-6.webp
+                - figure [ref=f9e145]:
+                  - img "24_03_26_GratitudeLodge_007-6.webp" [ref=f9e146]
+            - group "2 of 13" [ref=f9e147]:
+              - link [ref=f9e148] [cursor=pointer]:
+                - /url: https://www.gratitudelodge.com/wp-content/uploads/2025/12/24_03_26_GratitudeLodge_020-6.webp
+                - figure [ref=f9e149]:
+                  - img "24_03_26_GratitudeLodge_020-6.webp" [ref=f9e150]
+            - group "3 of 13" [ref=f9e151]:
+              - link [ref=f9e152] [cursor=pointer]:
+                - /url: https://www.gratitudelodge.com/wp-content/uploads/2025/12/24_03_26_GratitudeLodge_003-6.webp
+                - figure [ref=f9e153]:
+                  - img "24_03_26_GratitudeLodge_003-6.webp" [ref=f9e154]
+            - group "4 of 13" [ref=f9e155]:
+              - link [ref=f9e156] [cursor=pointer]:
+                - /url: https://www.gratitudelodge.com/wp-content/uploads/2025/12/Rectangle-251-e1755993692903.webp
+                - figure [ref=f9e157]:
+                  - img "Rectangle-251-e1755993692903.webp" [ref=f9e158]
+            - group "5 of 13" [ref=f9e159]:
+              - link [ref=f9e160] [cursor=pointer]:
+                - /url: https://www.gratitudelodge.com/wp-content/uploads/2025/12/Gratitude-Lodge-Long-Beach-Living-Room-2-3-1-4.webp
+                - figure [ref=f9e161]:
+                  - img "Gratitude-Lodge-Long-Beach-Living-Room-2-3-1-4.webp" [ref=f9e162]
+            - group "6 of 13" [ref=f9e163]:
+              - link [ref=f9e164] [cursor=pointer]:
+                - /url: https://www.gratitudelodge.com/wp-content/uploads/2025/12/Gratitude-Lodge-Long-Beach-Living-Room-2-1-4.webp
+                - figure [ref=f9e165]:
+                  - img "Gratitude-Lodge-Long-Beach-Living-Room-2-1-4.webp" [ref=f9e166]
+            - group "7 of 13" [ref=f9e167]:
+              - link [ref=f9e168] [cursor=pointer]:
+                - /url: https://www.gratitudelodge.com/wp-content/uploads/2025/12/Gratitude-Lodge-Long-Beach-Dining-Room-2-1-4.webp
+                - figure [ref=f9e169]:
+                  - img "Gratitude-Lodge-Long-Beach-Dining-Room-2-1-4.webp" [ref=f9e170]
+            - group "8 of 13" [ref=f9e171]:
+              - link [ref=f9e172] [cursor=pointer]:
+                - /url: https://www.gratitudelodge.com/wp-content/uploads/2025/12/24_03_26_GratitudeLodge_026-5.webp
+                - figure [ref=f9e173]:
+                  - img "24_03_26_GratitudeLodge_026-5.webp" [ref=f9e174]
+            - group "9 of 13" [ref=f9e175]:
+              - link [ref=f9e176] [cursor=pointer]:
+                - /url: https://www.gratitudelodge.com/wp-content/uploads/2025/12/24_03_26_GratitudeLodge_009-5.webp
+                - figure [ref=f9e177]:
+                  - img "24_03_26_GratitudeLodge_009-5.webp" [ref=f9e178]
+            - group "10 of 13" [ref=f9e179]:
+              - link [ref=f9e180] [cursor=pointer]:
+                - /url: https://www.gratitudelodge.com/wp-content/uploads/2025/12/24_03_26_GratitudeLodge_024-5.webp
+                - figure [ref=f9e181]:
+                  - img "24_03_26_GratitudeLodge_024-5.webp" [ref=f9e182]
+            - group "11 of 13" [ref=f9e183]:
+              - link [ref=f9e184] [cursor=pointer]:
+                - /url: https://www.gratitudelodge.com/wp-content/uploads/2025/12/24_03_26_GratitudeLodge_021-5.webp
+                - figure [ref=f9e185]:
+                  - img "24_03_26_GratitudeLodge_021-5.webp" [ref=f9e186]
+            - group "12 of 13" [ref=f9e187]:
+              - link [ref=f9e188] [cursor=pointer]:
+                - /url: https://www.gratitudelodge.com/wp-content/uploads/2025/12/24_03_26_GratitudeLodge_015-5.webp
+                - figure [ref=f9e189]:
+                  - img "24_03_26_GratitudeLodge_015-5.webp" [ref=f9e190]
+            - group "13 of 13" [ref=f9e191]:
+              - link [ref=f9e192] [cursor=pointer]:
+                - /url: https://www.gratitudelodge.com/wp-content/uploads/2025/12/24_03_26_GratitudeLodge_006-5.webp
+                - figure [ref=f9e193]:
+                  - img "24_03_26_GratitudeLodge_006-5.webp" [ref=f9e194]
+      - generic [ref=f9e195]:
+        - heading "Accredited & Trusted By" [level=4] [ref=f9e198]
+        - link [ref=f9e208] [cursor=pointer]:
+          - /url: https://recovery.com/the-district-recovery-huntington-beach-california/
+    - generic [ref=f9e212]:
+      - generic [ref=f9e214]:
+        - heading "Supportive Rehab Care for LGBTQ+ Mental Health and Recovery near Costa Mesa" [level=2] [ref=f9e217]
+        - generic [ref=f9e219]:
+          - paragraph [ref=f9e220]:
+            - text: Finding an addiction treatment program near Costa Mesa where your authentic self doesn’t require masking or adjustment? LGBTQ+ community members frequently discover that substance use stems directly from
+            - strong [ref=f9e221]: minority stress encounters, identity-based trauma, social marginalization, and the constant challenge of existing in environments not built for their flourishing
+            - text: ". Identifying a program that understands this context becomes medically crucial. Legitimate apprehensions may be blocking you from obtaining the care you deserve:"
+          - list [ref=f9e222]:
+            - listitem [ref=f9e223]:
+              - paragraph [ref=f9e224]: Would clinical staff and peer residents provide true acceptance beyond simple tolerance?
+            - listitem [ref=f9e225]:
+              - paragraph [ref=f9e226]: Can therapy sessions recognize and address my distinct LGBTQ+ journey?
+            - listitem [ref=f9e227]:
+              - paragraph [ref=f9e228]: Am I at risk of entering group settings where emotional safety feels compromised?
+            - listitem [ref=f9e229]:
+              - paragraph [ref=f9e230]: Does accessible inclusive care exist within my budget constraints?
+          - paragraph [ref=f9e231]:
+            - text: These anxieties arise from real lived realities and deserve honest recognition. Healing should unfold in spaces that are
+            - strong [ref=f9e232]: authentically supportive beyond tokenistic gestures
+            - text: ", places where your identity forms an essential component of your therapeutic story."
+          - paragraph [ref=f9e233]: Throughout Gratitude Lodge near Costa Mesa, LGBTQ-affirming values shape our team training, curriculum development, and culture creation. Professional knowledge here addresses the intricate connection between identity and substance use, guaranteeing your healing path respects the full breadth of your lived experience.
+          - paragraph [ref=f9e234]: Keep reading for more details.
+        - generic [ref=f9e238]:
+          - button "Read More" [ref=f9e239] [cursor=pointer]
+          - generic [ref=f9e243]:
+            - heading [level=2] [ref=f9e244]:
+              - strong [ref=f9e245]: Affirming LGBTQ+ Treatment at Gratitude Lodge
+            - paragraph [ref=f9e246]: Higher rates of substance use and mental health struggles impact LGBTQ+ individuals compared to the general population, frequently stemming from prolonged exposure to discrimination, stigma, and social exclusion. Beginning in childhood for many, these challenges persist into adulthood, fundamentally affecting how individuals experience safety, belonging, and personal value. Specialized LGBTQ-affirming residential treatment programs at Gratitude Lodge create secure, respectful environments where healing can commence without fear of prejudice.
+            - paragraph [ref=f9e247]: Residential treatment programs enable clients to remove themselves from everyday stressors while dedicating complete attention to recovery within a peaceful, organized atmosphere. Comprehensive care encompasses individual counseling, group therapy sessions, and specialized treatment for co-occurring conditions including anxiety, depression, and trauma-related disorders. Training in affirming, inclusive practices ensures our team understands the distinct challenges LGBTQ+ clients encounter during treatment. Never do clients face the burden of defending or explaining their identity to receive empathetic, skilled care.
+            - heading [level=2] [ref=f9e248]:
+              - strong [ref=f9e249]: Critical Importance of LGBTQ-Affirming Treatment
+            - paragraph [ref=f9e250]: Conventional rehabilitation programs frequently fail to acknowledge the lived realities that shape LGBTQ+ health outcomes. Chronic minority stress – continuous exposure to bias, rejection, or social exclusion – creates direct and enduring effects on mental wellness and addiction susceptibility. Traumatic experiences including family abandonment, religious persecution, employment discrimination, and community hostility dramatically heighten vulnerability to substance dependency, emotional disorders, and self-harm ideation.
+            - paragraph [ref=f9e251]: Extensive research demonstrates that LGBTQ+ adults utilize illicit substances at rates exceeding twice that of heterosexual populations. Nevertheless, many completely avoid seeking help due to concerns about being misunderstood, incorrectly identified, or subjected to judgment. Affirming LGBTQ+ treatment programs eliminate these obstacles by establishing spaces where identity-related trauma receives recognition and proper care rather than dismissal. Culturally responsive, affirming treatment approaches consistently yield enhanced participation, superior retention rates, and more successful long-term recovery results.
+            - heading [level=2] [ref=f9e252]:
+              - strong [ref=f9e253]: Mental Health and Substance Use Patterns in LGBTQ+ Populations
+            - paragraph [ref=f9e254]: Co-occurring substance use and mental health conditions appear frequently among LGBTQ+ communities. Clinical data suggests that 40-60% of LGBTQ+ individuals seeking addiction treatment present with concurrent mental health diagnoses. While alcohol represents the most frequently misused substance, methamphetamine, cocaine, party drugs, cannabis, opioids, and benzodiazepines create substantial health risks.
+            - paragraph [ref=f9e255]: Certain usage patterns – including chemsex or party-and-play behaviors – represent coping mechanisms for intimacy difficulties, trauma responses, or emotional isolation. Rapid escalation characterizes these behaviors, necessitating specialized trauma-informed interventions that simultaneously address substance dependency and the core emotional needs substances were fulfilling. Comprehensive dual diagnosis care becomes essential, as addressing addiction independently without mental health treatment commonly results in relapse.
+            - heading [level=2] [ref=f9e256]:
+              - strong [ref=f9e257]: Affirming Detox and Residential Treatment for LGBTQ+ Clients
+            - paragraph [ref=f9e258]: Medical supervision during detox marks the beginning of recovery for numerous clients. LGBTQ-affirming detox services emphasize safety, respect, and seamless care coordination, incorporating attention to HIV management, PrEP protocols, and hormone therapy for transgender individuals. Qualified medical staff supervise the detoxification process, which generally spans several days, establishing a solid foundation for subsequent treatment phases.
+            - paragraph [ref=f9e259]: Smooth transitions from detox to residential rehabilitation occur at Gratitude Lodge, where intensive therapeutic intervention begins. Within tranquil, nurturing surroundings, individuals receive necessary space to recover from addiction while simultaneously confronting identity-based stressors that contributed to substance use patterns.
+            - paragraph [ref=f9e260]: Authentic self-expression within safe environments maximizes recovery effectiveness. LGBTQ-affirming treatment programs at Gratitude Lodge provide this essential safety – facilitating healing from substance use disorders while addressing the underlying experiences that necessitated recovery intervention.
+            - paragraph [ref=f9e261]
+      - generic [ref=f9e263]:
+        - heading "Tour Our LGBTQ Friendly Rehab near Costa Mesa" [level=2] [ref=f9e266]
+        - generic [ref=f9e270]:
+          - generic [ref=f9e271]:
+            - img "Gallery image" [ref=f9e273] [cursor=pointer]
+            - img "Gallery image" [ref=f9e277] [cursor=pointer]
+            - img "Gallery image" [ref=f9e281] [cursor=pointer]
+            - img "Gallery image" [ref=f9e285] [cursor=pointer]
+            - img "Gallery image" [ref=f9e289] [cursor=pointer]
+            - img "Gallery image" [ref=f9e293] [cursor=pointer]
+            - img "Gallery image" [ref=f9e297] [cursor=pointer]
+            - img "Gallery image" [ref=f9e301] [cursor=pointer]
+            - img "Gallery image" [ref=f9e305] [cursor=pointer]
+            - img "Gallery image" [ref=f9e309] [cursor=pointer]
+            - img "Gallery image" [ref=f9e313] [cursor=pointer]
+            - img "Gallery image" [ref=f9e317] [cursor=pointer]
+            - img "Gallery image" [ref=f9e321] [cursor=pointer]
+          - button "Show all photos ↓" [ref=f9e324] [cursor=pointer]
+    - generic [ref=f9e327]:
+      - iframe [ref=f9e330]:
+        
+      - heading "Finding Inclusive Addiction Treatment near Costa Mesa" [level=2] [ref=f9e333]
+      - generic [ref=f9e335]:
+        - paragraph [ref=f9e336]:
+          - text: Seeking treatment can feel more complicated when you’re unsure whether you’ll be fully seen, respected, or understood. For many LGBTQ+ individuals, past experiences with judgment or misunderstanding can make it harder to trust new environments. In recovery, feeling safe enough to be open is essential—especially when working through
+          - generic [ref=f9e337]: identity-related stress, past stigma, or emotional isolation
+          - text: alongside substance use.
+        - paragraph [ref=f9e338]: If the idea of entering treatment without knowing if you’ll be accepted feels heavy, you’re not alone.
+        - paragraph [ref=f9e339]: Access to inclusive, affirming care can make it easier to engage in treatment without having to hold parts of yourself back.
+        - paragraph
+        - list [ref=f9e340]:
+          - listitem [ref=f9e341]: There are more than 10 rehab and treatment programs available within 15 of Costa Mesa, including options that provide LGBTQ-affirming care.
+          - listitem [ref=f9e342]: No fewer than 2 programs within 20 of Costa Mesa accept private insurance, helping reduce barriers when support is crucial.
+        - paragraph [ref=f9e343]: LGBTQ-friendly rehab creates a space where identity is respected, allowing you to focus fully on recovery, connection, and rebuilding stability.
+        - paragraph
+        - paragraph [ref=f9e344]:
+          - text: If you’re considering LGBTQ-friendly rehab, view
+          - link "Gratitude Lodge’s top-rated reviews" [ref=f9e345] [cursor=pointer]:
+            - /url: https://www.gratitudelodge.com/testimonials/
+          - text: for our addiction and mental health treatment programs, which offer guidance, inclusive care, and comprehensive treatment.
+    - generic [ref=f9e346]: What Our Clients Near Costa Mesa Say About Us
+    - generic [ref=f9e352]:
+      - heading "Choosing an LGBTQ-Friendly Rehab Environment near Costa Mesa" [level=2] [ref=f9e357]
+      - generic [ref=f9e359]:
+        - paragraph
+        - paragraph [ref=f9e360]: The environment you enter for treatment can shape how comfortable and supported you feel throughout the process. LGBTQ-friendly residential programs are designed to provide structure, safety, and affirming care—so you can step away from outside pressures while receiving consistent support that respects your identity and experiences.
+        - paragraph [ref=f9e361]: If finding a space where you can be fully yourself while focusing on recovery feels important, you’re not alone.
+        - paragraph [ref=f9e362]: Access to affirming treatment environments can help you stay engaged, build trust in the process, and focus more fully on healing.
+        - paragraph
+        - list [ref=f9e363]:
+          - listitem [ref=f9e364]: Approximately 2 residential programs are available within 25 of Costa Mesa, offering structured, inpatient environments for recovery.
+          - listitem [ref=f9e365]: Additionally, no less than 2 programs within 20 of Costa Mesa maintain ratings of at least 4 stars with a minimum of 10 reviews, showing consistent, quality care
+        - paragraph [ref=f9e366]: Choosing a program that prioritizes inclusivity, respect, and individualized support can help create a more stable and empowering path forward.
+        - paragraph
+        - paragraph [ref=f9e367]:
+          - text: If you’re considering LGBTQ-friendly rehab in Costa Mesa, view
+          - link "Gratitude Lodge’s top-rated reviews" [ref=f9e368] [cursor=pointer]:
+            - /url: https://www.gratitudelodge.com/testimonials/
+          - text: for our addiction and mental health treatment programs, which provide inclusive support, personalized care, and structured treatment to help you move forward with stability and trust.
+        - paragraph
+    - generic [ref=f9e373]:
+      - heading "Location Overview" [level=2] [ref=f9e376]
+      - paragraph [ref=f9e379]: Our clean and modern facilities are located near beautiful beaches and a thriving sober community. Clients enjoy easy access to local hiking spots, beaches, restaurants & more nearby.
+      - generic [ref=f9e380]:
+        - list [ref=f9e383]:
+          - listitem [ref=f9e384]:
+            - generic [ref=f9e390]: Close to The Beach
+        - list [ref=f9e393]:
+          - listitem [ref=f9e394]:
+            - generic [ref=f9e400]: National Parks Nearby
+        - list [ref=f9e403]:
+          - listitem [ref=f9e404]:
+            - generic [ref=f9e410]: Mild, Comfortable Weather
+        - list [ref=f9e413]:
+          - listitem [ref=f9e414]:
+            - generic [ref=f9e419]: Strong Local Sober Community
+    - generic [ref=f9e421]:
+      - heading "Why Trust Us With Your Care" [level=2] [ref=f9e424]
+      - generic [ref=f9e425]:
+        - generic [ref=f9e426]:
+          - generic [ref=f9e429]:
+            - paragraph [ref=f9e430]: Lives Treated
+            - generic [ref=f9e431]:
+              - generic [ref=f9e433]: "0"
+              - generic [ref=f9e434]: +
+          - generic [ref=f9e435]: Real people. Real recovery. Real impact.
+        - generic [ref=f9e437]:
+          - generic [ref=f9e440]:
+            - paragraph [ref=f9e441]: Licensed Professionals
+            - generic [ref=f9e442]: "0"
+          - generic [ref=f9e446]: Experienced, compassionate, and committed to your healing.
+        - generic [ref=f9e448]:
+          - generic [ref=f9e451]:
+            - paragraph [ref=f9e452]: States Served
+            - generic [ref=f9e453]:
+              - generic [ref=f9e455]: "10"
+              - generic [ref=f9e456]: +
+          - generic [ref=f9e457]: Patients travel from almost every state to come to our California Rehab.
+        - generic [ref=f9e459]:
+          - generic [ref=f9e462]:
+            - paragraph [ref=f9e463]: Verified Reviews
+            - generic [ref=f9e464]: +
+          - generic [ref=f9e467]: Clients trust us and share their stories.
+    - generic [ref=f9e471]:
+      - heading "Learn About Gratitude Lodge" [level=2] [ref=f9e474]
+      - generic "Accordion. Open links with Enter or Space, close with Escape, and navigate with Arrow Keys" [ref=f9e477]:
+        - group [ref=f9e478]:
+          - generic "Our Admissions Process" [ref=f9e479] [cursor=pointer]:
+            - generic [ref=f9e482]:
+              - text: 
+              - generic [ref=f9e483]: 
+        - group [ref=f9e485]:
+          - generic "Accreditations" [ref=f9e486] [cursor=pointer]:
+            - generic [ref=f9e489]:
+              - text: 
+              - generic [ref=f9e490]: 
+        - group [ref=f9e492]:
+          - generic "Our Staff" [ref=f9e493] [cursor=pointer]:
+            - generic [ref=f9e496]:
+              - text: 
+              - generic [ref=f9e497]: 
+        - group [ref=f9e499]:
+          - generic "What Addictions Do We Treat?" [ref=f9e500] [cursor=pointer]:
+            - generic [ref=f9e503]:
+              - text: 
+              - generic [ref=f9e504]: 
+        - group [ref=f9e506]:
+          - generic "Levels of Addiction" [ref=f9e507] [cursor=pointer]:
+            - generic [ref=f9e510]:
+              - text: 
+              - generic [ref=f9e511]: 
+        - group [ref=f9e513]:
+          - generic "Treatment Therapies" [ref=f9e514] [cursor=pointer]:
+            - generic [ref=f9e517]:
+              - text: 
+              - generic [ref=f9e518]: 
+    - generic [ref=f9e521]:
+      - heading "Exploring Comprehensive LGBTQ+ Affirming Care Options in Costa Mesa" [level=2] [ref=f9e525]
+      - generic [ref=f9e527]:
+        - paragraph [ref=f9e528]:
+          - strong [ref=f9e529]: Effective LGBTQ Friendly Rehab near Costa Mesa delivers exceptional outcomes through recovery programs that combine addiction treatment with identity-affirming mental health support.
+          - text: Research indicates that lasting recovery success emerges when therapeutic approaches strengthen emotional stability, psychological wellness, and daily functioning capabilities. Recovery within an inclusive therapeutic setting minimizes relapse risk through comprehensive healing and individual empowerment.
+        - list [ref=f9e530]:
+          - listitem [ref=f9e531]:
+            - paragraph [ref=f9e532]:
+              - text: Affirming therapeutic approaches enhance
+              - strong [ref=f9e533]: emotional stability and clinical symptom relief
+          - listitem [ref=f9e534]:
+            - paragraph [ref=f9e535]:
+              - text: Inclusive treatment frameworks develop
+              - strong [ref=f9e536]: self-awareness and healthy coping mechanisms
+          - listitem [ref=f9e537]:
+            - paragraph [ref=f9e538]:
+              - text: Organized therapeutic schedules facilitate
+              - strong [ref=f9e539]: restored balance and daily functioning patterns
+        - paragraph [ref=f9e540]:
+          - text: Through
+          - link "Gratitude Lodge" [ref=f9e541] [cursor=pointer]:
+            - /url: https://www.gratitudelodge.com/?page_id=72129&preview=true
+          - text: near Costa Mesa, LGBTQ Friendly Rehab becomes woven into residential treatment programs designed to support lasting sobriety and mental health stability. This approach allows participants to maintain therapeutic engagement, navigate difficult circumstances with greater effectiveness, and cultivate positive behaviors that support long-term wellness, with clinical standards maintained through the
+          - link "District Behavioral Health group" [ref=f9e542] [cursor=pointer]:
+            - /url: https://districtbehavioralhealth.com/
+          - text: .
+    - generic [ref=f9e544]:
+      - 'heading "The Reality of Relapse: Why Rehab Matters" [level=2] [ref=f9e547]'
+      - generic [ref=f9e548]:
+        - generic [ref=f9e553]:
+          - heading "85% Relapse" [level=3] [ref=f9e556]
+          - heading "Without treatment" [level=4] [ref=f9e559]
+          - paragraph [ref=f9e562]: Within the 1st year of sobriety. Most people struggling with substance use disorder who do not get treatment relapse within months.
+        - generic [ref=f9e567]:
+          - heading "25-50% More Success" [level=3] [ref=f9e570]
+          - heading "With treatment" [level=4] [ref=f9e573]
+          - generic [ref=f9e574]: Recovery rates improve with each level of care completed in the addiction treatment journey.
+    - generic [ref=f9e577]:
+      - generic [ref=f9e578]:
+        - heading "Addiction Therapies Used near Costa Mesa" [level=2] [ref=f9e581]
+        - paragraph [ref=f9e584]: Gratitude Lodge uses addiction therapies that are backed by latest science in addiction treatment and are administered by our expert clinicians.
+      - generic "Accordion. Open links with Enter or Space, close with Escape, and navigate with Arrow Keys" [ref=f9e588]:
+        - group [ref=f9e589]:
+          - generic "Cognitive Behavioral Therapy (CBT)" [ref=f9e590] [cursor=pointer]:
+            - generic [ref=f9e593]:
+              - text: 
+              - generic [ref=f9e594]: 
+        - group [ref=f9e596]:
+          - generic "Dialectical Behavior Therapy (DBT)" [ref=f9e597] [cursor=pointer]:
+            - generic [ref=f9e600]:
+              - text: 
+              - generic [ref=f9e601]: 
+        - group [ref=f9e603]:
+          - generic "Medication-Assisted Treatment (MAT)" [ref=f9e604] [cursor=pointer]:
+            - generic [ref=f9e607]:
+              - text: 
+              - generic [ref=f9e608]: 
+        - group [ref=f9e610]:
+          - generic "Group & Family Therapy" [ref=f9e611] [cursor=pointer]:
+            - generic [ref=f9e614]:
+              - text: 
+              - generic [ref=f9e615]: 
+    - generic [ref=f9e618]:
+      - generic [ref=f9e619]:
+        - heading "Levels of Care in Addiction Treatment" [level=2] [ref=f9e622]
+        - paragraph [ref=f9e625]: "Starting your journey toward recovery at Gratitude Lodge is simple, fast, and fully supported. We offer same-day and next-day admissions, because when you’re ready to get help, there shouldn’t be any delays. Walk-ins are also welcome—we’re here when you’re ready to take that first step. From the moment you reach out, our compassionate admissions team will guide you through every part of the process, from insurance verification to creating a personalized treatment plan tailored to your needs. Our goal is to make the process stress-free, so you can focus on what matters most: your healing and recovery."
+      - generic "Accordion. Open links with Enter or Space, close with Escape, and navigate with Arrow Keys" [ref=f9e629]:
+        - group [ref=f9e630]:
+          - generic "Medically-Supervised Detox" [ref=f9e631] [cursor=pointer]:
+            - generic [ref=f9e634]:
+              - text: 
+              - generic [ref=f9e635]: 
+        - group [ref=f9e637]:
+          - generic "Inpatient Residential Addiction & Mental Health Treatment" [ref=f9e638] [cursor=pointer]:
+            - generic [ref=f9e641]:
+              - text: 
+              - generic [ref=f9e642]: 
+        - group [ref=f9e644]:
+          - generic "Partial Hospitalization Program (PHP)" [ref=f9e645] [cursor=pointer]:
+            - generic [ref=f9e648]:
+              - text: 
+              - generic [ref=f9e649]: 
+        - group [ref=f9e651]:
+          - generic "Intensive Outpatient Program (IOP)" [ref=f9e652] [cursor=pointer]:
+            - generic [ref=f9e655]:
+              - text: 
+              - generic [ref=f9e656]: 
+        - group [ref=f9e658]:
+          - generic "Outpatient Program (OP)" [ref=f9e659] [cursor=pointer]:
+            - generic [ref=f9e662]:
+              - text: 
+              - generic [ref=f9e663]: 
+        - group [ref=f9e665]:
+          - generic "Aftercare" [ref=f9e666] [cursor=pointer]:
+            - generic [ref=f9e669]:
+              - text: 
+              - generic [ref=f9e670]: 
+    - generic [ref=f9e677]:
+      - heading "Gratitude Lodge Admissions" [level=2] [ref=f9e680]
+      - paragraph [ref=f9e683]: "Starting your journey toward recovery at Gratitude Lodge is simple, fast, and fully supported. We offer same-day and next-day admissions, because when you’re ready to get help, there shouldn’t be any delays. Walk-ins are also welcome—we’re here when you’re ready to take that first step. From the moment you reach out, our compassionate admissions team will guide you through every part of the process, from insurance verification to creating a personalized treatment plan tailored to your needs. Our goal is to make the process stress-free, so you can focus on what matters most: your healing and recovery."
+    - generic [ref=f9e684]:
+      - heading "Our Treatment Network Locations Across US" [level=2] [ref=f9e687]
+      - generic [ref=f9e688]: Gratitude Lodge belongs to a trusted network of addiction & mental health recovery centers across the nation.
+      - link [ref=f9e692] [cursor=pointer]:
+        - /url: https://www.gratitudelodge.com/wp-content/uploads/2026/01/image-5.webp
+      - paragraph [ref=f9e695]: "*Red Pins: Our Locations / Blue Pins: States Patients Have Traveled From"
+    - generic [ref=f9e702]:
+      - heading "Related Pages" [level=2] [ref=f9e705]
+      - generic [ref=f9e709]:
+        - list [ref=f9e710]:
+          - listitem [ref=f9e711]:
+            - link [ref=f9e712] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/california/orange-county/costa-mesa/
+              - 'heading "Drug & Alcohol Rehab near Costa Mesa: Addiction Treatment and Detox Centers" [level=3] [ref=f9e713]'
+          - listitem [ref=f9e714]:
+            - link [ref=f9e715] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/outpatient/california/southern/orange-county/costa-mesa/
+              - 'heading "Outpatient Drug & Alcohol Rehab near Costa Mesa: Addiction Treatment Center" [level=3] [ref=f9e716]'
+          - listitem [ref=f9e717]:
+            - link [ref=f9e718] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/pet-friendly/california/southern/orange-county/costa-mesa/
+              - heading "Pet Friendly Addiction Treatment Center near Costa Mesa" [level=3] [ref=f9e719]
+          - listitem [ref=f9e720]:
+            - link [ref=f9e721] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/fentanyl/california/southern/orange-county/costa-mesa/
+              - heading "Fentanyl Rehab & Addiction Treatment near Costa Mesa" [level=3] [ref=f9e722]
+          - listitem [ref=f9e723]:
+            - link [ref=f9e724] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/iop/california/southern/orange-county/costa-mesa/
+              - 'heading "IOP Program Near Costa Mesa: Intensive Outpatient Addiction Treatment & Rehab" [level=3] [ref=f9e725]'
+          - listitem [ref=f9e726]:
+            - link [ref=f9e727] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/rehab-for-couples/california/southern/orange-county/costa-mesa/
+              - heading "Couples Detox and Rehab Treatment Center near Costa Mesa" [level=3] [ref=f9e728]
+          - listitem [ref=f9e729]:
+            - link [ref=f9e730] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/meth/california/southern/orange-county/costa-mesa/
+              - heading "Meth Rehab & Detox Centers near Costa Mesa (Addiction Treatment)" [level=3] [ref=f9e731]
+          - listitem [ref=f9e732]:
+            - link [ref=f9e733] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/30-60-90-day-long-term/california/southern/orange-county/costa-mesa/
+              - heading "Long-Term 30/60/90 Day Rehab for Addiction Recovery near Costa Mesa" [level=3] [ref=f9e734]
+          - listitem [ref=f9e735]:
+            - link [ref=f9e736] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/short-term-rehab/california/southern/orange-county/costa-mesa/
+              - heading "Short Term Rehab near Costa Mesa (Addiction Treatment)" [level=3] [ref=f9e737]
+          - listitem [ref=f9e738]:
+            - link [ref=f9e739] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/mat-medication-assisted-treatment/california/southern/orange-county/costa-mesa/
+              - heading "MAT Medication Assisted Treatment Program near Costa Mesa (Methadone/Buprenorphine) Detox" [level=3] [ref=f9e740]
+          - listitem [ref=f9e741]:
+            - link [ref=f9e742] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/veterans/california/southern/orange-county/costa-mesa/
+              - heading "Addiction Treatment & Recovery Programs for Veterans near Costa Mesa" [level=3] [ref=f9e743]
+          - listitem [ref=f9e744]:
+            - link [ref=f9e745] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/12-step/california/southern/orange-county/costa-mesa/
+              - heading "12-Step Addiction Rehab & Recovery Program near Costa Mesa" [level=3] [ref=f9e746]
+          - listitem [ref=f9e747]:
+            - link [ref=f9e748] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/lgbtq/california/southern/orange-county/santa-ana/
+              - heading "LGBTQ Friendly Rehab Center for Drug & Alcohol Addiction near Santa Ana" [level=3] [ref=f9e749]
+          - listitem [ref=f9e750]:
+            - link [ref=f9e751] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/lgbtq/california/southern/orange-county/irvine/
+              - heading "LGBTQ Friendly Rehab Center for Drug & Alcohol Addiction near Irvine" [level=3] [ref=f9e752]
+          - listitem [ref=f9e753]:
+            - link [ref=f9e754] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/lgbtq/california/southern/orange-county/huntington-beach/
+              - heading "Huntington Beach LGBTQ Friendly Drug Rehab Center for Addiction Treatment" [level=3] [ref=f9e755]
+          - listitem [ref=f9e756]:
+            - link [ref=f9e757] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/lgbtq/california/southern/orange-county/garden-grove/
+              - heading "LGBTQ Friendly Rehab Center for Drug & Alcohol Addiction near Garden Grove" [level=3] [ref=f9e758]
+          - listitem [ref=f9e759]:
+            - link [ref=f9e760] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/lgbtq/california/southern/orange-county/mission-viejo/
+              - heading "LGBTQ Friendly Rehab Center for Drug & Alcohol Addiction near Mission Viejo" [level=3] [ref=f9e761]
+          - listitem [ref=f9e762]:
+            - link [ref=f9e763] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/lgbtq/california/southern/orange-county/westminster/
+              - heading "LGBTQ Friendly Rehab Center for Drug & Alcohol Addiction near Westminster" [level=3] [ref=f9e764]
+          - listitem [ref=f9e765]:
+            - link [ref=f9e766] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/lgbtq/california/southern/orange-county/newport-beach/
+              - heading "Newport Beach LGBTQ Friendly Drug Rehab Center for Addiction Treatment" [level=3] [ref=f9e767]
+          - listitem [ref=f9e768]:
+            - link [ref=f9e769] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/lgbtq/california/southern/orange-county/lake-forest/
+              - heading "LGBTQ Friendly Rehab Center for Drug & Alcohol Addiction near Lake Forest" [level=3] [ref=f9e770]
+          - listitem [ref=f9e771]:
+            - link [ref=f9e772] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/lgbtq/california/southern/los-angeles/
+              - heading "Los Angeles LGBTQ Friendly Drug Rehab Center for Addiction Treatment" [level=3] [ref=f9e773]
+          - listitem [ref=f9e774]:
+            - link [ref=f9e775] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/lgbtq/california/southern/san-diego/
+              - heading "LGBTQ Friendly Rehab Center for Drug & Alcohol Addiction near San Diego" [level=3] [ref=f9e776]
+          - listitem [ref=f9e777]:
+            - link [ref=f9e778] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/lgbtq/california/southern/orange-county/
+              - heading "Orange County LGBTQ Friendly Drug Rehab Center for Addiction Treatment" [level=3] [ref=f9e779]
+          - listitem [ref=f9e780]:
+            - link [ref=f9e781] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/lgbtq/california/southern/riverside/
+              - heading "LGBTQ Friendly Rehab Center for Drug & Alcohol Addiction near Riverside" [level=3] [ref=f9e782]
+          - listitem [ref=f9e783]:
+            - link [ref=f9e784] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/lgbtq/california/southern/san-bernardino/
+              - heading "LGBTQ Friendly Rehab Center for Drug & Alcohol Addiction near San Bernardino" [level=3] [ref=f9e785]
+          - listitem [ref=f9e786]:
+            - link [ref=f9e787] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/lgbtq/california/southern/ventura/
+              - heading "LGBTQ Friendly Rehab Center for Drug & Alcohol Addiction near Ventura" [level=3] [ref=f9e788]
+          - listitem [ref=f9e789]:
+            - link [ref=f9e790] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/lgbtq/california/southern/los-angeles/long-beach/
+              - heading "Long Beach LGBTQ Friendly Drug Rehab Center for Addiction Treatment" [level=3] [ref=f9e791]
+          - listitem [ref=f9e792]:
+            - link [ref=f9e793] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/lgbtq/california/southern/santa-barbara/
+              - heading "LGBTQ Friendly Rehab Center for Drug & Alcohol Addiction near Santa Barbara" [level=3] [ref=f9e794]
+          - listitem [ref=f9e795]:
+            - link [ref=f9e796] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/pet-friendly/california/southern/orange-county/anaheim/
+              - heading "Pet Friendly Drug & Alcohol Rehab near Anaheim" [level=3] [ref=f9e797]
+          - listitem [ref=f9e798]:
+            - link [ref=f9e799] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/pet-friendly/california/southern/orange-county/santa-ana/
+              - heading "Pet Friendly Addiction Treatment Center near Santa Ana" [level=3] [ref=f9e800]
+          - listitem [ref=f9e801]:
+            - link [ref=f9e802] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/pet-friendly/california/southern/orange-county/irvine/
+              - heading "Pet Friendly Addiction Treatment Center near Irvine" [level=3] [ref=f9e803]
+          - listitem [ref=f9e804]:
+            - link [ref=f9e805] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/pet-friendly/california/southern/orange-county/huntington-beach/
+              - heading "Pet Friendly Drug Rehab in Huntington Beach" [level=3] [ref=f9e806]
+          - listitem [ref=f9e807]:
+            - link [ref=f9e808] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/pet-friendly/california/southern/orange-county/garden-grove/
+              - heading "Pet Friendly Addiction Treatment Center near Garden Grove" [level=3] [ref=f9e809]
+          - listitem [ref=f9e810]:
+            - link [ref=f9e811] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/pet-friendly/california/southern/orange-county/fullerton/
+              - heading "Pet Friendly Drug & Alcohol Rehab near Fullerton" [level=3] [ref=f9e812]
+          - listitem [ref=f9e813]:
+            - link [ref=f9e814] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/pet-friendly/california/southern/orange-county/mission-viejo/
+              - heading "Pet Friendly Addiction Treatment Center near Mission Viejo" [level=3] [ref=f9e815]
+          - listitem [ref=f9e816]:
+            - link [ref=f9e817] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/pet-friendly/california/southern/orange-county/westminster/
+              - heading "Pet Friendly Addiction Treatment Center near Westminster" [level=3] [ref=f9e818]
+          - listitem [ref=f9e819]:
+            - link [ref=f9e820] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/rehab-for-couples/california/southern/orange-county/anaheim/
+              - heading "Couples Detox and Rehab Treatment Center near Anaheim" [level=3] [ref=f9e821]
+          - listitem [ref=f9e822]:
+            - link [ref=f9e823] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/rehab-for-couples/california/southern/orange-county/santa-ana/
+              - heading "Couples Detox and Rehab Treatment Center near Santa Ana" [level=3] [ref=f9e824]
+          - listitem [ref=f9e825]:
+            - link [ref=f9e826] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/rehab-for-couples/california/southern/orange-county/irvine/
+              - heading "Couples Detox and Rehab Treatment Center near Irvine" [level=3] [ref=f9e827]
+          - listitem [ref=f9e828]:
+            - link [ref=f9e829] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/rehab-for-couples/california/southern/orange-county/huntington-beach/
+              - heading "Huntington Beach Couples Detox and Rehab Treatment Center" [level=3] [ref=f9e830]
+          - listitem [ref=f9e831]:
+            - link [ref=f9e832] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/rehab-for-couples/california/southern/orange-county/garden-grove/
+              - heading "Couples Detox and Rehab Treatment Center near Garden Grove" [level=3] [ref=f9e833]
+          - listitem [ref=f9e834]:
+            - link [ref=f9e835] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/rehab-for-couples/california/southern/orange-county/fullerton/
+              - heading "Couples Rehab Treatment Center near Fullerton" [level=3] [ref=f9e836]
+          - listitem [ref=f9e837]:
+            - link [ref=f9e838] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/rehab-for-couples/california/southern/orange-county/orange/
+              - heading "Couples Rehab Treatment Center near Orange" [level=3] [ref=f9e839]
+          - listitem [ref=f9e840]:
+            - link [ref=f9e841] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/rehab-for-couples/california/southern/orange-county/mission-viejo/
+              - heading "Couples Detox and Rehab Treatment Center near Mission Viejo" [level=3] [ref=f9e842]
+        - button "Load More" [ref=f9e844] [cursor=pointer]
+    - generic [ref=f9e848]:
+      - heading "Take the First Step Today" [level=2] [ref=f9e851]
+      - paragraph [ref=f9e854]: Recovery is possible, and you don’t have to do it alone. Our compassionate team is available 24/7 to answer your questions and help you find the right path
+    - generic [ref=f9e860]:
+      - 'heading "LGBTQ+ Friendly Rehab near Costa Mesa: FAQs" [level=2] [ref=f9e864]'
+      - generic [ref=f9e871]:
+        - generic [ref=f9e872]: Why is LGBTQ Friendly near Costa Mesa considered essential?
+        - generic [ref=f9e877]: Can LGBTQ Friendly near Costa Mesa provide targeted therapeutic approaches?
+        - generic [ref=f9e882]: Should I consider seeking LGBTQ Friendly near Costa Mesa?
+        - generic [ref=f9e887]: Do treatment staff receive identity-affirming training at LGBTQ Friendly near Costa Mesa?
+        - generic [ref=f9e892]: How does group therapy benefit participants in LGBTQ Friendly near Costa Mesa?
+        - generic [ref=f9e897]: Can LGBTQ Friendly near Costa Mesa treat dual mental health conditions?
+        - generic [ref=f9e902]: Can I expect to feel secure in LGBTQ Friendly near Costa Mesa?
+        - generic [ref=f9e907]: Do sober living arrangements exist following LGBTQ Friendly near Costa Mesa completion?
+        - generic [ref=f9e912]: In what ways does LGBTQ Friendly near Costa Mesa assist individuals facing family rejection?
+        - generic [ref=f9e917]: Should I consider returning to LGBTQ Friendly near Costa Mesa following a relapse?
+    - generic [ref=f9e924]:
+      - heading "Our Faculty Members" [level=2] [ref=f9e927]
+      - list [ref=f9e930]:
+        - generic [ref=f9e932]:
+          - link [ref=f9e935] [cursor=pointer]:
+            - /url: https://www.gratitudelodge.com/authors/emma-psomas/
+          - generic [ref=f9e936]:
+            - generic [ref=f9e937]:
+              - link [ref=f9e940] [cursor=pointer]:
+                - /url: https://www.gratitudelodge.com/authors/emma-psomas/
+                - heading "Emma Psomas" [level=3] [ref=f9e941]:
+                  - text: Emma
+                  - generic [ref=f9e942]: Psomas
+              - heading "Associate Therapist - AMFT" [level=4] [ref=f9e946]
+            - link [ref=f9e951] [cursor=pointer]:
+              - /url: https://www.linkedin.com/in/emmagui-psomas/
+              - generic [ref=f9e952]: 
+        - generic [ref=f9e954]:
+          - link [ref=f9e957] [cursor=pointer]:
+            - /url: https://www.gratitudelodge.com/authors/sean-oneill/
+          - generic [ref=f9e958]:
+            - generic [ref=f9e959]:
+              - link [ref=f9e962] [cursor=pointer]:
+                - /url: https://www.gratitudelodge.com/authors/sean-oneill/
+                - heading "Sean O'Neill" [level=3] [ref=f9e963]:
+                  - text: Sean
+                  - generic [ref=f9e964]: O'Neill
+              - heading "Clinical Director - LMFT" [level=4] [ref=f9e968]
+            - link [ref=f9e973] [cursor=pointer]:
+              - /url: https://www.linkedin.com/company/gratitude-lodge
+              - generic [ref=f9e974]: 
+    - generic [ref=f9e976]:
+      - generic [ref=f9e977]:
+        - generic [ref=f9e978]:
+          - heading "Connect With Us" [level=2] [ref=f9e981]
+          - generic [ref=f9e982]: Check out our social content for facility videos, client interviews, recovery content, & more!
+        - region "Carousel" [ref=f9e986]:
+          - generic [ref=f9e987]:
+            - group "1 of 8" [ref=f9e988]
+            - group "2 of 8" [ref=f9e993]
+            - group "3 of 8" [ref=f9e998]
+            - group "4 of 8" [ref=f9e1003]
+            - group "5 of 8" [ref=f9e1008]
+            - group "6 of 8" [ref=f9e1013]
+            - group "7 of 8" [ref=f9e1018]
+            - group "8 of 8" [ref=f9e1023]
+      - heading "Contact Us" [level=2] [ref=f9e1031]
+  - contentinfo [ref=f9e1062]:
+    - generic [ref=f9e1064]:
+      - generic [ref=f9e1066]:
+        - link [ref=f9e1069] [cursor=pointer]:
+          - /url: https://www.gratitudelodge.com
+          - img "Site logo" [ref=f9e1070]
+        - paragraph [ref=f9e1073]:
+          - link "Licensed by the Department of Health Care Services" [ref=f9e1075] [cursor=pointer]:
+            - /url: https://data.chhs.ca.gov/dataset/sud-recovery-treatment-facilities
+        - link [ref=f9e1078] [cursor=pointer]:
+          - /url: https://data.chhs.ca.gov/dataset/sud-recovery-treatment-facilities
+          - img "DHCS logo" [ref=f9e1079]
+        - paragraph [ref=f9e1082]: License details
+        - list [ref=f9e1085]:
+          - listitem [ref=f9e1086]:
+            - generic [ref=f9e1087]: Belmont 190119BP EXP 5/31/28
+          - listitem [ref=f9e1088]:
+            - generic [ref=f9e1089]: Chatwin 19011AP EXP 10/31/26
+          - listitem [ref=f9e1090]:
+            - generic [ref=f9e1091]: Orchard 300280GP EXP 5/31/27
+          - listitem [ref=f9e1092]:
+            - generic [ref=f9e1093]: Redlands 300280FP EXP 4/30/27
+      - generic [ref=f9e1095]:
+        - paragraph [ref=f9e1098]: Explore Our Links
+        - list [ref=f9e1101]:
+          - listitem [ref=f9e1102]:
+            - link "Rehab Admissions" [ref=f9e1103] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/rehab-admissions/
+          - listitem [ref=f9e1105]:
+            - link "Check My Insurance" [ref=f9e1106] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/check-my-insurance/
+          - listitem [ref=f9e1108]:
+            - link "SUD Recovery Treatment Facilities" [ref=f9e1109] [cursor=pointer]:
+              - /url: https://data.chhs.ca.gov/dataset/sud-recovery-treatment-facilities
+        - list [ref=f9e1113]:
+          - listitem [ref=f9e1114]:
+            - link "Facebook" [ref=f9e1115] [cursor=pointer]:
+              - /url: https://www.facebook.com/gratitudelodgeca
+              - generic [ref=f9e1117]: 
+          - listitem [ref=f9e1118]:
+            - link "Linkedin" [ref=f9e1119] [cursor=pointer]:
+              - /url: https://www.linkedin.com/company/gratitude-lodge
+              - generic [ref=f9e1121]: 
+          - listitem [ref=f9e1122]:
+            - link "Instagram" [ref=f9e1123] [cursor=pointer]:
+              - /url: https://www.linkedin.com/company/gratitude-lodge
+              - generic [ref=f9e1125]: 
+          - listitem [ref=f9e1126]:
+            - link "Pinterest" [ref=f9e1127] [cursor=pointer]:
+              - /url: https://www.pinterest.com/Gratitude_Lodge/
+              - generic [ref=f9e1129]: 
+          - listitem [ref=f9e1130]:
+            - link "Youtube" [ref=f9e1131] [cursor=pointer]:
+              - /url: https://www.youtube.com/channel/UCq_JeSiUcrxsf0bp39HTdig
+              - generic [ref=f9e1133]: 
+          - listitem [ref=f9e1134]:
+            - link "Twitter" [ref=f9e1135] [cursor=pointer]:
+              - /url: https://twitter.com/gratitudelodge/
+              - generic [ref=f9e1137]: 
+      - generic [ref=f9e1139]:
+        - paragraph [ref=f9e1142]: Contact Info
+        - list [ref=f9e1145]:
+          - listitem [ref=f9e1146]:
+            - link "info@gratitudelodge.com" [ref=f9e1147] [cursor=pointer]:
+              - /url: mailto:%20info@gratitudelodge.com
+              - generic [ref=f9e1148]: 
+          - listitem [ref=f9e1151]:
+            - link "949-676-9364" [ref=f9e1152] [cursor=pointer]:
+              - /url: tel:949-676-9364
+              - generic [ref=f9e1153]: 
+        - generic [ref=f9e1157]:
+          - link [ref=f9e1162] [cursor=pointer]:
+            - /url: https://www.legitscript.com/websites/?checker_keywords=gratitudelodge.com
+          - link [ref=f9e1167] [cursor=pointer]:
+            - /url: https://www.jointcommission.org/en-us/about-us/recognizing-excellence/find-accredited-organizations/632282
+            - img "an image of the Joint Commission's Gold Seal of Approval" [ref=f9e1168]
+          - link [ref=f9e1177] [cursor=pointer]:
+            - /url: https://recovery.com/gratitude-lodge-california/
+        - generic:
+          - generic:
+            - generic:
+              - generic:
+                - link:
+                  - /url: https://www.psychologytoday.com/profile/1063096
+      - generic [ref=f9e1179]:
+        - paragraph [ref=f9e1182]: Locations
+        - paragraph [ref=f9e1185]: Long Beach, CA
+        - paragraph [ref=f9e1188]:
+          - link "3849 Chatwin Ave Long Beach, CA 90808" [ref=f9e1189] [cursor=pointer]:
+            - /url: https://maps.app.goo.gl/dagDE2A6vJqbZjd57
+            - text: 3849 Chatwin AveLong Beach, CA 90808
+        - paragraph [ref=f9e1192]: Los Angeles County, CA
+        - paragraph [ref=f9e1195]:
+          - link "3010 E 1st St Long Beach, CA 90803" [ref=f9e1196] [cursor=pointer]:
+            - /url: https://maps.app.goo.gl/8vLjP8LVPRjrHzmQ9
+            - text: 3010 E 1st StLong Beach, CA 90803
+        - paragraph [ref=f9e1199]: Newport Beach, CA
+        - paragraph [ref=f9e1202]:
+          - link "20132 Redlands Dr Newport Beach, CA 92660" [ref=f9e1203] [cursor=pointer]:
+            - /url: https://maps.app.goo.gl/QbUTP52kZZzXT81M7
+            - text: 20132 Redlands DrNewport Beach, CA 92660
+        - paragraph [ref=f9e1206]: Orange County, CA
+        - paragraph [ref=f9e1209]:
+          - link "1661 Orchard Dr Newport Beach, CA 92660" [ref=f9e1210] [cursor=pointer]:
+            - /url: https://maps.app.goo.gl/9JVBbWRNgzZ7NyFX8
+            - text: 1661 Orchard DrNewport Beach, CA 92660
+    - text:        
+    - generic [ref=f9e1214]:
+      - generic [ref=f9e1215]: Copyright © 2026. All rights reserved.
+      - list [ref=f9e1219]:
+        - listitem [ref=f9e1220]:
+          - link "Gratitude Lodge" [ref=f9e1221] [cursor=pointer]:
+            - /url: https://www.gratitudelodge.com/
+            - generic [ref=f9e1222]: 
+        - listitem [ref=f9e1225]:
+          - link "Privacy Policy" [ref=f9e1226] [cursor=pointer]:
+            - /url: https://www.gratitudelodge.com/privacy-policy/
+            - generic [ref=f9e1227]: 
+        - listitem [ref=f9e1230]:
+          - link "Sitemap" [ref=f9e1231] [cursor=pointer]:
+            - /url: /sitemap/
+            - generic [ref=f9e1232]: 

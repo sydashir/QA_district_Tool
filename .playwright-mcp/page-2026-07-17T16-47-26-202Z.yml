@@ -1,0 +1,262 @@
+- generic [active] [ref=e1]:
+  - generic:
+    - link "Skip directly to site content" [ref=e2] [cursor=pointer]:
+      - /url: "#content"
+    - link "Skip directly to search" [ref=e3] [cursor=pointer]:
+      - /url: "#cdc-search__input"
+  - generic "Official website of the United States government" [ref=e5]:
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - generic [ref=e8]: An official website of the United States government
+        - button "Here's how you know" [ref=e11] [cursor=pointer]:
+          - text: Here's how you know
+          - generic [ref=e12]: 
+      - text: 
+  - banner [ref=e13]:
+    - generic [ref=e15]:
+      - link [ref=e17] [cursor=pointer]:
+        - /url: https://www.cdc.gov
+        - img "Centers for Disease Control and Prevention. CDC twenty four seven. Saving Lives, Protecting People" [ref=e18]
+      - generic [ref=e19]:
+        - link "Attention-Deficit / Hyperactivity Disorder (ADHD)" [ref=e21] [cursor=pointer]:
+          - /url: /adhd/index.html
+        - generic [ref=e22]:
+          - button "Explore This Topic " [ref=e24] [cursor=pointer]
+          - search [ref=e25]:
+            - button " Search" [ref=e26] [cursor=pointer]
+            - text:  
+    - text:                     
+  - main "Main Content Area" [ref=e27]:
+    - link "Español" [ref=e31] [cursor=pointer]:
+      - /url: /adhd/es/index.html
+    - generic [ref=e32]:
+      - generic [ref=e35]:
+        - generic [ref=e40]:
+          - generic [ref=e42]:
+            - figure [ref=e43]:
+              - link [ref=e45] [cursor=pointer]:
+                - /url: /adhd/data/index.html
+                - img "Doctor sitting on couch with mother and daughter going over chart." [ref=e46]
+            - generic [ref=e47]:
+              - link "Data on ADHD in Children" [ref=e49] [cursor=pointer]:
+                - /url: /adhd/data/index.html
+              - generic [ref=e50]: CDC's latest data on ADHD in U.S. children.
+              - link "Learn More" [ref=e52] [cursor=pointer]:
+                - /url: /adhd/data/index.html
+          - generic [ref=e53]:
+            - generic [ref=e54]:
+              - figure [ref=e55]:
+                - link [ref=e57] [cursor=pointer]:
+                  - /url: /adhd/about/index.html
+                  - img "A mother helping her son with homework" [ref=e58]
+              - generic [ref=e59]:
+                - link "About" [ref=e61] [cursor=pointer]:
+                  - /url: /adhd/about/index.html
+                - generic [ref=e62]: Read about ADHD, its types, symptoms, possible risk factors, screening, treatment, and CDC's work.
+            - generic [ref=e63]:
+              - figure [ref=e64]:
+                - link [ref=e66] [cursor=pointer]:
+                  - /url: /adhd/data/adhd-in-adults.html
+                  - img "Young adult female patient talking with doctor" [ref=e67]
+              - generic [ref=e68]:
+                - link "Data on ADHD in Adults" [ref=e70] [cursor=pointer]:
+                  - /url: /adhd/data/adhd-in-adults.html
+                - generic [ref=e71]: Explore more information about ADHD in adults.
+            - generic [ref=e72]:
+              - figure [ref=e73]:
+                - link [ref=e75] [cursor=pointer]:
+                  - /url: /adhd/php/across-the-lifetime-toolkit/index.html
+                  - img "An informational graphic showing text on an orange background with multiple hands holding the ADHD ribbons. Visit cdc.gov/ADHD" [ref=e76]
+              - generic [ref=e77]:
+                - link "ADHD Awareness Toolkit" [ref=e79] [cursor=pointer]:
+                  - /url: /adhd/php/across-the-lifetime-toolkit/index.html
+                - generic [ref=e80]: Find and share ADHD resources using CDC's partner toolkit.
+        - generic [ref=e81]:
+          - generic "Featured"
+          - heading "Featured" [level=2] [ref=e82]
+          - generic [ref=e83]:
+            - generic [ref=e84]:
+              - generic [ref=e86]:
+                - figure [ref=e87]:
+                  - link [ref=e89] [cursor=pointer]:
+                    - /url: /adhd/signs-symptoms/index.html
+                    - img "A mother and her son playing at the kitchen table" [ref=e90]
+                - generic [ref=e91]:
+                  - link "Symptoms" [ref=e93] [cursor=pointer]:
+                    - /url: /adhd/signs-symptoms/index.html
+                  - generic [ref=e94]: ADHD symptoms can change over time and present themselves in three different ways.
+              - generic [ref=e96]:
+                - figure [ref=e97]:
+                  - link [ref=e99] [cursor=pointer]:
+                    - /url: /adhd/diagnosis/index.html
+                    - img "A mother and daughter visiting the doctor's office" [ref=e100]
+                - generic [ref=e101]:
+                  - link "Diagnosing" [ref=e103] [cursor=pointer]:
+                    - /url: /adhd/diagnosis/index.html
+                  - generic [ref=e104]: Diagnosing ADHD is a process with several steps.
+            - generic [ref=e105]:
+              - generic [ref=e107]:
+                - figure [ref=e108]:
+                  - link [ref=e110] [cursor=pointer]:
+                    - /url: /adhd/treatment/index.html
+                    - img "Two parents helping their sons with homework" [ref=e111]
+                - generic [ref=e112]:
+                  - link "Treatment" [ref=e114] [cursor=pointer]:
+                    - /url: /adhd/treatment/index.html
+                  - generic [ref=e115]: ADHD treatment recommendations vary by age group.
+              - generic [ref=e117]:
+                - figure [ref=e118]:
+                  - link [ref=e120] [cursor=pointer]:
+                    - /url: /adhd/data/state-territory-data.html
+                    - img "A young boy with his parents on the couch pointing at a tablet" [ref=e121]
+                - generic [ref=e122]:
+                  - link "ADHD Data and Resources for States" [ref=e124] [cursor=pointer]:
+                    - /url: /adhd/data/state-territory-data.html
+                  - generic [ref=e125]: Read this page for more information and resources on ADHD.
+            - generic [ref=e126]:
+              - generic [ref=e128]:
+                - figure [ref=e129]:
+                  - link [ref=e131] [cursor=pointer]:
+                    - /url: /adhd/treatment/classroom.html
+                    - img "A teacher is helping a student in the classroom" [ref=e132]
+                - generic [ref=e133]:
+                  - link "ADHD in the Classroom" [ref=e135] [cursor=pointer]:
+                    - /url: /adhd/treatment/classroom.html
+                  - generic [ref=e136]: Resources for teachers and school administrators to help children with ADHD succeed in school.
+              - generic [ref=e138]:
+                - figure [ref=e139]:
+                  - link [ref=e141] [cursor=pointer]:
+                    - /url: /adhd/about/adhd-in-adults.html
+                    - img "Collage of diverse group of adults." [ref=e142]
+                - generic [ref=e143]:
+                  - link "ADHD in Adults" [ref=e145] [cursor=pointer]:
+                    - /url: /adhd/about/adhd-in-adults.html
+                  - generic [ref=e146]: ADHD symptoms start in childhood and can continue into adulthood but may look different in adults.
+      - text: 
+  - generic [ref=e148]:
+    - generic [ref=e149]:
+      - heading [level=2] [ref=e150]:
+        - link "Attention-Deficit / Hyperactivity Disorder (ADHD)" [ref=e151] [cursor=pointer]:
+          - /url: /adhd/index.html
+          - generic [ref=e152]: 
+          - generic [ref=e153]:
+            - text: Attention-Deficit / Hyperactivity Disorder (ADHD)
+            - generic [ref=e154]: 
+      - paragraph [ref=e155]: CDC's Attention-Deficit / Hyperactivity Disorder (ADHD) site includes information on symptoms, diagnosis, treatment, data, research, and free resources.
+      - link "View All " [ref=e156] [cursor=pointer]:
+        - /url: /adhd/site.html
+    - generic [ref=e157]:
+      - generic [ref=e158]:
+        - generic [ref=e159]:
+          - heading [level=3] [ref=e160]:
+            - link "For Everyone " [ref=e161] [cursor=pointer]:
+              - /url: /adhd/index.html#gen
+              - text: For Everyone
+              - generic [ref=e162]: 
+          - list [ref=e163]:
+            - listitem [ref=e164]:
+              - link "About" [ref=e165] [cursor=pointer]:
+                - /url: /adhd/about/index.html
+            - listitem [ref=e166]:
+              - link "Symptoms" [ref=e167] [cursor=pointer]:
+                - /url: /adhd/signs-symptoms/index.html
+            - listitem [ref=e168]:
+              - link "Diagnosing" [ref=e169] [cursor=pointer]:
+                - /url: /adhd/diagnosis/index.html
+            - listitem [ref=e170]:
+              - link "Treatment" [ref=e171] [cursor=pointer]:
+                - /url: /adhd/treatment/index.html
+            - listitem [ref=e172]:
+              - link "Data on ADHD in Children" [ref=e173] [cursor=pointer]:
+                - /url: /adhd/data/index.html
+            - listitem [ref=e174]:
+              - link "Other Topics" [ref=e175] [cursor=pointer]:
+                - /url: /adhd/other-topics/index.html
+        - generic [ref=e176]:
+          - generic [ref=e177]:
+            - heading [level=3] [ref=e178]:
+              - link "Health Care Providers " [ref=e179] [cursor=pointer]:
+                - /url: /adhd/site.html#hcp
+                - text: Health Care Providers
+                - generic [ref=e180]: 
+            - list [ref=e181]:
+              - listitem [ref=e182]:
+                - link "Clinical Care" [ref=e183] [cursor=pointer]:
+                  - /url: /adhd/hcp/clinical-care/index.html
+          - generic [ref=e184]:
+            - heading [level=3] [ref=e185]:
+              - link "Public Health " [ref=e186] [cursor=pointer]:
+                - /url: /adhd/site.html#php
+                - text: Public Health
+                - generic [ref=e187]: 
+            - list [ref=e188]:
+              - listitem [ref=e189]:
+                - link "ADHD Awareness Toolkit" [ref=e190] [cursor=pointer]:
+                  - /url: /adhd/php/across-the-lifetime-toolkit/index.html
+              - listitem [ref=e191]:
+                - link "Scientific Articles" [ref=e192] [cursor=pointer]:
+                  - /url: /adhd/php/articles/index.html
+              - listitem [ref=e193]:
+                - link "Materials and Resources" [ref=e194] [cursor=pointer]:
+                  - /url: /adhd/php/communication-resources/index.html
+      - generic [ref=e196]:
+        - img [ref=e197]: 
+        - link "Sign up for Email Updates" [ref=e198] [cursor=pointer]:
+          - /url: https://tools.cdc.gov/campaignproxyservice/subscriptions.aspx#featured
+        - img [ref=e199]: 
+  - contentinfo [ref=e200]:
+    - navigation [ref=e202]:
+      - generic [ref=e204]:
+        - button "Contact Us " [ref=e205] [cursor=pointer]:
+          - text: Contact Us
+          - generic [ref=e206]: 
+        - button "About CDC " [ref=e207] [cursor=pointer]:
+          - text: About CDC
+          - generic [ref=e208]: 
+        - button "Policies " [ref=e209] [cursor=pointer]:
+          - text: Policies
+          - generic [ref=e210]: 
+        - button "Languages " [ref=e211] [cursor=pointer]:
+          - text: Languages
+          - generic [ref=e212]: 
+        - button "Archive " [ref=e213] [cursor=pointer]:
+          - text: Archive
+          - generic [ref=e214]: 
+    - text:        
+    - generic [ref=e216]:
+      - link [ref=e218] [cursor=pointer]:
+        - /url: https://www.cdc.gov/
+        - img "Centers for Disease Control and Prevention" [ref=e219]
+      - generic [ref=e220]:
+        - generic [ref=e221]:
+          - link [ref=e222] [cursor=pointer]:
+            - /url: https://www.facebook.com/CDC
+            - img "facebook icon" [ref=e223]:  
+          - link [ref=e224] [cursor=pointer]:
+            - /url: https://twitter.com/CDCgov
+            - img "x icon" [ref=e225]:  
+          - link [ref=e226] [cursor=pointer]:
+            - /url: https://www.instagram.com/CDCgov
+            - img "instagram icon" [ref=e227]:  
+          - link [ref=e228] [cursor=pointer]:
+            - /url: https://www.linkedin.com/company/centers-for-disease-control-and-prevention
+            - img "linkedin icon" [ref=e229]:  
+        - generic [ref=e230]:
+          - link [ref=e231] [cursor=pointer]:
+            - /url: https://www.youtube.com/cdc
+            - img "youtube icon" [ref=e232]:  
+          - link [ref=e233] [cursor=pointer]:
+            - /url: https://www.pinterest.com/cdcgov
+            - img "pinterest icon" [ref=e234]:  
+          - link [ref=e235] [cursor=pointer]:
+            - /url: https://www.snapchat.com/add/cdcgov
+            - img "snapchat icon" [ref=e236]:  
+          - link [ref=e237] [cursor=pointer]:
+            - /url: https://www.cdc.gov/rss
+            - img "rss icon" [ref=e238]:  
+    - generic [ref=e240]:
+      - link "HHS.gov" [ref=e241] [cursor=pointer]:
+        - /url: https://hhs.gov
+      - link "USA.gov" [ref=e242] [cursor=pointer]:
+        - /url: https://usa.gov
+  - text:  TOP

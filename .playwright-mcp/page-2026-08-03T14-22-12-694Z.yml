@@ -1,0 +1,751 @@
+- generic [active] [ref=f4e1]:
+  - link "Skip to content" [ref=f4e2] [cursor=pointer]:
+    - /url: "#content"
+  - banner [ref=f4e3]:
+    - generic [ref=f4e5]:
+      - link [ref=f4e8] [cursor=pointer]:
+        - /url: https://www.gratitudelodge.com
+        - img "Gratitude Lodge logo" [ref=f4e9]
+      - generic [ref=f4e12]:
+        - generic [ref=f4e13]: About Us
+        - generic [ref=f4e17]: Locations
+        - generic [ref=f4e21]: What We Treat
+        - generic [ref=f4e25]: Mental Health
+        - generic [ref=f4e29]: Admissions
+        - link "Contact" [ref=f4e33] [cursor=pointer]:
+          - /url: https://www.gratitudelodge.com/contact-us/
+      - link "844-576-0144" [ref=f4e37] [cursor=pointer]:
+        - /url: tel:844-576-0144
+  - generic [ref=f4e40]:
+    - text:   
+    - generic [ref=f4e44]:
+      - heading "Orange County Benzo Rehab & Addiction Treatment" [level=1] [ref=f4e47]
+      - generic [ref=f4e48]:
+        - heading "5000+ Patients Treated" [level=4] [ref=f4e54]
+        - heading "15 Licenses & Certifications" [level=4] [ref=f4e60]
+        - heading "Gym Access" [level=4] [ref=f4e66]
+        - generic [ref=f4e67]:
+          - img "gratitude-lodge-beach-icon" [ref=f4e70]
+          - heading "Walk to the Beach" [level=4] [ref=f4e73]
+        - heading "4.9 Review Rating (320+)" [level=4] [ref=f4e79]
+        - heading "Cooked & Catered Meals" [level=4] [ref=f4e85]
+      - generic [ref=f4e87]:
+        - link "844-576-0144" [ref=f4e91] [cursor=pointer]:
+          - /url: tel:844-576-0144
+        - link "VERIFY INSURANCE" [ref=f4e97] [cursor=pointer]:
+          - /url: "#elementor-action%3Aaction%3Dpopup%3Aopen%26settings%3DeyJpZCI6IjM1MTM0IiwidG9nZ2xlIjpmYWxzZX0%3D"
+    - generic [ref=f4e106]:
+      - heading "Orange County Inpatient Residential Programs for Benzo Addiction" [level=2] [ref=f4e109]
+      - generic [ref=f4e111]:
+        - paragraph [ref=f4e112]: Breaking free from benzodiazepine addiction presents unique challenges, particularly when dependency stems from legitimate medical treatment for anxiety, insomnia, or related conditions. Understanding how rapidly tolerance develops is something we recognize at Gratitude Lodge, along with the ways physical and psychological dependency can influence your everyday decisions and mindset. Facing addiction requires courage – but support is always available to help you through this journey.
+        - paragraph [ref=f4e113]: Round-the-clock medically supervised detox awaits you at our inpatient benzo rehab in Orange County, providing compassionate support within a structured healing environment where safe withdrawal and recovery can begin. Individualized treatment plans are developed for every client, potentially incorporating evidence-based approaches like CBT, DBT, mindfulness practices, and trauma-informed therapy.
+        - paragraph [ref=f4e114]: Within our peaceful, oceanside environment, individuals discover the opportunity to rest, rebuild stability, and reconnect with inner calm after periods of feeling overwhelmed. Should you be prepared to embrace transformation, our committed professionals stand ready to support your recovery journey at every stage.
+    - generic [ref=f4e116]:
+      - heading "Inside the Gratitude Lodge Benzo Detox & Recovery Experience" [level=2] [ref=f4e120]
+      - generic [ref=f4e125]:
+        - generic [ref=f4e126]:
+          - img "Gallery image" [ref=f4e128] [cursor=pointer]
+          - img "Gallery image" [ref=f4e132] [cursor=pointer]
+          - img "Gallery image" [ref=f4e136] [cursor=pointer]
+          - img "Gallery image" [ref=f4e140] [cursor=pointer]
+          - img "Gallery image" [ref=f4e144] [cursor=pointer]
+          - img "Gallery image" [ref=f4e148] [cursor=pointer]
+          - img "Gallery image" [ref=f4e152] [cursor=pointer]
+          - img "Gallery image" [ref=f4e156] [cursor=pointer]
+          - img "Gallery image" [ref=f4e160] [cursor=pointer]
+          - img "Gallery image" [ref=f4e164] [cursor=pointer]
+          - img "Gallery image" [ref=f4e168] [cursor=pointer]
+          - img "Gallery image" [ref=f4e172] [cursor=pointer]
+          - img "Gallery image" [ref=f4e176] [cursor=pointer]
+        - button "Show all photos ↓" [ref=f4e179] [cursor=pointer]
+    - generic [ref=f4e182]:
+      - iframe [ref=f4e185]:
+        
+      - heading "Rising Benzo Misuse and Overdose In Orange County" [level=2] [ref=f4e188]
+      - generic [ref=f4e190]:
+        - paragraph [ref=f4e191]
+        - paragraph [ref=f4e192]:
+          - text: In
+          - strong [ref=f4e193]: Orange County
+          - text: ", data shows a steady increase in prescription misuse and overdose concerns connected to benzodiazepines and other sedative medications. Out of a total population of"
+          - strong [ref=f4e194]: "3186989"
+          - text: in
+          - strong [ref=f4e195]: "2023"
+          - text: ", approximately"
+          - strong [ref=f4e196]: "28500"
+          - text: individuals reported benzodiazepine or sedative misuse in
+          - strong [ref=f4e197]: "2023"
+          - text: .
+        - paragraph [ref=f4e198]:
+          - text: This represents a
+          - strong [ref=f4e199]: 8.3%
+          - strong
+          - text: from
+          - strong [ref=f4e200]: "2022"
+          - text: ", contributing to overdose-related deaths.These numbers highlight a growing need for education, prevention, and accessible treatment for those affected by prescription dependency and misuse."
+        - paragraph [ref=f4e201]:
+          - text: If you or someone you love has been affected by Benzo misuse, our
+          - strong [ref=f4e202]: addiction and mental health treatment programs
+          - text: in
+          - strong [ref=f4e203]: Orange County
+          - text: can help. We provide evidence-based care, professional guidance, and compassionate support to help you begin the journey toward recovery and balance.
+        - paragraph [ref=f4e204]
+      - link "Call Now" [ref=f4e208] [cursor=pointer]:
+        - /url: tel:+18006929850
+    - generic [ref=f4e211]: Benzo Recovery Stories from Gratitude Lodge Alumni
+    - generic [ref=f4e218]:
+      - generic [ref=f4e219]:
+        - heading "Location Overview" [level=2] [ref=f4e222]
+        - paragraph [ref=f4e225]: Our clean and modern facilities are located near beautiful beaches and a thriving sober community. Clients enjoy easy access to local hiking spots, beaches, restaurants & more nearby.
+      - generic [ref=f4e226]:
+        - generic [ref=f4e227]:
+          - list [ref=f4e230]:
+            - listitem [ref=f4e231]:
+              - generic [ref=f4e235]: Close to The Beach
+          - list [ref=f4e238]:
+            - listitem [ref=f4e239]:
+              - generic [ref=f4e243]: National Parks Nearby
+        - generic [ref=f4e244]:
+          - list [ref=f4e247]:
+            - listitem [ref=f4e248]:
+              - generic [ref=f4e252]: Mild, Comfortable Weather
+          - list [ref=f4e255]:
+            - listitem [ref=f4e256]:
+              - generic [ref=f4e260]: Strong Local Sober Community
+    - generic [ref=f4e262]:
+      - heading "Community Awareness and Expanding Access to Treatment" [level=2] [ref=f4e267]
+      - generic [ref=f4e269]:
+        - paragraph [ref=f4e270]
+        - paragraph [ref=f4e271]:
+          - text: As awareness of prescription drug misuse grows,
+          - strong [ref=f4e272]: Orange County
+          - text: has made significant strides in improving access to recovery resources. In
+          - strong
+          - text: ", there were"
+          - strong [ref=f4e273]: "12"
+          - text: local news stories highlighting efforts to prevent overdoses, promote safe medication use, and expand access to care. These reports reflect a growing community commitment to addressing substance misuse and supporting recovery.
+        - paragraph [ref=f4e274]:
+          - text: With
+          - strong [ref=f4e275]: "31"
+          - text: treatment centers now serving the area, individuals in
+          - strong [ref=f4e276]: Orange County
+          - text: have greater opportunities to seek help for benzodiazepine dependency and co-occurring mental health conditions. From detox to therapy and long-term aftercare, these facilities are designed to support healing in every stage of recovery.
+        - paragraph [ref=f4e277]:
+          - text: If you or a loved one is ready to begin treatment, our
+          - strong [ref=f4e278]: comprehensive rehab programs
+          - text: can help you find trusted care in
+          - strong [ref=f4e279]: Orange County
+          - text: ", offering guidance, stability, and a clear path toward lasting recovery."
+        - paragraph [ref=f4e280]
+      - link "Call Now" [ref=f4e284] [cursor=pointer]:
+        - /url: tel:+18006929850
+    - generic [ref=f4e287]:
+      - heading "Learn About Gratitude Lodge" [level=2] [ref=f4e290]
+      - generic "Accordion. Open links with Enter or Space, close with Escape, and navigate with Arrow Keys" [ref=f4e293]:
+        - group [ref=f4e294]:
+          - generic "Our Admissions Process" [ref=f4e295] [cursor=pointer]:
+            - generic [ref=f4e298]:
+              - generic [ref=f4e299]: 
+              - text: 
+          - 'region "Our Admissions Process Gratitude Lodge Rehab Admission Process: Step-by-Step Step 1 Share your story: Connect with us and let us understand your background, challenges, and goals for recovery. Step 2 Complete a simple pre-screening: Answer a few questions so we can assess your needs and coverage. Step 3 Get your personalized treatment plan: We’ll recommend the program best suited to your situation and goals. Step 4 Coordinate your journey: Our team helps you arrange travel, admissions details, and next steps. Step 5 Begin your recovery: Arrive at your chosen facility and start the healing process with confidence." [ref=f4e301]':
+            - table [ref=f4e304]:
+              - rowgroup [ref=f4e305]:
+                - row [ref=f4e306]:
+                  - columnheader [ref=f4e307]:
+                    - 'heading "Gratitude Lodge Rehab Admission Process: Step-by-Step" [level=3] [ref=f4e308]'
+              - rowgroup [ref=f4e309]:
+                - row [ref=f4e310]:
+                  - cell [ref=f4e311]:
+                    - strong [ref=f4e312]: Step 1
+                  - cell [ref=f4e313]:
+                    - strong [ref=f4e314]: "Share your story:"
+                    - text: Connect with us and let us understand your background, challenges, and goals for recovery.
+                - row [ref=f4e315]:
+                  - cell [ref=f4e316]:
+                    - strong [ref=f4e317]: Step 2
+                  - cell [ref=f4e318]:
+                    - strong [ref=f4e319]: "Complete a simple pre-screening:"
+                    - text: Answer a few questions so we can assess your needs and coverage.
+                - row [ref=f4e320]:
+                  - cell [ref=f4e321]:
+                    - strong [ref=f4e322]: Step 3
+                  - cell [ref=f4e323]:
+                    - strong [ref=f4e324]: "Get your personalized treatment plan:"
+                    - text: We’ll recommend the program best suited to your situation and goals.
+                - row [ref=f4e325]:
+                  - cell [ref=f4e326]:
+                    - strong [ref=f4e327]: Step 4
+                  - cell [ref=f4e328]:
+                    - strong [ref=f4e329]: "Coordinate your journey:"
+                    - text: Our team helps you arrange travel, admissions details, and next steps.
+                - row [ref=f4e330]:
+                  - cell [ref=f4e331]:
+                    - strong [ref=f4e332]: Step 5
+                  - cell [ref=f4e333]:
+                    - strong [ref=f4e334]: "Begin your recovery:"
+                    - text: Arrive at your chosen facility and start the healing process with confidence.
+        - group [ref=f4e335]:
+          - generic "Accreditations" [ref=f4e336] [cursor=pointer]:
+            - generic [ref=f4e339]:
+              - text: 
+              - generic [ref=f4e340]: 
+        - group [ref=f4e342]:
+          - generic "Our Staff" [ref=f4e343] [cursor=pointer]:
+            - generic [ref=f4e346]:
+              - text: 
+              - generic [ref=f4e347]: 
+        - group [ref=f4e349]:
+          - generic "What Addictions Do We Treat?" [ref=f4e350] [cursor=pointer]:
+            - generic [ref=f4e353]:
+              - text: 
+              - generic [ref=f4e354]: 
+        - group [ref=f4e356]:
+          - generic "Levels of Addiction Treatment" [ref=f4e357] [cursor=pointer]:
+            - generic [ref=f4e360]:
+              - text: 
+              - generic [ref=f4e361]: 
+        - group [ref=f4e363]:
+          - generic "Treatment Therapies" [ref=f4e364] [cursor=pointer]:
+            - generic [ref=f4e367]:
+              - text: 
+              - generic [ref=f4e368]: 
+    - generic [ref=f4e371]:
+      - heading "Effective Orange County Benzo Detox & Inpatient Programs Explained" [level=2] [ref=f4e375]
+      - generic [ref=f4e377]:
+        - paragraph [ref=f4e378]: Medical detoxification and inpatient treatment for prescription medications like benzodiazepines provide critical clinical oversight and structured protocols essential for safe withdrawal, leading to stabilization and improved participation in evidence-based therapeutic interventions that support lasting recovery.
+        - paragraph [ref=f4e379]: At Gratitude Lodge in Orange County, our certified clinical team delivers continuous supervised benzo withdrawal care while we target co-occurring anxiety conditions and emotional catalysts that commonly contribute to abuse and dependence. Research-supported cognitive therapies combine with comprehensive wellness approaches to encourage physical healing together with mental health restoration.
+        - paragraph [ref=f4e380]: Customized care strategies honor each individual’s specific goals and integrate treatment methods such as CBT, meditation techniques, and trauma-sensitive interventions. Guiding your path toward renewed balance, effective anxiety coping skills, and lasting serenity represents our core commitment within our compassionate, therapeutic environment.
+      - link "Verify Your Insurance" [ref=f4e384] [cursor=pointer]:
+        - /url: "#elementor-action%3Aaction%3Dpopup%3Aopen%26settings%3DeyJpZCI6IjM1MTM0IiwidG9nZ2xlIjpmYWxzZX0%3D"
+    - generic [ref=f4e388]:
+      - heading "Why Trust Us With Your Care" [level=2] [ref=f4e391]
+      - generic [ref=f4e392]:
+        - generic [ref=f4e393]:
+          - generic [ref=f4e396]:
+            - paragraph [ref=f4e397]: Lives Treated
+            - generic [ref=f4e398]:
+              - generic [ref=f4e400]: "0"
+              - generic [ref=f4e401]: +
+          - generic [ref=f4e402]: Real people. Real recovery. Real impact.
+        - generic [ref=f4e404]:
+          - generic [ref=f4e407]:
+            - paragraph [ref=f4e408]: Licensed Professionals
+            - generic [ref=f4e409]: "0"
+          - generic [ref=f4e413]: Experienced, compassionate, and committed to your healing.
+        - generic [ref=f4e415]:
+          - generic [ref=f4e418]:
+            - paragraph [ref=f4e419]: States Served
+            - generic [ref=f4e420]:
+              - generic [ref=f4e422]: "0"
+              - generic [ref=f4e423]: +
+          - generic [ref=f4e424]: Patients travel from almost every state to come to our California Rehab.
+        - generic [ref=f4e426]:
+          - generic [ref=f4e429]:
+            - paragraph [ref=f4e430]: Verified Reviews
+            - generic [ref=f4e431]:
+              - generic [ref=f4e433]: "0"
+              - generic [ref=f4e434]: +
+          - generic [ref=f4e435]: Clients trust us and share their stories.
+      - region "Carousel" [ref=f4e441]:
+        - generic [ref=f4e442]:
+          - group "1 of 5" [ref=f4e443]:
+            - link [ref=f4e448] [cursor=pointer]:
+              - /url: https://www.legitscript.com/websites/?checker_keywords=gratitudelodge.com
+          - group "2 of 5" [ref=f4e449]:
+            - link [ref=f4e454] [cursor=pointer]:
+              - /url: https://www.jointcommission.org/en-us/about-us/recognizing-excellence/find-accredited-organizations/632282
+              - img "an image of the Joint Commission's Gold Seal of Approval" [ref=f4e455]
+          - group "3 of 5" [ref=f4e456]
+          - group "4 of 5" [ref=f4e461]
+          - group "5 of 5" [ref=f4e466]:
+            - link [ref=f4e471] [cursor=pointer]:
+              - /url: https://recovery.com/gratitude-lodge-california/
+    - generic [ref=f4e473]:
+      - 'heading "The Reality of Relapse: Why Rehab Matters" [level=2] [ref=f4e477]'
+      - generic [ref=f4e478]:
+        - generic [ref=f4e479]:
+          - heading "85% Relapse" [level=2] [ref=f4e484]
+          - heading "Without treatment" [level=4] [ref=f4e487]
+          - paragraph [ref=f4e490]: Within the 1st year of sobriety. Most people struggling with substance use disorder who do not get treatment relapse within months.
+        - generic [ref=f4e491]:
+          - heading "25-50% More Success" [level=2] [ref=f4e496]
+          - heading "With treatment" [level=4] [ref=f4e499]
+          - paragraph [ref=f4e502]: Recovery rates improve with each level of care completed in the addiction treatment journey.
+    - generic [ref=f4e503]:
+      - generic [ref=f4e504]:
+        - generic [ref=f4e505]:
+          - heading "The Addiction Therapies We Use" [level=2] [ref=f4e508]
+          - paragraph [ref=f4e511]: Gratitude Lodge uses addiction therapies that are backed by latest science in addiction treatment and are administered by our expert clinicians.
+        - link "Learn More" [ref=f4e516] [cursor=pointer]:
+          - /url: /contact-us/
+      - generic "Accordion. Open links with Enter or Space, close with Escape, and navigate with Arrow Keys" [ref=f4e521]:
+        - group [ref=f4e522]:
+          - generic "Cognitive Behavioral Therapy (CBT)" [ref=f4e523] [cursor=pointer]:
+            - generic [ref=f4e526]:
+              - generic [ref=f4e527]: 
+              - text: 
+          - region "Cognitive Behavioral Therapy (CBT) CBT helps individuals identify and change negative thought patterns and behaviors that contribute to addiction and mental health challenges. By learning practical coping strategies, clients gain healthier ways to manage stress and triggers in daily life." [ref=f4e529]:
+            - paragraph [ref=f4e532]: CBT helps individuals identify and change negative thought patterns and behaviors that contribute to addiction and mental health challenges. By learning practical coping strategies, clients gain healthier ways to manage stress and triggers in daily life.
+        - group [ref=f4e533]:
+          - generic "Dialectical Behavior Therapy (DBT)" [ref=f4e534] [cursor=pointer]:
+            - generic [ref=f4e537]:
+              - text: 
+              - generic [ref=f4e538]: 
+        - group [ref=f4e540]:
+          - generic "Medication-Assisted Treatment (MAT)" [ref=f4e541] [cursor=pointer]:
+            - generic [ref=f4e544]:
+              - text: 
+              - generic [ref=f4e545]: 
+        - group [ref=f4e547]:
+          - generic "Group & Family Therapy" [ref=f4e548] [cursor=pointer]:
+            - generic [ref=f4e551]:
+              - text: 
+              - generic [ref=f4e552]: 
+        - group [ref=f4e554]:
+          - generic "Couples Rehab" [ref=f4e555] [cursor=pointer]:
+            - generic [ref=f4e558]:
+              - text: 
+              - generic [ref=f4e559]: 
+    - generic [ref=f4e561]:
+      - generic [ref=f4e562]:
+        - generic [ref=f4e563]:
+          - heading "Levels of Care in Addiction Treatment" [level=2] [ref=f4e566]
+          - paragraph [ref=f4e569]: "Starting your journey toward recovery at Gratitude Lodge is simple, fast, and fully supported. We offer same-day and next-day admissions, because when you’re ready to get help, there shouldn’t be any delays. Walk-ins are also welcome—we’re here when you’re ready to take that first step. From the moment you reach out, our compassionate admissions team will guide you through every part of the process, from insurance verification to creating a personalized treatment plan tailored to your needs. Our goal is to make the process stress-free, so you can focus on what matters most: your healing and recovery."
+        - link "Learn More" [ref=f4e574] [cursor=pointer]:
+          - /url: /contact-us/
+      - generic "Accordion. Open links with Enter or Space, close with Escape, and navigate with Arrow Keys" [ref=f4e579]:
+        - group [ref=f4e580]:
+          - generic "Medically-Supervised Detox" [ref=f4e581] [cursor=pointer]:
+            - generic [ref=f4e584]:
+              - generic [ref=f4e585]: 
+              - text: 
+          - region "Medically-Supervised Detox A supervised medical process that manages withdrawal symptoms to prepare individuals for ongoing treatment." [ref=f4e587]:
+            - paragraph [ref=f4e590]: A supervised medical process that manages withdrawal symptoms to prepare individuals for ongoing treatment.
+        - group [ref=f4e591]:
+          - generic "Inpatient Residential Addiction & Mental Health Treatment" [ref=f4e592] [cursor=pointer]:
+            - generic [ref=f4e595]:
+              - text: 
+              - generic [ref=f4e596]: 
+        - group [ref=f4e598]:
+          - generic "Partial Hospitalization Program (PHP)" [ref=f4e599] [cursor=pointer]:
+            - generic [ref=f4e602]:
+              - text: 
+              - generic [ref=f4e603]: 
+        - group [ref=f4e605]:
+          - generic "Intensive Outpatient Program (IOP)" [ref=f4e606] [cursor=pointer]:
+            - generic [ref=f4e609]:
+              - text: 
+              - generic [ref=f4e610]: 
+        - group [ref=f4e612]:
+          - generic "Outpatient Program (OP)" [ref=f4e613] [cursor=pointer]:
+            - generic [ref=f4e616]:
+              - text: 
+              - generic [ref=f4e617]: 
+        - group [ref=f4e619]:
+          - generic "Aftercare" [ref=f4e620] [cursor=pointer]:
+            - generic [ref=f4e623]:
+              - text: 
+              - generic [ref=f4e624]: 
+    - generic [ref=f4e627]:
+      - heading "Gratitude Lodge Admissions" [level=2] [ref=f4e630]
+      - paragraph [ref=f4e633]: "Starting your journey toward recovery at Gratitude Lodge is simple, fast, and fully supported. We offer same-day and next-day admissions, because when you’re ready to get help, there shouldn’t be any delays. Walk-ins are also welcome—we’re here when you’re ready to take that first step. From the moment you reach out, our compassionate admissions team will guide you through every part of the process, from insurance verification to creating a personalized treatment plan tailored to your needs. Our goal is to make the process stress-free, so you can focus on what matters most: your healing and recovery."
+      - link "Contact Us" [ref=f4e637] [cursor=pointer]:
+        - /url: /contact-us/
+    - generic [ref=f4e643]:
+      - heading "Our Treatment Network Locations Across US" [level=2] [ref=f4e646]
+      - paragraph [ref=f4e649]: Gratitude Lodge belongs to a trusted network of addiction & mental health recovery centers across the nation.
+      - link [ref=f4e652] [cursor=pointer]:
+        - /url: https://www.gratitudelodge.com/wp-content/uploads/2025/10/States-where-Gratitude-Lodge-clients-have-come-from-and-been-treated-in-recovery.webp
+        - img "States where Gratitude Lodge clients have come from and been treated in recovery" [ref=f4e653]
+      - paragraph [ref=f4e656]: "*Red Pins: Our Locations / Blue Pins: States Patients Have Traveled From"
+    - generic [ref=f4e663]:
+      - heading "Related Pages" [level=2] [ref=f4e666]
+      - generic [ref=f4e670]:
+        - list [ref=f4e671]:
+          - listitem [ref=f4e672]:
+            - link [ref=f4e673] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/california/orange-county/
+              - heading "Orange County Drug & Alcohol Rehab, Addiction Treatment and Detox Centers" [level=3] [ref=f4e674]
+          - listitem [ref=f4e675]:
+            - link [ref=f4e676] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/outpatient/california/southern/orange-county/
+              - heading "Orange County Outpatient Drug & Alcohol Rehab and Addiction Treatment Center" [level=3] [ref=f4e677]
+          - listitem [ref=f4e678]:
+            - link [ref=f4e679] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/pet-friendly/california/southern/orange-county/
+              - heading "Pet Friendly Drug Rehab in Orange County" [level=3] [ref=f4e680]
+          - listitem [ref=f4e681]:
+            - link [ref=f4e682] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/fentanyl/california/southern/orange-county/
+              - heading "Orange County Fentanyl Rehab & Addiction Treatment" [level=3] [ref=f4e683]
+          - listitem [ref=f4e684]:
+            - link [ref=f4e685] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/iop/california/southern/orange-county/
+              - heading "Orange County IOP Intensive Outpatient Addiction Treatment Program & Rehab" [level=3] [ref=f4e686]
+          - listitem [ref=f4e687]:
+            - link [ref=f4e688] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/rehab-for-couples/california/southern/orange-county/
+              - heading "Orange County Couples Detox and Rehab Treatment Center" [level=3] [ref=f4e689]
+          - listitem [ref=f4e690]:
+            - link [ref=f4e691] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/meth/california/southern/orange-county/
+              - heading "Orange County Meth Rehab & Detox Centers (Addiction Treatment)" [level=3] [ref=f4e692]
+          - listitem [ref=f4e693]:
+            - link [ref=f4e694] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/30-60-90-day-long-term/california/southern/orange-county/
+              - heading "Orange County 30/60/90 Day Long-Term Addiction Rehab Center" [level=3] [ref=f4e695]
+          - listitem [ref=f4e696]:
+            - link [ref=f4e697] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/short-term-rehab/california/southern/orange-county/
+              - heading "Orange County Short Term Rehab & Addiction Treatment" [level=3] [ref=f4e698]
+          - listitem [ref=f4e699]:
+            - link [ref=f4e700] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/mat-medication-assisted-treatment/california/southern/orange-county/
+              - 'heading "Orange County MAT Medication Assisted Treatment Program: Methadone/Buprenorphine Detox" [level=3] [ref=f4e701]'
+          - listitem [ref=f4e702]:
+            - link [ref=f4e703] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/veterans/california/southern/orange-county/
+              - heading "Orange County Veteran Rehab Programs for Drug & Alcohol Recovery" [level=3] [ref=f4e704]
+          - listitem [ref=f4e705]:
+            - link [ref=f4e706] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/virtual-iop/california/southern/orange-county/
+              - heading "Orange County Virtual IOP Rehab & Addiction Treatment" [level=3] [ref=f4e707]
+          - listitem [ref=f4e708]:
+            - link [ref=f4e709] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/benzo/california/southern/orange-county/santa-ana/
+              - heading "Benzo Rehab & Addiction Treatment near Santa Ana" [level=3] [ref=f4e710]
+          - listitem [ref=f4e711]:
+            - link [ref=f4e712] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/benzo/california/southern/orange-county/irvine/
+              - heading "Benzo Rehab & Addiction Treatment near Irvine" [level=3] [ref=f4e713]
+          - listitem [ref=f4e714]:
+            - link [ref=f4e715] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/benzo/california/southern/orange-county/huntington-beach/
+              - heading "Huntington Beach Benzo Rehab & Addiction Treatment" [level=3] [ref=f4e716]
+          - listitem [ref=f4e717]:
+            - link [ref=f4e718] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/benzo/california/southern/orange-county/garden-grove/
+              - heading "Benzo Rehab & Addiction Treatment near Garden Grove" [level=3] [ref=f4e719]
+          - listitem [ref=f4e720]:
+            - link [ref=f4e721] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/benzo/california/southern/orange-county/costa-mesa/
+              - heading "Benzo Rehab & Addiction Treatment near Costa Mesa" [level=3] [ref=f4e722]
+          - listitem [ref=f4e723]:
+            - link [ref=f4e724] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/benzo/california/southern/orange-county/mission-viejo/
+              - heading "Benzo Rehab & Addiction Treatment near Mission Viejo" [level=3] [ref=f4e725]
+          - listitem [ref=f4e726]:
+            - link [ref=f4e727] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/benzo/california/southern/orange-county/westminster/
+              - heading "Benzo Rehab & Addiction Treatment near Westminster" [level=3] [ref=f4e728]
+          - listitem [ref=f4e729]:
+            - link [ref=f4e730] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/benzo/california/southern/orange-county/newport-beach/
+              - heading "Newport Beach Benzo Rehab & Addiction Treatment" [level=3] [ref=f4e731]
+          - listitem [ref=f4e732]:
+            - link [ref=f4e733] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/benzo/california/southern/los-angeles/
+              - heading "Los Angeles Benzo Rehab & Addiction Treatment" [level=3] [ref=f4e734]
+          - listitem [ref=f4e735]:
+            - link [ref=f4e736] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/benzo/california/southern/san-diego/
+              - heading "Benzo Rehab & Addiction Treatment near San Diego" [level=3] [ref=f4e737]
+          - listitem [ref=f4e738]:
+            - link [ref=f4e739] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/benzo/california/southern/riverside/
+              - heading "Benzo Rehab & Addiction Treatment near Riverside" [level=3] [ref=f4e740]
+          - listitem [ref=f4e741]:
+            - link [ref=f4e742] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/benzo/california/southern/san-bernardino/
+              - heading "Benzo Rehab & Addiction Treatment near San Bernardino" [level=3] [ref=f4e743]
+          - listitem [ref=f4e744]:
+            - link [ref=f4e745] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/benzo/california/southern/ventura/
+              - heading "Benzo Rehab & Addiction Treatment near Ventura" [level=3] [ref=f4e746]
+          - listitem [ref=f4e747]:
+            - link [ref=f4e748] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/benzo/california/southern/los-angeles/long-beach/
+              - heading "Long Beach Benzo Rehab & Addiction Treatment" [level=3] [ref=f4e749]
+          - listitem [ref=f4e750]:
+            - link [ref=f4e751] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/benzo/california/southern/santa-barbara/
+              - heading "Benzo Rehab & Addiction Treatment near Santa Barbara" [level=3] [ref=f4e752]
+          - listitem [ref=f4e753]:
+            - link [ref=f4e754] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/pet-friendly/california/southern/orange-county/anaheim/
+              - heading "Pet Friendly Drug & Alcohol Rehab in Anaheim" [level=3] [ref=f4e755]
+          - listitem [ref=f4e756]:
+            - link [ref=f4e757] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/pet-friendly/california/southern/orange-county/santa-ana/
+              - heading "Pet Friendly Addiction Treatment Center near Santa Ana" [level=3] [ref=f4e758]
+          - listitem [ref=f4e759]:
+            - link [ref=f4e760] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/pet-friendly/california/southern/orange-county/irvine/
+              - heading "Pet Friendly Addiction Treatment Center near Irvine" [level=3] [ref=f4e761]
+          - listitem [ref=f4e762]:
+            - link [ref=f4e763] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/pet-friendly/california/southern/orange-county/huntington-beach/
+              - heading "Pet Friendly Drug Rehab in Huntington Beach" [level=3] [ref=f4e764]
+          - listitem [ref=f4e765]:
+            - link [ref=f4e766] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/pet-friendly/california/southern/orange-county/garden-grove/
+              - heading "Pet Friendly Addiction Treatment Center near Garden Grove" [level=3] [ref=f4e767]
+          - listitem [ref=f4e768]:
+            - link [ref=f4e769] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/pet-friendly/california/southern/orange-county/fullerton/
+              - heading "Pet Friendly Drug & Alcohol Rehab in Fullerton" [level=3] [ref=f4e770]
+          - listitem [ref=f4e771]:
+            - link [ref=f4e772] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/pet-friendly/california/southern/orange-county/costa-mesa/
+              - heading "Pet Friendly Addiction Treatment Center near Costa Mesa" [level=3] [ref=f4e773]
+          - listitem [ref=f4e774]:
+            - link [ref=f4e775] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/pet-friendly/california/southern/orange-county/mission-viejo/
+              - heading "Pet Friendly Addiction Treatment Center near Mission Viejo" [level=3] [ref=f4e776]
+          - listitem [ref=f4e777]:
+            - link [ref=f4e778] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/rehab-for-couples/california/southern/orange-county/westminster/
+              - heading "Couples Detox and Rehab Treatment Center near Westminster" [level=3] [ref=f4e779]
+          - listitem [ref=f4e780]:
+            - link [ref=f4e781] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/rehab-for-couples/california/southern/orange-county/villa-park/
+              - heading "Villa Park Couples Detox and Rehab Treatment Center" [level=3] [ref=f4e782]
+          - listitem [ref=f4e783]:
+            - link [ref=f4e784] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/rehab-for-couples/california/southern/orange-county/tustin/
+              - heading "Tustin Couples Detox and Rehab Treatment Center" [level=3] [ref=f4e785]
+          - listitem [ref=f4e786]:
+            - link [ref=f4e787] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/rehab-for-couples/california/southern/orange-county/stanton/
+              - heading "Couples Detox and Rehab Treatment Center near Stanton" [level=3] [ref=f4e788]
+          - listitem [ref=f4e789]:
+            - link [ref=f4e790] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/rehab-for-couples/california/southern/orange-county/seal-beach/
+              - heading "Couples Detox and Rehab Treatment Center near Seal Beach" [level=3] [ref=f4e791]
+          - listitem [ref=f4e792]:
+            - link [ref=f4e793] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/rehab-for-couples/california/southern/orange-county/santa-ana/
+              - heading "Couples Detox and Rehab Treatment Center near Santa Ana" [level=3] [ref=f4e794]
+          - listitem [ref=f4e795]:
+            - link [ref=f4e796] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/rehab-for-couples/california/southern/orange-county/san-juan-capistrano/
+              - heading "Couples Detox and Rehab Treatment Center near San Juan Capistrano" [level=3] [ref=f4e797]
+          - listitem [ref=f4e798]:
+            - link [ref=f4e799] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/rehab-for-couples/california/southern/orange-county/san-clemente/
+              - heading "Couples Detox and Rehab Treatment Center near San Clemente" [level=3] [ref=f4e800]
+        - button "Load More" [ref=f4e802] [cursor=pointer]
+    - generic [ref=f4e803]:
+      - generic [ref=f4e804]:
+        - heading "Connect on Our Socials" [level=3] [ref=f4e807]
+        - paragraph [ref=f4e810]: Check out our social content for facility videos, client interviews, recovery content, & more!
+        - link "Follow Us" [ref=f4e814] [cursor=pointer]:
+          - /url: https://linktr.ee/Gratitudelodge
+      - generic [ref=f4e818]:
+        - region "Carousel" [ref=f4e819]:
+          - generic [ref=f4e820]:
+            - group "1 of 8" [ref=f4e821]
+            - group "2 of 8" [ref=f4e826]
+            - group "3 of 8" [ref=f4e831]
+            - group "4 of 8" [ref=f4e836]
+            - group "5 of 8" [ref=f4e841]
+            - group "6 of 8" [ref=f4e846]
+            - group "7 of 8" [ref=f4e851]
+            - group "8 of 8" [ref=f4e856]
+        - button "Previous": 
+        - button "Next": 
+    - generic [ref=f4e863]:
+      - 'heading "FAQs: Benzo Detox in Orange County" [level=2] [ref=f4e866]'
+      - generic [ref=f4e870]:
+        - generic [ref=f4e871]: What characterizes the benzodiazepine detox process at Gratitude Lodge in Orange County?
+        - generic [ref=f4e876]: Why is professional medical supervision essential during benzodiazepine withdrawal in Orange County?
+        - generic [ref=f4e881]: How long does inpatient benzodiazepine treatment typically last in Orange County?
+        - generic [ref=f4e886]: Can benzodiazepine detox be safely completed at home?
+        - generic [ref=f4e891]: What treatment methodologies are utilized in residential benzo rehabilitation in Orange County?
+        - generic [ref=f4e896]: How does Gratitude Lodge support mental health during benzo recovery in Orange County?
+        - generic [ref=f4e901]: What sets Gratitude Lodge apart from other benzodiazepine treatment centers in Orange County?
+        - generic [ref=f4e906]: What belongings should I bring for residential treatment in Orange County?
+    - generic [ref=f4e913]:
+      - generic [ref=f4e917]:
+        - link "844-576-0144" [ref=f4e921] [cursor=pointer]:
+          - /url: tel:844-576-0144
+        - link "VERIFY INSURANCE" [ref=f4e927] [cursor=pointer]:
+          - /url: "#elementor-action%3Aaction%3Dpopup%3Aopen%26settings%3DeyJpZCI6IjM1MTM0IiwidG9nZ2xlIjpmYWxzZX0%3D"
+      - generic [ref=f4e934]:
+        - generic [ref=f4e936]:
+          - link [ref=f4e941] [cursor=pointer]:
+            - /url: https://www.gratitudelodge.com/check-my-insurance/bcbs/
+            - img "an image of an insurance provider" [ref=f4e942]
+          - img "an image of an insurance provider" [ref=f4e947]
+          - img "an image of an insurance provider" [ref=f4e952]
+          - link [ref=f4e957] [cursor=pointer]:
+            - /url: https://www.gratitudelodge.com/check-my-insurance/aetna/
+            - img "an image of an insurance provider" [ref=f4e958]
+          - img "an image of an insurance provider" [ref=f4e963]
+          - link [ref=f4e968] [cursor=pointer]:
+            - /url: https://www.gratitudelodge.com/check-my-insurance/cigna/
+            - img "an image of an insurance provider" [ref=f4e969]
+        - text:  
+    - generic [ref=f4e976]:
+      - heading "Scholarship Opportunity" [level=2] [ref=f4e979]
+      - paragraph [ref=f4e982]:
+        - text: At Gratitude Lodge, we’re committed to helping individuals reach their full potential and build brighter futures. Our
+        - strong [ref=f4e983]: $1,000
+        - text: scholarships are one way we give back, empowering students to achieve their goals. With a 500-word essay, you can apply for 2025. Click below to learn more, hear from past winners, and apply today!
+      - link "Apply Now" [ref=f4e987] [cursor=pointer]:
+        - /url: /scholarship/
+    - generic [ref=f4e992]:
+      - heading "Our Faculty Members" [level=2] [ref=f4e995]
+      - list [ref=f4e998]:
+        - generic [ref=f4e1000]:
+          - link [ref=f4e1003] [cursor=pointer]:
+            - /url: https://www.gratitudelodge.com/authors/emma-psomas/
+          - generic [ref=f4e1004]:
+            - generic [ref=f4e1005]:
+              - link [ref=f4e1008] [cursor=pointer]:
+                - /url: https://www.gratitudelodge.com/authors/emma-psomas/
+                - heading "Emma Psomas" [level=3] [ref=f4e1009]:
+                  - text: Emma
+                  - generic [ref=f4e1010]: Psomas
+              - heading "Associate Therapist - AMFT" [level=4] [ref=f4e1014]
+            - link [ref=f4e1019] [cursor=pointer]:
+              - /url: https://www.linkedin.com/in/emmagui-psomas/
+              - generic [ref=f4e1020]: 
+        - generic [ref=f4e1022]:
+          - link [ref=f4e1025] [cursor=pointer]:
+            - /url: https://www.gratitudelodge.com/authors/sean-oneill/
+          - generic [ref=f4e1026]:
+            - generic [ref=f4e1027]:
+              - link [ref=f4e1030] [cursor=pointer]:
+                - /url: https://www.gratitudelodge.com/authors/sean-oneill/
+                - heading "Sean O'Neill" [level=3] [ref=f4e1031]:
+                  - text: Sean
+                  - generic [ref=f4e1032]: O'Neill
+              - heading "Clinical Director - LMFT" [level=4] [ref=f4e1036]
+            - link [ref=f4e1041] [cursor=pointer]:
+              - /url: https://www.linkedin.com/company/gratitude-lodge
+              - generic [ref=f4e1042]: 
+    - heading "Contact Us" [level=2] [ref=f4e1048]
+  - contentinfo [ref=f4e1084]:
+    - generic [ref=f4e1086]:
+      - generic [ref=f4e1088]:
+        - link [ref=f4e1091] [cursor=pointer]:
+          - /url: https://www.gratitudelodge.com
+          - img "Site logo" [ref=f4e1092]
+        - paragraph [ref=f4e1095]:
+          - link "Licensed by the Department of Health Care Services" [ref=f4e1097] [cursor=pointer]:
+            - /url: https://data.chhs.ca.gov/dataset/sud-recovery-treatment-facilities
+        - link [ref=f4e1100] [cursor=pointer]:
+          - /url: https://data.chhs.ca.gov/dataset/sud-recovery-treatment-facilities
+          - img "DHCS logo" [ref=f4e1101]
+        - paragraph [ref=f4e1104]: License details
+        - list [ref=f4e1107]:
+          - listitem [ref=f4e1108]:
+            - generic [ref=f4e1109]: Belmont 190119BP EXP 5/31/28
+          - listitem [ref=f4e1110]:
+            - generic [ref=f4e1111]: Chatwin 19011AP EXP 10/31/26
+          - listitem [ref=f4e1112]:
+            - generic [ref=f4e1113]: Orchard 300280GP EXP 5/31/27
+          - listitem [ref=f4e1114]:
+            - generic [ref=f4e1115]: Redlands 300280FP EXP 4/30/27
+      - generic [ref=f4e1117]:
+        - paragraph [ref=f4e1120]: Explore Our Links
+        - list [ref=f4e1123]:
+          - listitem [ref=f4e1124]:
+            - link "Rehab Admissions" [ref=f4e1125] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/drug-rehab/rehab-admissions/
+          - listitem [ref=f4e1127]:
+            - link "Check My Insurance" [ref=f4e1128] [cursor=pointer]:
+              - /url: https://www.gratitudelodge.com/check-my-insurance/
+          - listitem [ref=f4e1130]:
+            - link "SUD Recovery Treatment Facilities" [ref=f4e1131] [cursor=pointer]:
+              - /url: https://data.chhs.ca.gov/dataset/sud-recovery-treatment-facilities
+        - list [ref=f4e1135]:
+          - listitem [ref=f4e1136]:
+            - link "Facebook" [ref=f4e1137] [cursor=pointer]:
+              - /url: https://www.facebook.com/gratitudelodgeca
+              - generic [ref=f4e1139]: 
+          - listitem [ref=f4e1140]:
+            - link "Linkedin" [ref=f4e1141] [cursor=pointer]:
+              - /url: https://www.linkedin.com/company/gratitude-lodge
+              - generic [ref=f4e1143]: 
+          - listitem [ref=f4e1144]:
+            - link "Instagram" [ref=f4e1145] [cursor=pointer]:
+              - /url: https://www.linkedin.com/company/gratitude-lodge
+              - generic [ref=f4e1147]: 
+          - listitem [ref=f4e1148]:
+            - link "Pinterest" [ref=f4e1149] [cursor=pointer]:
+              - /url: https://www.pinterest.com/Gratitude_Lodge/
+              - generic [ref=f4e1151]: 
+          - listitem [ref=f4e1152]:
+            - link "Youtube" [ref=f4e1153] [cursor=pointer]:
+              - /url: https://www.youtube.com/channel/UCq_JeSiUcrxsf0bp39HTdig
+              - generic [ref=f4e1155]: 
+          - listitem [ref=f4e1156]:
+            - link "Twitter" [ref=f4e1157] [cursor=pointer]:
+              - /url: https://twitter.com/gratitudelodge/
+              - generic [ref=f4e1159]: 
+      - generic [ref=f4e1161]:
+        - paragraph [ref=f4e1164]: Contact Info
+        - list [ref=f4e1167]:
+          - listitem [ref=f4e1168]:
+            - link "info@gratitudelodge.com" [ref=f4e1169] [cursor=pointer]:
+              - /url: mailto:%20info@gratitudelodge.com
+              - generic [ref=f4e1170]: 
+          - listitem [ref=f4e1173]:
+            - link "949-676-9364" [ref=f4e1174] [cursor=pointer]:
+              - /url: tel:949-676-9364
+              - generic [ref=f4e1175]: 
+        - generic [ref=f4e1179]:
+          - link [ref=f4e1184] [cursor=pointer]:
+            - /url: https://www.legitscript.com/websites/?checker_keywords=gratitudelodge.com
+          - link [ref=f4e1189] [cursor=pointer]:
+            - /url: https://www.jointcommission.org/en-us/about-us/recognizing-excellence/find-accredited-organizations/632282
+            - img "an image of the Joint Commission's Gold Seal of Approval" [ref=f4e1190]
+          - link [ref=f4e1199] [cursor=pointer]:
+            - /url: https://recovery.com/gratitude-lodge-california/
+        - generic:
+          - generic:
+            - generic:
+              - generic:
+                - link:
+                  - /url: https://www.psychologytoday.com/profile/1063096
+      - generic [ref=f4e1201]:
+        - paragraph [ref=f4e1204]: Locations
+        - paragraph [ref=f4e1207]: Long Beach, CA
+        - paragraph [ref=f4e1210]:
+          - link "3849 Chatwin Ave Long Beach, CA 90808" [ref=f4e1211] [cursor=pointer]:
+            - /url: https://maps.app.goo.gl/dagDE2A6vJqbZjd57
+            - text: 3849 Chatwin AveLong Beach, CA 90808
+        - paragraph [ref=f4e1214]: Los Angeles County, CA
+        - paragraph [ref=f4e1217]:
+          - link "3010 E 1st St Long Beach, CA 90803" [ref=f4e1218] [cursor=pointer]:
+            - /url: https://maps.app.goo.gl/8vLjP8LVPRjrHzmQ9
+            - text: 3010 E 1st StLong Beach, CA 90803
+        - paragraph [ref=f4e1221]: Newport Beach, CA
+        - paragraph [ref=f4e1224]:
+          - link "20132 Redlands Dr Newport Beach, CA 92660" [ref=f4e1225] [cursor=pointer]:
+            - /url: https://maps.app.goo.gl/QbUTP52kZZzXT81M7
+            - text: 20132 Redlands DrNewport Beach, CA 92660
+        - paragraph [ref=f4e1228]: Orange County, CA
+        - paragraph [ref=f4e1231]:
+          - link "1661 Orchard Dr Newport Beach, CA 92660" [ref=f4e1232] [cursor=pointer]:
+            - /url: https://maps.app.goo.gl/9JVBbWRNgzZ7NyFX8
+            - text: 1661 Orchard DrNewport Beach, CA 92660
+    - text:        
+    - generic [ref=f4e1236]:
+      - generic [ref=f4e1237]: Copyright © 2026. All rights reserved.
+      - list [ref=f4e1241]:
+        - listitem [ref=f4e1242]:
+          - link "Gratitude Lodge" [ref=f4e1243] [cursor=pointer]:
+            - /url: https://www.gratitudelodge.com/
+            - generic [ref=f4e1244]: 
+        - listitem [ref=f4e1247]:
+          - link "Privacy Policy" [ref=f4e1248] [cursor=pointer]:
+            - /url: https://www.gratitudelodge.com/privacy-policy/
+            - generic [ref=f4e1249]: 
+        - listitem [ref=f4e1252]:
+          - link "Sitemap" [ref=f4e1253] [cursor=pointer]:
+            - /url: /sitemap/
+            - generic [ref=f4e1254]: 
+  - text: 

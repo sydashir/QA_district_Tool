@@ -1,0 +1,12 @@
+- generic [ref=f1e6]:
+  - generic [ref=f1e8]:
+    - generic [ref=f1e9]: Checking your browser before accessing pubmed.ncbi.nlm.nih.gov ...
+    - generic [ref=f1e10]:
+      - text: Click
+      - link "here" [ref=f1e11] [cursor=pointer]:
+        - /url: "#"
+      - text: if you are not automatically redirected after 5 seconds.
+  - iframe [ref=f1e14]:
+    - generic [ref=f2e6]:
+      - text: protected by
+      - strong [ref=f2e7]: reCAPTCHA
