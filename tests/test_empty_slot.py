@@ -63,6 +63,12 @@ def test_missing_unit_is_caught(text):
     "Most clients are admitted within 48 hrs.",
     "Coverage is confirmed within 15 minutes in most cases.",
     "Programs are located within 5 mi of the coast.",
+    # ranges: the unit sits after the END of the range, so a naive lookahead fires on the first
+    # number. Found live on CAD: "symptoms subside within 3 to 5 days".
+    "Withdrawal symptoms tend to subside within 3 to 5 days after the last dose.",
+    "Most admissions complete within 24 to 48 hours of the first call.",
+    "Aftercare check-ins happen within 30, 60, and 90 days of discharge.",
+    "Detox typically runs within 5-7 days depending on the substance.",
 ])
 def test_real_units_never_fire(text):
     assert [f for f in _run(text) if f.details["class"] == "missing_unit"] == [], \

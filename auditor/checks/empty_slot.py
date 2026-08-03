@@ -62,10 +62,18 @@ _TRUNCATED_WORD = re.compile(
 #    real AI findings (4 of 6), which is exactly the signal that it belongs here instead: it is a
 #    regex, not a judgement. Units that legitimately follow a bare number are excluded, so "within 30
 #    days" and "within 24 hours" stay silent.
+#    The unit of a RANGE sits after the range's last number ("within 3 to 5 days", "within 5-7
+#    days", "within 30, 60, and 90 days" — all live on CAD/GL), so the whole range is consumed
+#    first. The group is ATOMIC: without it the engine backtracks to the shortest match, re-reads
+#    "within 3" against " to 5 days", finds no unit there, and reports the false positive anyway.
+# a comma is part of the number only when digits follow it ("1,500"); a list comma
+# ("30, 60, and 90 days") must stay available to the range separator.
+_NUM = r"\d+(?:[.,]\d+)*"
+_RANGE_SEP = r"(?:\s*(?:,|to|through|and|or|[-–—])\s*)+"
 _UNITS = (r"miles?|mi|km|kilometers?|metres?|meters?|m|feet|ft|blocks?|minutes?|mins?|hours?|hrs?"
           r"|days?|weeks?|months?|years?|percent|%")
-_MISSING_UNIT = re.compile(rf"\bwithin\s+\d+(?!\s*(?:{_UNITS})\b)(?!\s*[\d,.]*\s*(?:{_UNITS})\b)",
-                           re.IGNORECASE)
+_MISSING_UNIT = re.compile(
+    rf"\bwithin\s+(?>{_NUM}(?:{_RANGE_SEP}{_NUM})*)(?!\s*(?:{_UNITS})\b)", re.IGNORECASE)
 
 _PATTERNS = (
     ("orphan_comma", _ORPHAN_COMMA, Severity.ERROR,
