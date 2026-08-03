@@ -110,3 +110,34 @@ after that point. File-anchored, newest work last. Local artifact (not committed
   Generally" are separate blocks (artifact), "Family Therapy Attended West Chester" is genuinely one block
   (real defect). Precision 61% raw / **79% excluding my harness bug** vs Haiku's 50% — the 80% bar is not
   cleared yet and the next fix is mine, not the model's
+
+## 2026-08-01 (evening)
+
+- Fixed a MANUFACTURED-DEFECT bug in `auditor/parse.py` — a space was emitted after every inline text
+  node, so live GL's correct `<strong>phone rings</strong>.` came out as "phone rings ." and the AI
+  layer reported a punctuation error that is not on the page. Verified against the raw live HTML, not
+  inferred. The ORIGINAL `get_text(" ", strip=True)` had the same flaw, so this is in every report
+  shipped to date, not a regression. Fix inserts a separator only where BOTH sides of the boundary are
+  alphanumeric; keeps the "addictionDetox" weld fixed and still surfaces a genuine " ," the client
+  really typed. New tests/test_parse.py pins all three failure modes. Measured: space-before-punct
+  occurrences on 20 GL pages 91 -> 8 (commit 51fecd1)
+- RETRACTION on my own earlier report: the findings I called REAL — 'rings .', 'needs ,', 'gestures ,',
+  'Estates ,' — were this artifact. Sonnet's round drops 11 real -> 6 (61% -> ~33%), Haiku's 6 -> 4
+  (50% -> ~33%). Also corrected a commit hash I quoted that never existed (`ec0ff31`); the missing_unit
+  commit had never landed because the command timed out before `git commit` ran — now 59dd02f
+- Cached `nap.grid_from_xlsx` — `load_brand()` parsed the same workbook TWICE (canonical numbers +
+  third-party hotlines) at ~25s each, making it a 51s call. Now 14.1s cold / 0.15s warm, and
+  **tests/test_audit.py went 132s -> 3.4s**; full suite 176 green in 4.7s. Regression test asserts the
+  cached grid equals a fresh parse (commits fa7479f, + test)
+- Fixed the pilot's block splitter to split on block boundaries before sentences — it was re-collapsing
+  the newlines parse.py emits, welding headings into paragraphs. Side effect: the cost model fell 34%
+  ($51 -> $33 Haiku / $67 Sonnet) because welded nav+copy blocks were unique per page and defeated dedup
+- Tightened `missing_unit` after seeing it fire on "symptoms subside within 3 to 5 days" — the unit of a
+  range sits after the range's last number, and the engine backtracked to the shortest match. Now uses an
+  atomic group plus a range separator; "within 3 to 5 days", "within 5-7 days", "within 30, 60, and 90
+  days" all stay silent while "within 15 of Lake Forest" still fires (commit 2bc05d6)
+- Ran the full 2,404-block corpus through both models and classified all 473 findings with a 12-agent
+  workflow (6 independent classifiers against a fixed rubric, then an adversarial refute pass over every
+  REAL). **Sonnet 5 beats Haiku 4.5 about 2:1 on both precision and yield** — strict precision 55% vs 28%
+  after removing the parser artifacts, 100 real findings vs 48. Neither clears the 80% bar as a general
+  grammar pass
