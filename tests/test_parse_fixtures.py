@@ -48,6 +48,7 @@ REQUIRED = {
     "inline_midsentence",     # inline markup does not split a sentence
     "list_items",             # consecutive <li> stay separate
     "genuine_stray_space",    # a real client-typed " ," still surfaces
+    "hidden_span",            # display:none content must NOT reach visible_text
 }
 
 

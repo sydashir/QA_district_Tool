@@ -72,3 +72,49 @@ def test_a_genuine_space_before_punctuation_is_still_visible():
     # the fix must not paper over a defect the client's own copy really contains: if the SOURCE text
     # has the stray space, it must survive so the check can report it.
     assert " ," in _vt("<p>Ready for your needs , avoiding delays and waiting.</p>")
+
+
+# --- hidden content must not reach visible_text ---
+#
+# Found by adversarial review of the Phase-2 findings, then verified against live GL markup:
+#   <style>.geo-topic a span{display:none}</style>
+#   <a href="...">Adderall addiction<span>Detox</span></a>
+# The span is a hover-only label the user never sees. Extracting it produced "addictionDetox", which
+# was originally mis-diagnosed as a MISSING SEPARATOR and "fixed" by inserting a space — giving
+# "addiction Detox", still text that is not on the page. The real defect was including hidden
+# content at all. This matters well beyond the AI layer: visible_text is what the blank/thin-section
+# check measures, and hidden text makes an empty section look populated.
+
+def test_stylesheet_display_none_is_not_visible_text():
+    vt = _vt('<style>.geo-topic a span{display:none}</style>'
+             '<div class="geo-topic"><a href="/x">Adderall addiction<span>Detox</span></a></div>')
+    assert vt == "Adderall addiction", vt
+
+
+def test_inline_display_none_is_not_visible_text():
+    assert _vt('<p>Visible text<span style="display:none">HIDDEN</span> continues here.</p>') \
+        == "Visible text continues here."
+
+
+def test_visibility_hidden_is_not_visible_text():
+    assert "HIDDEN" not in _vt('<p>Visible<span style="visibility:hidden">HIDDEN</span> text.</p>')
+
+
+def test_hidden_attribute_is_not_visible_text():
+    assert _vt("<p>Visible<span hidden>HIDDEN</span> text.</p>") == "Visible text."
+
+
+def test_display_none_inside_a_media_query_is_still_shown():
+    # a mobile-menu rule hides content only at some breakpoints; the content is real page copy at
+    # others, so stripping it would delete text the user can see.
+    vt = _vt('<style>@media (max-width:600px){.m{display:none}}</style>'
+             '<div class="m">Call our admissions team today for help.</div>')
+    assert "Call our admissions team today" in vt
+
+
+def test_whitespace_only_node_after_punctuation_still_separates():
+    # "<strong>View more details here:</strong> <a>Outpatient</a>" — the markup HAS a space, but a
+    # whitespace-only text node was dropped and ":" is not alphanumeric, so no separator was
+    # re-inserted and the words fused into "here:Outpatient".
+    assert _vt('<p><strong>View more details here:</strong> <a href="/y">Outpatient Rehab</a></p>') \
+        == "View more details here: Outpatient Rehab"

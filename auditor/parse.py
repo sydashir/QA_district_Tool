@@ -88,6 +88,103 @@ _BLOCK_SET = frozenset(_BLOCK_TAGS)
 _INLINE_WS = re.compile(r"[^\S\n]+")   # runs of spaces/tabs, but never newlines
 _BLANK_LINES = re.compile(r"\s*\n\s*")
 
+# --- hidden content ------------------------------------------------------------------------
+# Text the user cannot see must not reach ``visible_text``. Live GL ships
+#     <style>.geo-topic a span{display:none}</style>
+#     <a href="…">Adderall addiction<span>Detox</span></a>
+# where the span is a hover-only label. Extracting it produced "addictionDetox" — originally
+# mis-diagnosed as a missing separator and "fixed" by inserting a space, which only changed the
+# fabricated text to "addiction Detox". The defect was reading hidden content at all.
+#
+# This is not only an AI-layer concern: ``visible_text`` is what the blank/thin-section check
+# measures, so hidden text can make an EMPTY section look populated — the exact failure the client
+# asked us to catch (blank ACF sections).
+_HIDDEN_INLINE = re.compile(r"(display\s*:\s*none|visibility\s*:\s*hidden)", re.IGNORECASE)
+_CSS_RULE = re.compile(r"([^{}]+)\{([^{}]*)\}")
+_AT_BLOCK = re.compile(r"@[a-zA-Z-]+[^{]*\{")
+
+
+def _strip_at_blocks(css: str) -> str:
+    """Drop @media/@supports blocks. A rule inside one hides content only at some breakpoints —
+    a mobile menu is real copy on desktop — so honouring it would delete visible text."""
+    out, i = [], 0
+    while i < len(css):
+        m = _AT_BLOCK.search(css, i)
+        if not m:
+            out.append(css[i:])
+            break
+        out.append(css[i:m.start()])
+        depth, j = 1, m.end()
+        while j < len(css) and depth:
+            if css[j] == "{":
+                depth += 1
+            elif css[j] == "}":
+                depth -= 1
+            j += 1
+        i = j
+    return "".join(out)
+
+
+def _strip_hidden(soup) -> None:
+    """Remove elements the rendered page does not show. Mutates ``soup`` in place."""
+    for el in soup.select("[hidden]"):
+        el.decompose()
+    for el in soup.find_all(style=_HIDDEN_INLINE):
+        el.decompose()
+
+    selectors: list[str] = []
+    seen: set[str] = set()
+    for style in soup.find_all("style"):
+        css = _strip_at_blocks(style.get_text() or "")
+        for m in _CSS_RULE.finditer(css):
+            if _HIDDEN_INLINE.search(m.group(2)):
+                for sel in m.group(1).split(","):
+                    sel = sel.strip()
+                    # ":hover"/"::after" state and pseudo-element rules do not hide static content,
+                    # and soupsieve cannot evaluate them anyway.
+                    if sel and sel not in seen and ":" not in sel:
+                        seen.add(sel)
+                        selectors.append(sel)
+    if not selectors:
+        return
+
+    # PRE-FILTER, because this runs on ~31k pages. A WordPress/Elementor page ships bundled library
+    # CSS (swiper, lightbox) whose display:none rules reference classes that are not on the page at
+    # all, yet soupsieve still walks the tree for each one — measured 1.65s for 68 selectors over
+    # 3,904 elements. A selector that names a class or id absent from the document provably matches
+    # nothing, so it can be dropped without evaluating it.
+    present: set[str] = set()
+    for el in soup.find_all(True):
+        cls = el.get("class")
+        if cls:
+            present.update(cls)
+        el_id = el.get("id")
+        if el_id:
+            present.add("#" + el_id)
+
+    live = []
+    for sel in selectors:
+        if sel == "[hidden]" or sel in _VOLATILE_TAGS:
+            continue  # already removed above / by strip_volatile
+        names = re.findall(r"\.([A-Za-z0-9_-]+)", sel)
+        ids = re.findall(r"#([A-Za-z0-9_-]+)", sel)
+        if all(n in present for n in names) and all("#" + i in present for i in ids):
+            live.append(sel)
+    if not live:
+        return
+
+    # ONE traversal for what remains, not one soupsieve pass per selector.
+    try:
+        for el in soup.select(", ".join(live)):
+            el.decompose()
+    except Exception:
+        for sel in live:  # one unparseable selector must not lose the whole batch
+            try:
+                for el in soup.select(sel):
+                    el.decompose()
+            except Exception:
+                continue
+
 
 def _visible_text(soup) -> str:
     """Visible text with BLOCK BOUNDARIES PRESERVED as newlines.
@@ -112,18 +209,24 @@ def _visible_text(soup) -> str:
     for el in soup.descendants:
         if isinstance(el, NavigableString):
             s = str(el)
-            if s.strip():
-                # A separator between two inline text nodes is needed ONLY to keep two words apart
-                # ("Adderall addiction" + "Detox" must not fuse into "addictionDetox"). Adding one
-                # unconditionally — as the original get_text(" ", strip=True) did — invents defects:
-                # live GL ships "<strong>phone rings</strong>." and it came out as "phone rings .",
-                # which the AI layer then correctly reported as a punctuation error that is not on
-                # the page. So insert one only where both sides of the boundary are alphanumeric;
-                # markup that already carries its own spacing, and any following punctuation, is
-                # left exactly as authored — including a stray " ," the client really did type.
-                if out and out[-1] != "\n" and out[-1][-1:].isalnum() and s[:1].isalnum():
+            if not s.strip():
+                # A WHITESPACE-ONLY node is real spacing in the markup — "<strong>details here:</strong>
+                # <a>Outpatient</a>" renders with a space. Dropping it fused those into
+                # "here:Outpatient", because ":" is not alphanumeric so no separator was re-inserted.
+                if out and out[-1] != "\n":
                     out.append(" ")
-                out.append(s)
+                continue
+            # Otherwise a separator is needed ONLY to keep two words apart ("Adderall addiction" +
+            # "Detox" must not fuse). Adding one unconditionally — as the original
+            # get_text(" ", strip=True) did — invents defects: live GL ships
+            # "<strong>phone rings</strong>." and it came out as "phone rings .", which the AI layer
+            # then correctly reported as a punctuation error that is not on the page. So insert one
+            # only where both sides of the boundary are alphanumeric; markup that carries its own
+            # spacing, and any following punctuation, is left exactly as authored — including a
+            # stray " ," the client really did type.
+            if out and out[-1] != "\n" and out[-1][-1:].isalnum() and s[:1].isalnum():
+                out.append(" ")
+            out.append(s)
         elif el.name in _BLOCK_SET:
             out.append("\n")
     text = _INLINE_WS.sub(" ", "".join(out))   # collapse spaces/tabs, keep \n
@@ -169,7 +272,9 @@ def parse_html(html: str, page_url: str, base_url: str | None = None) -> ParsedP
         seen.add(absu)
         links.append(Link(href=href, url=absu))
 
-    strip_volatile(soup)  # normalize before extracting visible text
+    # ORDER MATTERS: _strip_hidden reads <style> rules, and strip_volatile deletes <style>.
+    _strip_hidden(soup)   # drop what the rendered page does not show
+    strip_volatile(soup)  # then normalize away script/style/cfemail noise
     visible_text = _visible_text(soup)
 
     return ParsedPage(
