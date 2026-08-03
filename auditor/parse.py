@@ -125,9 +125,14 @@ def _strip_at_blocks(css: str) -> str:
     return "".join(out)
 
 
+_SIMPLE_CLASS = re.compile(r"^\.([A-Za-z0-9_-]+)$")
+
+
 def _strip_hidden(soup) -> None:
     """Remove elements the rendered page does not show. Mutates ``soup`` in place."""
-    for el in soup.select("[hidden]"):
+    # find_all, NOT soup.select("[hidden]"): the CSS attribute selector goes through soupsieve and
+    # measured 633ms on a 4,334-element RR page, versus a few ms for bs4's native attribute scan.
+    for el in soup.find_all(attrs={"hidden": True}):
         el.decompose()
     for el in soup.find_all(style=_HIDDEN_INLINE):
         el.decompose()
@@ -153,32 +158,45 @@ def _strip_hidden(soup) -> None:
     # all, yet soupsieve still walks the tree for each one — measured 1.65s for 68 selectors over
     # 3,904 elements. A selector that names a class or id absent from the document provably matches
     # nothing, so it can be dropped without evaluating it.
+    by_class: dict[str, list] = {}
     present: set[str] = set()
     for el in soup.find_all(True):
         cls = el.get("class")
         if cls:
             present.update(cls)
+            for c in cls:
+                by_class.setdefault(c, []).append(el)
         el_id = el.get("id")
         if el_id:
             present.add("#" + el_id)
 
-    live = []
+    simple, complex_ = [], []
     for sel in selectors:
         if sel == "[hidden]" or sel in _VOLATILE_TAGS:
             continue  # already removed above / by strip_volatile
         names = re.findall(r"\.([A-Za-z0-9_-]+)", sel)
         ids = re.findall(r"#([A-Za-z0-9_-]+)", sel)
-        if all(n in present for n in names) and all("#" + i in present for i in ids):
-            live.append(sel)
-    if not live:
-        return
+        if not (all(n in present for n in names) and all("#" + i in present for i in ids)):
+            continue  # cannot match this document — never hand it to soupsieve
+        m = _SIMPLE_CLASS.match(sel)
+        if m:
+            simple.append(m.group(1))
+        else:
+            complex_.append(sel)
 
-    # ONE traversal for what remains, not one soupsieve pass per selector.
+    # A bare ".class" needs no CSS engine — the index above already answers it. This matters
+    # because soupsieve is the dominant cost here (~600-700ms/page on RR and GL).
+    for cls in simple:
+        for el in by_class.get(cls, ()):
+            if el.parent is not None:
+                el.decompose()
+    if not complex_:
+        return
     try:
-        for el in soup.select(", ".join(live)):
+        for el in soup.select(", ".join(complex_)):
             el.decompose()
     except Exception:
-        for sel in live:  # one unparseable selector must not lose the whole batch
+        for sel in complex_:  # one unparseable selector must not lose the whole batch
             try:
                 for el in soup.select(sel):
                     el.decompose()
