@@ -52,6 +52,34 @@ def blocks(text: str) -> list[str]:
     return out
 
 
+# Words the CLIENT DID NOT WRITE. Staff bios and customer reviews are quoted or personal voice: a
+# grammar "defect" there is real English pedantry the client will never action, and the judged runs
+# put 28 findings in this bucket. Excluding them is not hiding defects, it is scoping the audit to
+# the marketing copy the client actually controls.
+_CREDENTIALS = re.compile(
+    r"\b(LMFT|AMFT|LCSW|ACSW|LPCC|APCC|MFTI|CADC|RADT|CATC|PsyD|MSW|LVN|CDCA|"
+    r"Licensed Marriage and Family Therapist|Clinical Director|Program Director)\b")
+_BIO_NARRATIVE = re.compile(
+    r"\b(Attended\s+[A-Z]|graduated from|graduate of|Originally from|earned (his|her)|"
+    r"received (his|her)|holds a (BA|MA|BS|MS|degree)|alma mater|years of dedicated experience)\b")
+_REVIEW_VOICE = re.compile(
+    r"\b(highly recommend|would recommend|recommend this place|saved my life|living proof|"
+    r"best decision|thank you so much|the staff (is|are|was|were)|staff really|really cared|"
+    r"changed my life|forever grateful)\b", re.IGNORECASE)
+_FIRST_PERSON = re.compile(r"\b(I|I’m|I'm|I’ve|I've|my|me)\b")
+_EVALUATIVE = re.compile(
+    r"\b(amazing|wonderful|helpful|caring|incredible|awesome|great|beyond helpful|top notch|"
+    r"grateful|blessed|life[- ]changing)\b", re.IGNORECASE)
+
+
+def is_person_or_review(b: str) -> bool:
+    """True when a block is a staff bio or a customer testimonial rather than client-authored copy."""
+    if _CREDENTIALS.search(b) or _BIO_NARRATIVE.search(b) or _REVIEW_VOICE.search(b):
+        return True
+    # a short first-person evaluative sentence is a review even without a stock phrase
+    return len(b) < 260 and bool(_FIRST_PERSON.search(b)) and bool(_EVALUATIVE.search(b))
+
+
 async def collect(n_pages: int) -> tuple[list[str], int, int, int]:
     """Unique NON-BOILERPLATE blocks. A block present on >=30% of pages is nav/footer/CTA chrome:
     it is not page copy, it is the largest source of false positives (headings run into paragraphs,
@@ -82,6 +110,7 @@ async def collect(n_pages: int) -> tuple[list[str], int, int, int]:
     uniq: list[str] = []
     total = 0
     boiler = 0
+    personal = 0
     for bl in per_page:
         for b in bl:
             total += 1
@@ -89,36 +118,50 @@ async def collect(n_pages: int) -> tuple[list[str], int, int, int]:
             if freq[h] >= cutoff:
                 boiler += 1
                 continue
+            if is_person_or_review(b):
+                personal += 1
+                continue
             if h not in seen:
                 seen.add(h)
                 uniq.append(b)
-    return uniq, total, pages, boiler
+    return uniq, total, pages, boiler, personal
 
 
-SYSTEM = """You are a copy-editor for a US behavioral-health website network. US English, AP style.
+# Restricted to the classes that SURVIVED adversarial review on the 473-finding judged run. The
+# earlier open-ended "spelling, grammar, punctuation" brief produced mostly word-choice rewrites —
+# "relapse probability" -> "relapse risk", "has tons of fun" -> "offer many fun" — which the client
+# would reject and which buried the real defects. Hyphenation is deliberately excluded too: it split
+# the judges ("one-on-one" and "top-notch" survived, "same-day" and "inpatient-level" did not), and
+# a class we cannot adjudicate is a class we should not ship.
+SYSTEM = """You are a proofreader for a US behavioral-health website network. US English, AP style.
 
-You are given ONE block of page text. Report ONLY:
-- spelling errors
-- clear grammar errors
-- punctuation errors that change meaning
+You are given ONE block of page text. Report ONLY these SIX mechanical defect types. Nothing else
+is a finding, no matter how much better you could write the sentence.
 
-CRITICAL RULES:
-- The ALLOWLIST below contains real proper nouns used by this business: city names, county names,
-  facility names, brand names, drug and medication names. NEVER report an allowlisted term as a
-  misspelling.
-- Do NOT report style preferences of ANY kind. Specifically never report: a colon before a list,
-  heading capitalisation, sentence length, list formatting, "restructure for clarity", missing
-  Oxford commas, or American-vs-British variants that are correct in US English.
-- Report ONLY a concrete, mechanical error. Every finding MUST be a short exact substring that is
-  wrong and a short exact replacement. If you cannot express the fix as a short replacement string,
-  do not report it.
-- Do NOT report anything about license numbers, ID codes, or alphanumeric identifiers.
-- Do NOT report a term as misspelled unless you are confident it is wrong. Marketing copy for this
-  industry contains many clinical and place names.
+1. MISSING SPACE after sentence-ending punctuation — "Athletic Fund.Originally from Boston"
+2. SPACE BEFORE punctuation — "hard times ." or "closely with you , showing"
+3. MISSPELLING — a genuinely misspelled English word, e.g. "programing" -> "programming"
+4. BROKEN WORD — a word split by a stray space, e.g. "rehab program s" -> "programs"
+5. SUBJECT-VERB DISAGREEMENT that is unambiguous — "His journey ... have put him" -> "has put him"
+6. MISSING POSSESSIVE APOSTROPHE — "a Masters in Marriage" -> "a Master's in Marriage"
+
+HARD PROHIBITIONS — these are NOT findings and reporting them is an error:
+- WORD CHOICE or synonyms of any kind. If the original word is a real word used correctly, leave it.
+- Rewriting, restructuring, shortening, or "improving" a sentence.
+- HYPHENATION. Never add or remove a hyphen. Never report "one on one", "same day", "top notch".
+- Commas that are optional: Oxford commas, commas around asides, commas after introductory phrases.
+- Capitalisation, heading style, sentence length, list formatting, colons before lists.
+- Anything about license numbers, ID codes, or alphanumeric identifiers.
+- Singular/plural choices that read naturally, and American-vs-British variants correct in US English.
 - Person-first language ("people with addiction") is REQUIRED and is never an error.
-- "near {{City}}" (e.g. "Rehab near Cerritos", "services near Laguna Hills") is this network's
-  DELIBERATE house phrasing for geo pages. Never rewrite "near X" to "in X" or flag it.
-- If the block has no error, return an empty findings list.
+- "near {{City}}" ("Rehab near Cerritos") is this network's DELIBERATE house phrasing for geo pages.
+
+The ALLOWLIST below is real proper nouns this business uses — cities, counties, facilities, brands,
+drugs, clinical terms. NEVER report an allowlisted term as a misspelling.
+
+Every finding MUST be a short exact substring that is wrong plus a short exact replacement. If you
+cannot express the fix as a short replacement string, it is not one of the six types — omit it.
+If the block has no defect of these six types, return an empty findings list. Most blocks will.
 
 ALLOWLIST (proper nouns — never flag these):
 {allowlist}
@@ -138,7 +181,7 @@ SCHEMA = {
 
 
 def main(n_pages: int, n_blocks: int) -> None:
-    uniq, total, pages, boiler = asyncio.run(collect(n_pages))
+    uniq, total, pages, boiler, personal = asyncio.run(collect(n_pages))
     allow = json.loads(ALLOWLIST.read_text())["terms"]
     client = anthropic.Anthropic()
 
@@ -150,7 +193,8 @@ def main(n_pages: int, n_blocks: int) -> None:
         model=MODEL, messages=[{"role": "user", "content": "\n\n".join(uniq)}]).input_tokens
 
     print(f"=== 1. cost model validation ({pages} GL pages) ===")
-    print(f"  blocks: {total} total | {boiler} boilerplate excluded | {len(uniq)} unique page-copy blocks sent")
+    print(f"  blocks: {total} total | {boiler} boilerplate | {personal} bio/testimonial | "
+          f"{len(uniq)} unique client-authored blocks sent")
     print(f"  deduped body tokens: {body:,}  -> {body/max(1,pages):,.0f} tok/page")
     print(f"  cached prefix (system+allowlist): {tok_sys:,} tokens  [min cacheable: 4096 Haiku / 1024 Sonnet 5 / 512 Opus 5]")
     est = body / max(1, pages) * 31037
