@@ -23,7 +23,8 @@ URL = "https://brand.test/page/"
 
 class _Client:
     def __init__(self, fail=()):
-        self.fail = set(fail)
+        self.fail = set(fail)            # 404 — missing on the site
+        self.server_error = set()        # 503 — exists but unreadable
         self.calls = []
 
 
@@ -31,6 +32,8 @@ async def _req(client, url, max_retries=1):
     client.calls.append(url)
     if url in client.fail:
         return 404, url, "", None, {}
+    if url in client.server_error:
+        return 503, url, "", None, {}
     return 200, url, f"/* {url} */ .x{{display:none}}", None, {}
 
 
@@ -52,15 +55,28 @@ def test_same_host_only_and_stylesheet_rel_only():
     assert c.status == "ok" and c.trustworthy
 
 
-def test_one_failed_sheet_is_partial_not_ok():
+def test_a_404_stylesheet_does_not_degrade_status():
+    # hello-elementor's custom-nav.css 404s on CAD, COC, AR and MHD. A missing sheet applies no
+    # rules IN THE BROWSER EITHER, so our knowledge of what is hidden is still complete. It is a
+    # real client defect, recorded separately — not a reason to mark every finding uncertain.
     c, _ = _load(fail={"https://brand.test/b.css"})
-    assert c.status == "partial" and not c.trustworthy
-    assert c.sheets_fetched == 1 and c.sheets_found == 2
+    assert c.status == "ok" and c.trustworthy
+    assert c.missing_sheets == ["https://brand.test/b.css"]
     assert c.css, "the sheet that DID load must still be used"
 
 
-def test_all_failed_is_unavailable():
-    c, _ = _load(fail={"https://brand.test/a.css", "https://brand.test/b.css"})
+def test_an_unreadable_sheet_is_partial():
+    # 5xx/timeout: the file EXISTS but we could not read it, so we do not know what it hides.
+    c, cl = BrandCSS(), _Client()
+    cl.server_error = {"https://brand.test/b.css"}
+    asyncio.run(c.load(cl, PAGE, URL))
+    assert c.status == "partial" and not c.trustworthy
+
+
+def test_all_unreadable_is_unavailable():
+    c, cl = BrandCSS(), _Client()
+    cl.server_error = {"https://brand.test/a.css", "https://brand.test/b.css"}
+    asyncio.run(c.load(cl, PAGE, URL))
     assert c.status == "unavailable" and not c.trustworthy
 
 

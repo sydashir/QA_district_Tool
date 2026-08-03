@@ -26,8 +26,8 @@ from bs4 import BeautifulSoup
 
 _log = logging.getLogger(__name__)
 
-MAX_SHEETS = 40          # WordPress themes routinely link 20+; the cap is a runaway guard,
-                         # and hitting it downgrades status to "partial" rather than lying "ok"
+MAX_SHEETS = 80          # measured: AR links 47 and MHD 49, so 40 truncated real reads. The cap
+                         # is a runaway guard; hitting it downgrades to "partial", never a false "ok"
 MAX_BYTES = 3_000_000    # a runaway CSS bundle must not blow up memory on every page parse
 
 
@@ -47,6 +47,7 @@ class BrandCSS:
         self._loaded = False
         self.sheets_found = 0
         self.sheets_fetched = 0
+        self.missing_sheets: list[str] = []   # 404/410 — a real client defect, not a degraded read
 
     @staticmethod
     def _sheet_urls(html: str, page_url: str) -> list[str]:
@@ -83,24 +84,36 @@ class BrandCSS:
             return
 
         parts: list[str] = []
+        unreadable = 0
         for u in urls:
             try:
                 st, _final, body, _err, _hdr = await C._request(client, u, max_retries=max_retries)
             except Exception as e:               # a CSS fetch must never sink the crawl
                 _log.warning("stylesheet fetch raised for %s: %s", u, e)
+                unreadable += 1
                 continue
             if st == 200 and body:
                 parts.append(body)
                 self.sheets_fetched += 1
                 if sum(len(p) for p in parts) > MAX_BYTES:
                     break
+            elif st in (404, 410):
+                # A MISSING stylesheet is not a degraded read. The browser gets nothing from it
+                # either, so it contributes no rules and our knowledge of what is hidden is still
+                # complete. (It IS a real client defect — hello-elementor's custom-nav.css 404s on
+                # CAD, COC, AR and MHD — but that belongs in the report, not in this status.)
+                self.missing_sheets.append(u)
+                _log.info("stylesheet missing on the site (%s): %s", st, u)
             else:
-                _log.warning("stylesheet unavailable (%s): %s", st, u)
+                # 5xx, timeout, connection error: the file EXISTS but we could not read it, so we
+                # genuinely do not know what it hides.
+                unreadable += 1
+                _log.warning("stylesheet unreadable (%s): %s", st, u)
 
         self.css = "\n".join(parts)
-        if self.sheets_fetched == 0:
+        if self.sheets_fetched == 0 and unreadable:
             self.status = "unavailable"
-        elif truncated or self.sheets_fetched < len(urls):
+        elif truncated or unreadable:
             self.status = "partial"
         else:
             self.status = "ok"
