@@ -29,12 +29,17 @@ from . import checks_version, crawl as C, diff, writers
 from .checks import (blank, empty_slot, enumeration, links, meta, misspelling, phone,
                      placeholder, scope, structure)
 from .config import BrandConfig
+from .css_cache import BrandCSS
 from .parse import ParsedPage, parse_html
 from .report import (AuditReport, Finding, PageAudit, Severity, canonical_url,
                      dedupe_findings, make_fingerprint)
 
 # Per-page checks that operate purely on a ParsedPage.
 _PAGE_CHECKS = (structure, placeholder, empty_slot, misspelling, scope, phone, blank, meta)
+# Checks whose findings are derived from ``visible_text`` and are therefore only as trustworthy as
+# our knowledge of what the page HIDES (see ParsedPage.css_status).
+_VISIBLE_TEXT_CHECKS = frozenset({"blank", "placeholder", "empty_slot", "misspelling",
+                                 "scope", "phone"})
 
 REPORTS_DIR = Path(__file__).resolve().parent.parent / "reports"
 _log = logging.getLogger(__name__)
@@ -80,6 +85,19 @@ def _project(parsed: ParsedPage, r, config: BrandConfig) -> PageProjection:
     for mod in _PAGE_CHECKS:
         page_findings.extend(mod.run(parsed, config))
     page_findings = dedupe_findings(page_findings)  # collapse identical repeats
+    # A partial CSS read must NOT produce a confident finding. Without every stylesheet we cannot
+    # know what the page hides, so visible_text may still carry text no reader sees — exactly the
+    # class of defect that produced fabricated "missing space" findings. Same discipline as
+    # withholding coverage findings on a partial sitemap read: say so, do not quietly proceed.
+    if parsed.css_status not in ("ok", "none"):
+        for f in page_findings:
+            if f.check in _VISIBLE_TEXT_CHECKS:
+                f.details = dict(f.details or {})
+                f.details["css_status"] = parsed.css_status
+                f.details["confidence"] = "low"
+                f.suggestion = (f"{f.suggestion} NOTE: this brand's stylesheets could not be fully "
+                                f"read ({parsed.css_status}), so hidden text may not have been "
+                                f"excluded — verify against the rendered page before acting.")
     return PageProjection(
         url=parsed.url, final_url=r.final_url, status=r.status,
         content_hash=C.page_hash(parsed.raw_html),  # single-source stable hash (P5)
@@ -252,7 +270,8 @@ def load_resume(brand: str, check_version: str,
     return done
 
 
-async def _stream_fetch_project(client, urls, config, check_version, resume_path, on_done=None):
+async def _stream_fetch_project(client, urls, config, check_version, resume_path, on_done=None,
+                                brand_css=None):
     """Fetch -> parse -> project -> APPEND to the resume cache, per page, concurrency-capped.
     Persisting INSIDE the loop (not after a batch gather) is what makes a crawl resumable: a
     crash at page N keeps the N-1 already flushed to disk. Returns (projections, failed).
@@ -270,6 +289,9 @@ async def _stream_fetch_project(client, urls, config, check_version, resume_path
     resume_path.parent.mkdir(parents=True, exist_ok=True)
     sem = asyncio.Semaphore(config.crawl.max_concurrency)
     lock = asyncio.Lock()
+    css_lock = asyncio.Lock()
+    if brand_css is None:
+        brand_css = BrandCSS()
     fh = resume_path.open("a", encoding="utf-8")
     total = len(urls)
     done_n = 0
@@ -287,8 +309,16 @@ async def _stream_fetch_project(client, urls, config, check_version, resume_path
                                   last_modified=(h.get("last-modified") if h else None),
                                   robots_header=(h.get("x-robots-tag") if h else None))
             if r.ok:
+                # ONE stylesheet fetch per brand, on the first page that succeeds. The theme's CSS
+                # is identical across URLs, and it is where the display:none rules that decide what
+                # is actually visible live. Guarded so concurrent pages do not all fetch it.
+                if not brand_css._loaded:
+                    async with css_lock:
+                        await brand_css.load(client, r.text, r.final_url or r.url,
+                                             max_retries=config.crawl.max_retries)
                 parsed = parse_html(r.text, page_url=canonical_url(r.url),
-                                    base_url=r.final_url or r.url)
+                                    base_url=r.final_url or r.url,
+                                    extra_css=brand_css.css, css_status=brand_css.status)
                 proj = _project(parsed, r, config)
                 async with lock:
                     fh.write(json.dumps(_projection_row(proj, check_version)) + "\n")

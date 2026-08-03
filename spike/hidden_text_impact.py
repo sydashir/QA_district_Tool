@@ -28,6 +28,7 @@ from bs4 import BeautifulSoup
 
 from auditor import crawl as C
 from auditor import parse as P
+from auditor.css_cache import BrandCSS
 from auditor.checks import blank, empty_slot, misspelling, phone, placeholder, scope
 from auditor.config import load_brand
 
@@ -63,6 +64,7 @@ async def measure(brand: str, n_pages: int) -> None:
         step = max(1, len(urls) // n_pages)
         sample = urls[::step][:n_pages]
 
+        brand_css = BrandCSS()
         pages = 0
         before: Counter = Counter()
         after: Counter = Counter()
@@ -75,7 +77,11 @@ async def measure(brand: str, n_pages: int) -> None:
             if st != 200 or not html:
                 continue
             pages += 1
-            new = P.parse_html(html, page_url=u, base_url=u)
+            # GL inlines all its CSS, but CAD/COC/AH/AR/MHD/TDRC link 12+ external stylesheets —
+            # without fetching those, hidden content on six of nine brands is invisible to us.
+            await brand_css.load(client, html, u, max_retries=2)
+            new = P.parse_html(html, page_url=u, base_url=u,
+                               extra_css=brand_css.css, css_status=brand_css.status)
             old = dataclasses.replace(new, visible_text=old_visible_text(html))
             lens_before.append(len(old.visible_text))
             lens_after.append(len(new.visible_text))
@@ -97,6 +103,8 @@ async def measure(brand: str, n_pages: int) -> None:
         print(f"{brand.upper():5} no pages fetched — SKIPPED")
         return
     tb, ta = sum(lens_before), sum(lens_after)
+    print(f"      brand CSS: {brand_css.sheets_fetched}/{brand_css.sheets_found} sheets, "
+          f"status={brand_css.status}")
     print(f"{brand.upper():5} pages={pages:3}  visible chars {tb:,} -> {ta:,} "
           f"({(tb - ta) / max(1, tb):.1%} was hidden)")
     print(f"      shortest page: {min(lens_before):,} -> {min(lens_after):,} chars   "

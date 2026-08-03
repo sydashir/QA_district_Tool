@@ -48,6 +48,12 @@ class ParsedPage:
     links: list[Link] = field(default_factory=list)
     visible_text: str = ""  # normalized: script/style/cfemail stripped
     raw_html: str = ""
+    # Whether the CSS needed to know what is HIDDEN was actually readable. "ok" (or "none" — the
+    # page links no stylesheets) means visible_text is trustworthy. "partial"/"unavailable" means
+    # display:none rules may have been missed, so hidden text can still be in visible_text and any
+    # finding derived from it is lower-confidence. Same principle as withholding coverage findings
+    # on a partial sitemap read: a partial read must never produce a confident claim.
+    css_status: str = "none"
 
 
 def strip_volatile(soup: BeautifulSoup) -> BeautifulSoup:
@@ -128,8 +134,13 @@ def _strip_at_blocks(css: str) -> str:
 _SIMPLE_CLASS = re.compile(r"^\.([A-Za-z0-9_-]+)$")
 
 
-def _strip_hidden(soup) -> None:
-    """Remove elements the rendered page does not show. Mutates ``soup`` in place."""
+def _strip_hidden(soup, extra_css: str = "") -> None:
+    """Remove elements the rendered page does not show. Mutates ``soup`` in place.
+
+    ``extra_css`` is stylesheet text fetched from <link rel=stylesheet> — the rules that hide the
+    live GL `.geo-topic` chips live there, not in an inline <style>, so inline-only stripping left
+    text on the page that a browser renders as nothing at all.
+    """
     # find_all, NOT soup.select("[hidden]"): the CSS attribute selector goes through soupsieve and
     # measured 633ms on a 4,334-element RR page, versus a few ms for bs4's native attribute scan.
     for el in soup.find_all(attrs={"hidden": True}):
@@ -139,8 +150,11 @@ def _strip_hidden(soup) -> None:
 
     selectors: list[str] = []
     seen: set[str] = set()
-    for style in soup.find_all("style"):
-        css = _strip_at_blocks(style.get_text() or "")
+    sources = [st.get_text() or "" for st in soup.find_all("style")]
+    if extra_css:
+        sources.append(extra_css)
+    for raw_css in sources:
+        css = _strip_at_blocks(raw_css)
         for m in _CSS_RULE.finditer(css):
             if _HIDDEN_INLINE.search(m.group(2)):
                 for sel in m.group(1).split(","):
@@ -192,14 +206,19 @@ def _strip_hidden(soup) -> None:
                 el.decompose()
     if not complex_:
         return
+    # The parent guard matters: decomposing an ancestor orphans elements still in this list, and
+    # calling decompose() on an orphan raises — which previously aborted the whole batch and left
+    # hidden content in visible_text. Skip what a prior decompose already removed.
     try:
         for el in soup.select(", ".join(complex_)):
-            el.decompose()
+            if el.parent is not None:
+                el.decompose()
     except Exception:
         for sel in complex_:  # one unparseable selector must not lose the whole batch
             try:
                 for el in soup.select(sel):
-                    el.decompose()
+                    if el.parent is not None:
+                        el.decompose()
             except Exception:
                 continue
 
@@ -252,7 +271,8 @@ def _visible_text(soup) -> str:
     return text.strip()
 
 
-def parse_html(html: str, page_url: str, base_url: str | None = None) -> ParsedPage:
+def parse_html(html: str, page_url: str, base_url: str | None = None,
+               extra_css: str = "", css_status: str = "none") -> ParsedPage:
     """Parse rendered HTML into the extraction primitives the M1 checks consume.
 
     Links + headings + title + meta are read from the full document; ``visible_text``
@@ -291,7 +311,7 @@ def parse_html(html: str, page_url: str, base_url: str | None = None) -> ParsedP
         links.append(Link(href=href, url=absu))
 
     # ORDER MATTERS: _strip_hidden reads <style> rules, and strip_volatile deletes <style>.
-    _strip_hidden(soup)   # drop what the rendered page does not show
+    _strip_hidden(soup, extra_css)   # drop what the rendered page does not show
     strip_volatile(soup)  # then normalize away script/style/cfemail noise
     visible_text = _visible_text(soup)
 
