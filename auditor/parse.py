@@ -111,13 +111,19 @@ def _visible_text(soup) -> str:
     out: list[str] = []
     for el in soup.descendants:
         if isinstance(el, NavigableString):
-            if str(el).strip():
-                # Trailing space is REQUIRED: adjacent inline nodes (two sibling <a> links in a
-                # menu, "Adderall addiction" + "Detox") must not fuse into "addictionDetox".
-                # The original get_text(" ") separated EVERY text node; dropping that while adding
-                # block newlines traded one weld for another — the GL pilot surfaced 24 bogus
-                # "missing space" findings from a single nav block before this was put back.
-                out.append(str(el) + " ")
+            s = str(el)
+            if s.strip():
+                # A separator between two inline text nodes is needed ONLY to keep two words apart
+                # ("Adderall addiction" + "Detox" must not fuse into "addictionDetox"). Adding one
+                # unconditionally — as the original get_text(" ", strip=True) did — invents defects:
+                # live GL ships "<strong>phone rings</strong>." and it came out as "phone rings .",
+                # which the AI layer then correctly reported as a punctuation error that is not on
+                # the page. So insert one only where both sides of the boundary are alphanumeric;
+                # markup that already carries its own spacing, and any following punctuation, is
+                # left exactly as authored — including a stray " ," the client really did type.
+                if out and out[-1] != "\n" and out[-1][-1:].isalnum() and s[:1].isalnum():
+                    out.append(" ")
+                out.append(s)
         elif el.name in _BLOCK_SET:
             out.append("\n")
     text = _INLINE_WS.sub(" ", "".join(out))   # collapse spaces/tabs, keep \n
