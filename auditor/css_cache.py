@@ -1,14 +1,12 @@
 """Per-brand external-stylesheet cache.
 
-``visible_text`` must not contain text the rendered page hides. Most ``display:none`` rules that
-matter live in an EXTERNAL stylesheet, not an inline ``<style>``: live Gratitude Lodge ships
+``visible_text`` must not contain text the rendered page hides, and a ``display:none`` rule can live
+in an EXTERNAL stylesheet where inline-only parsing cannot see it.
 
-    <a href="…">Partial hospitalization program (PHP)<span>Costa Mesa, CA</span></a>
-
-whose span is hidden by a rule in a linked CSS file. Verified in a browser: the span's computed
-display is ``none`` and the whole chip's ``innerText`` is EMPTY — the link renders nothing at all.
-Reading only inline styles left that text in ``visible_text``, and the AI layer then reported a
-"missing space" defect for a string no reader can see.
+Measured across the network, the split is stark: **Gratitude Lodge links ZERO stylesheets** (its CSS
+is fully inlined, which is why GL's hidden `.geo-topic` chips were caught from a ``<style>`` block),
+but **CAD, COC, AH, AR, MHD and TDRC each link 12+ same-host stylesheets**. For those six brands,
+inline-only parsing means hidden content was never detected at all.
 
 ONE FETCH PER BRAND, not per page: a WordPress theme serves the same stylesheets on every URL, so
 the first page's ``<link rel=stylesheet>`` set is the brand's CSS. At ~31k pages the difference is
