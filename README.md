@@ -8,14 +8,24 @@ You do not need to be a developer to run it. It is one command.
 
 ---
 
-## The one command
+## The command to run
 
 ```
-python3 -m auditor.cli all
+python3 -m auditor.cli all -b tdrc -b ah -b ar -b dbh -b cad -b coc -b gl -b rr
 ```
 
-That audits all nine brands, smallest first, and publishes each one to the sheet as it goes.
-It prints progress as it works and a summary at the end.
+That audits eight of the nine brands, smallest first, and publishes each to the sheet as it goes.
+It prints progress as it works and a summary at the end. **It takes about 7 hours** — start it
+before you leave and it is done by morning.
+
+The ninth brand, **MHD, is run separately** because it takes about 29 hours on its own:
+
+```
+python3 -m auditor.cli all -b mhd
+```
+
+There is also `python3 -m auditor.cli all` with no `-b` flags, which does all nine in one go — but
+that is a multi-day job, so it is not what you normally want. See below.
 
 ### How long it takes — read this before you start
 
