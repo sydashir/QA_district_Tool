@@ -28,6 +28,13 @@ code. One way to do each thing — no parallel implementations "just in case."
   a reason to defer it.
 - **Git identity for this repo:** `sydashir` / `meetashirr@gmail.com` (set repo-local, not global).
 
+- **A test double must mirror the real thing, including its empty and degenerate states.** A fake
+  that is kinder than reality hides the bugs it exists to catch. The fake Sheets client invented a
+  header row on first append; the real API does not, so the first row landed in A1 and was read back
+  AS the header — every re-run would have appended a duplicate instead of updating, and the test
+  suite said green. When a live run finds a bug the fake missed, fix the FAKE first, watch the tests
+  go red, then fix the code.
+
 Corollaries: never invent a URL, config shape, or library API surface. If it isn't in this file,
 `SESSION_STATE.md`, or the existing code, stop and ask. When crawl access or any external
 dependency blocks you, stop and report immediately — do not silently work around it.
