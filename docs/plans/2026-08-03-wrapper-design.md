@@ -226,3 +226,72 @@ python3 -m auditor.cli all -b gl        # one brand
    which meant `(run_id, brand)` could never be found and **every re-run would have appended a
    duplicate instead of updating**. The original test fake invented a header and hid this; the fake
    was made faithful and now reproduces it.
+
+
+---
+
+## 9. MEASURED RUNTIME — and why "all nine" is not one job
+
+From the full acceptance run of 2026-08-04, on a laptop over a normal connection:
+
+| Brand | Pages | Findings | Notes |
+|---|---|---|---|
+| TDRC | 19 | 88 | |
+| AH | 179 | 561 | |
+| AR | 474 | 1,180 | failed on attempt 1 (trim bug at 1,184 rows), clean after the fix |
+| DBH | 1,239 | 2,277 | failed on attempt 1 (2,280 rows); **host had recovered from the earlier ConnectTimeout block** |
+| CAD | 1,239 | 3,247 | |
+| COC | 1,504 | 5,039 | 25m51s to audit |
+| GL | 3,591 | 9,981 | |
+| RR | 7,973 | — | ~25 pages/min measured, ~5h |
+| **MHD** | **15,635** | — | **~29h at its locked concurrency-2 throttle-safe config** |
+
+**Eight brands ≈ 7 hours. MHD alone ≈ 29 hours.**
+
+MHD's config is not a tuning oversight — its host rate-limited us during the census work and the
+gentle setting is permanent, recorded in `config/mhd.toml`. Raising it risks the client's live site.
+
+**Consequence, stated plainly rather than papered over:** `auditor.cli all` with no arguments is a
+multi-day job, essentially all of it MHD. The guidance in the README is therefore to run the eight
+as one job and MHD as its own, and that is what the QA team must be told before they try it.
+
+If running a machine for a day proves impractical, the real answer is **sample MHD on a regular
+cadence and census it rarely** — but that is a decision to take deliberately, with someone
+accepting that MHD's long tail is then only checked occasionally. It is not something to slip in
+as a default.
+
+### What a normal run looks like
+
+```
+District Site Auditor — all brands (8)
+run id: 20260804T171824
+Safe to stop at any time: run the same command again and it resumes.
+
+[1/8] TDRC — starting
+[1/8] TDRC — audited 19 pages, 88 findings (1m24s)
+[1/8] TDRC — published. TDRC: 1 new, 0 fixed, 88 open — 8 ERRORs untriaged, oldest is 14 days
+...
+Finished in 7h02m.  8 of 8 brands published.
+All brands published. The sheet is up to date.
+```
+
+### What a failed brand looks like
+
+```
+[3/8] AR — FAILED: HTTPStatusError: Client error '400 Bad Request' for url '...'
+    (the other brands will still run; this one can be retried on its own)
+...
+1 brand(s) did NOT finish:
+  AR: HTTPStatusError: Client error '400 Bad Request' ...
+```
+
+The run does **not** abort — it continues to the next brand. In the sheet, that brand's `Summary`
+row stays `running`, which is the marker to look for.
+
+### Re-running resumes
+
+Running the same command again continues the SAME run (the run id is held in `.run_in_progress`),
+reuses every page already fetched at the current check-version, and updates the existing `Summary`
+row rather than appending a second. Verified live: the restart printed
+`Continuing an earlier run that did not finish` with the original run id, and CAD reported
+`reusing 164 cached pages (version match); fetching 1075 of 1239`.

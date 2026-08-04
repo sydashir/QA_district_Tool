@@ -17,8 +17,36 @@ python3 -m auditor.cli all
 That audits all nine brands, smallest first, and publishes each one to the sheet as it goes.
 It prints progress as it works and a summary at the end.
 
-**It takes several hours.** The small brands finish in minutes; the biggest one (MHD) is the bulk of
-it. You can leave it running and do other things.
+### How long it takes — read this before you start
+
+**Measured on a real full run, 2026-08-04:**
+
+| Brands | Pages | Time |
+|---|---|---|
+| The eight brands **excluding MHD** | ~15,400 | **about 7 hours** |
+| **MHD on its own** | 15,635 | **about 29 hours** |
+
+MHD is deliberately slow. Its web host rate-limits us, so it is locked to a gentle setting that we
+are not going to raise — pushing it risks the client's live site.
+
+**So `all` is NOT an overnight job as configured.** Do this instead:
+
+```
+python3 -m auditor.cli all -b tdrc -b ah -b ar -b dbh -b cad -b coc -b gl -b rr
+```
+
+That is the eight brands, about 7 hours — start it in the morning and it is done by evening, or
+start it before you leave and it is done overnight.
+
+Then run MHD separately, when a machine can be left alone for a day or more:
+
+```
+python3 -m auditor.cli all -b mhd
+```
+
+You can stop MHD and restart it as often as you like; it resumes. If leaving a machine running for a
+day is not practical, tell Syed — the answer is to check a sample of MHD regularly and do the full
+count rarely, but that is a decision to make deliberately, not a workaround to improvise.
 
 ### Before you trust it, do a practice run
 
