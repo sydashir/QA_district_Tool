@@ -101,6 +101,44 @@ Also written to `Summary` on every run, because a degraded run that reports conf
 trap this project has already hit twice: `css_status` per brand (partial CSS ⇒ findings marked
 lower-confidence) and `sitemap_partial` (⇒ coverage findings withheld).
 
+## 5a. Rate-limit budget — measured, not assumed
+
+Official quota (developers.google.com/workspace/sheets/api/limits, checked 2026-08-04):
+**60 read and 60 write requests per minute PER USER** per project (300 per project), no daily cap.
+
+Measured call count for a full publish: **10 API calls per brand, 90 for nine brands.**
+
+- **Unpaced, all nine back to back: 90 calls — over the 60/min ceiling.** It would start backing off
+  around brand seven and run into the morning. So pacing is load-bearing, not decorative.
+- **Paced at 40 calls/min** (1.5s spacing) the publish takes ~2.2 min of wall clock and sits at
+  two-thirds of the per-minute ceiling. Since reads and writes have *separate* 60/min buckets and
+  our 40 is the combined rate, real usage is ~20 of each — a wide margin.
+- Extra headroom is deliberate: **this service account is shared with the GeoData Fetcher.** If that
+  runs concurrently it draws from the same per-user bucket, and a nightly job that starts backing
+  off does not fail loudly, it just finishes late.
+
+## 5b. Crash safety — per-brand atomic, safe to re-run
+
+A run that dies on brand four must be re-runnable with no duplicated history and no half-updated tab.
+
+- **Every tab write is a full replacement** keyed by tab name, so redoing a brand converges.
+- **The one append — the `Summary` history row — is idempotent by `(run_id, brand)`**: a retry
+  updates that row rather than adding a second.
+- **`Summary` says `running` before any tab is touched and `ok` only after every tab is written**, so
+  a crash leaves a visible `running` row instead of silence.
+- **Writes go update-then-trim, never clear-then-write.** Clearing first leaves the tab EMPTY if the
+  process dies between the two calls; writing first means the worst case is correct new data plus a
+  few stale trailing rows, which the next run removes.
+- Order within a brand is `open` → `new` → close `Summary`. `open` carries the client's triage and
+  refuses to write at all if the existing triage cannot be read.
+
+## 5c. Dry run
+
+`--publish --dry-run` renders exactly what would be written — tab, header, and rows — to stdout or a
+file, and touches nothing. Reads still happen, so the preview shows the true triage merge against
+whatever the client has actually written. This is what makes the first deploy safe and what can be
+shown to the client before anything is live.
+
 ## 6. Open — needs Syed, do not guess
 
 **The service account cannot create a spreadsheet. Verified, not assumed:**

@@ -26,6 +26,14 @@ _log = logging.getLogger(__name__)
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 SHEETS_API = "https://sheets.googleapis.com/v4/spreadsheets"
 
+# Official Sheets API quota (developers.google.com/workspace/sheets/api/limits, checked 2026-08-04):
+# 60 read AND 60 write requests per minute PER USER per project (300 per project). No daily cap.
+# We pace well under 60 because this service account is SHARED with the GeoData Fetcher — if that
+# runs at the same time it draws from the same per-user bucket, and a nightly job that starts
+# backing off on brand seven runs into the morning.
+QUOTA_PER_MIN = 60
+PACE_PER_MIN = 40          # ~1.5s between calls, a third of the quota left as headroom
+
 OPEN_HEADER = ["url", "check", "severity", "issue", "location", "snippet", "suggestion",
                "fingerprint", "first_seen", "age_days", "status", "note"]
 
@@ -40,6 +48,7 @@ class SheetsClient:
     spreadsheet_id: str
     credentials_path: str
     _creds: object = None
+    _last_call: float = 0.0
 
     def _headers(self) -> dict:
         """Cached credentials. The first version re-read the key file and minted a NEW token on
@@ -54,6 +63,16 @@ class SheetsClient:
             self._creds.refresh(gtr.Request())
         return {"Authorization": f"Bearer {self._creds.token}"}
 
+    def _pace(self) -> None:
+        """Space calls out so a nine-brand run never approaches the per-minute quota."""
+        import time
+        min_gap = 60.0 / PACE_PER_MIN
+        now = time.monotonic()
+        wait = self._last_call + min_gap - now
+        if wait > 0:
+            time.sleep(wait)
+        self._last_call = time.monotonic()
+
     def _send(self, method: str, url: str, **kw):
         """One request with backoff on 429/5xx.
 
@@ -66,6 +85,7 @@ class SheetsClient:
         delay = 2.0
         last = None
         for attempt in range(5):
+            self._pace()
             with httpx.Client(timeout=120) as c:
                 r = c.request(method, url, headers=self._headers(), **kw)
             if r.status_code < 400:
@@ -93,12 +113,23 @@ class SheetsClient:
         return values[0], values[1:]
 
     def replace_tab(self, tab: str, header: list[str], rows: list[list[str]]) -> None:
-        self._send("POST",
-                   f"{SHEETS_API}/{self.spreadsheet_id}/values/{tab}!A1:Z100000:clear"
-                   ).raise_for_status()
+        # WRITE FIRST, THEN TRIM. The obvious order (clear, then write) leaves the tab EMPTY if the
+        # process dies between the two calls — the client opens the sheet to nothing. Writing first
+        # means the worst case is correct new data followed by a few stale trailing rows, which the
+        # next run cleans up.
+        values = [header] + rows
         self._send("PUT", f"{SHEETS_API}/{self.spreadsheet_id}/values/{tab}!A1",
                    params={"valueInputOption": "RAW"},
-                   json={"values": [header] + rows}).raise_for_status()
+                   json={"values": values}).raise_for_status()
+        self._send("POST",
+                   f"{SHEETS_API}/{self.spreadsheet_id}/values/"
+                   f"{tab}!A{len(values) + 1}:Z100000:clear").raise_for_status()
+
+    def update_row(self, tab: str, row_index: int, row: list[str]) -> None:
+        """Overwrite one data row (0-based, excluding the header)."""
+        self._send("PUT", f"{SHEETS_API}/{self.spreadsheet_id}/values/{tab}!A{row_index + 2}",
+                   params={"valueInputOption": "RAW"},
+                   json={"values": [row]}).raise_for_status()
 
     def ensure_tab(self, tab: str) -> None:
         """Create the tab if it is absent. Idempotent."""
@@ -205,3 +236,45 @@ def digest_line(brand: str, delta: dict, untriaged: tuple[int, int]) -> str:
         "nothing untriaged"
     return (f"{brand}: {delta.get('new', 0)} new, {delta.get('resolved', 0)} fixed, "
             f"{delta.get('open', 0)} open — {stale}")
+
+
+class DryRunSheets:
+    """A SheetsClient that touches nothing and renders exactly what WOULD be written.
+
+    This is what makes the first real deploy safe, and what can be shown to the client before
+    anything is live. It implements the same surface as ``SheetsClient``; reads come from whatever
+    the sheet currently holds ONLY if a real client is supplied, otherwise from nothing — so a dry
+    run against a live sheet still shows the true triage merge without writing it back.
+    """
+
+    def __init__(self, out, reader=None):
+        self.out = out                 # a writable file object
+        self.reader = reader           # optional real client, used for reads only
+        self.writes: list[tuple] = []
+
+    def read_tab(self, tab):
+        return self.reader.read_tab(tab) if self.reader else None
+
+    def ensure_tab(self, tab):
+        self._w(f"\n=== would ENSURE tab exists: {tab!r}")
+
+    def replace_tab(self, tab, header, rows):
+        self.writes.append(("replace", tab, len(rows)))
+        self._w(f"\n=== would REPLACE {tab!r} — {len(rows)} rows")
+        self._w("    " + " | ".join(header))
+        for r in rows[:15]:
+            self._w("    " + " | ".join((c or "")[:28] for c in r))
+        if len(rows) > 15:
+            self._w(f"    … {len(rows) - 15} more rows")
+
+    def append_row(self, tab, row):
+        self.writes.append(("append", tab, 1))
+        self._w(f"\n=== would APPEND to {tab!r}:\n    " + " | ".join(str(c)[:28] for c in row))
+
+    def update_row(self, tab, row_index, row):
+        self.writes.append(("update", tab, row_index))
+        self._w(f"\n=== would UPDATE {tab!r} row {row_index}:\n    "
+                + " | ".join(str(c)[:28] for c in row))
+
+    def _w(self, line: str) -> None:
+        print(line, file=self.out)
