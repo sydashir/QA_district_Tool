@@ -25,6 +25,7 @@ from .triage import untriaged_error_summary
 _log = logging.getLogger(__name__)
 
 SUMMARY_TAB = "Summary"
+SUMMARY_HEADER_WITH_RUN = ["run_id"] + SUMMARY_HEADER
 NEW_HEADER = ["url", "check", "severity", "issue", "location", "snippet", "suggestion",
               "fingerprint", "change"]
 
@@ -48,9 +49,10 @@ def _find_summary_row(client, run_id: str, brand: str) -> int | None:
 def publish_brand(client, *, brand: str, run_id: str, findings, delta: dict,
                   changed_checks: set[str], first_seen: dict, run_date: str,
                   started: str, pages: int, counts: dict | None = None,
-                  css_status: str = "", sitemap_partial: bool = False) -> str:
+                  css_status: str = "", sitemap_partial: bool = False,
+                  finished: str = "", duration_s: int = 0) -> str:
     """Publish one brand's tabs + Summary row. Returns the digest line for the email."""
-    client.ensure_tab(SUMMARY_TAB)
+    client.ensure_tab(SUMMARY_TAB, header=SUMMARY_HEADER_WITH_RUN)
     row_idx = _find_summary_row(client, run_id, brand)
 
     start_row = summary_row(brand=brand, status="running", started=started, pages=pages,
@@ -83,11 +85,67 @@ def publish_brand(client, *, brand: str, run_id: str, findings, delta: dict,
     ] for f in changed])
 
     untriaged = untriaged_error_summary(rows)
-    done_row = summary_row(brand=brand, status="ok", started=started, finished=run_date,
-                           pages=pages, counts=counts, delta=delta, untriaged=untriaged,
-                           css_status=css_status, sitemap_partial=sitemap_partial)
+    done_row = summary_row(brand=brand, status="ok", started=started,
+                           finished=finished or run_date, pages=pages, counts=counts, delta=delta,
+                           untriaged=untriaged, css_status=css_status,
+                           sitemap_partial=sitemap_partial, duration_s=duration_s)
     client.update_row(SUMMARY_TAB, row_idx, [run_id] + done_row)
     return digest_line(brand, delta, untriaged)
 
 
-SUMMARY_HEADER_WITH_RUN = ["run_id"] + SUMMARY_HEADER
+# The client's output spreadsheet. Owned by meetashirr@gmail.com; the service account
+# app-service-account@lexical-sol-454719-s2.iam.gserviceaccount.com has Editor (verified 2026-08-04).
+# A service account can never CREATE a sheet (no Drive storage quota), so this is a human-made file.
+SHEET_ID = "1QnKHZBnEoxW2gIcOdDz6Ac2WjUbAa94Te_KR-7r2m-E"
+CREDENTIALS = "/Users/ashir/Documents/workk/district/credentials/service-account.json"
+
+
+def _client(dry_run: bool, out=None):
+    import sys
+
+    from .sheets import DryRunSheets, SheetsClient
+    real = SheetsClient(spreadsheet_id=SHEET_ID, credentials_path=CREDENTIALS)
+    if not dry_run:
+        return real
+    # A dry run still READS, so the preview reflects the triage the client has actually written.
+    return DryRunSheets(out or sys.stdout, reader=real)
+
+
+def publish_brand_from_result(brand: str, result: dict, *, run_id: str, dry_run: bool = False,
+                              out=None, started: str | None = None,
+                              duration_s: int = 0) -> str:
+    """Publish one brand straight from ``run_audit``'s return value."""
+    import time
+    from collections import Counter
+
+    findings = [f for f in result.get("findings", []) if getattr(f, "status", None) != "resolved"]
+    counts = Counter(getattr(f.severity, "name", str(f.severity)) for f in findings)
+    run = result.get("run") or {}
+    # `rollup` is a writers.Rollup object, not a dict — its counters live on attributes.
+    rollup = run.get("rollup")
+    by_status = dict(getattr(rollup, "by_status", None) or {})
+    delta = {
+        "new": by_status.get("new", 0),
+        "resolved": len(run.get("resolved") or []),
+        "rule_changed": by_status.get("rule_changed", 0),
+        "open": len(findings),
+        "new_fingerprints": {f.fingerprint for f in findings
+                             if getattr(f, "status", None) == "new"},
+    }
+    first_seen = {f.fingerprint: (f.first_seen or "")[:10] for f in findings if f.first_seen}
+    return publish_brand(
+        _client(dry_run, out), brand=brand.upper(), run_id=run_id, findings=findings,
+        delta=delta, changed_checks=set(run.get("changed") or []), first_seen=first_seen,
+        run_date=time.strftime("%Y-%m-%d"),
+        started=started or time.strftime("%Y-%m-%dT%H:%M:%S"),
+        finished=time.strftime("%Y-%m-%dT%H:%M:%S"),
+        pages=result.get("pages_audited", 0), counts=dict(counts),
+        css_status=result.get("css_status", ""), duration_s=duration_s,
+        sitemap_partial=bool(result.get("sitemap_partial")))
+
+
+def publish_result(brand: str, result: dict, *, dry_run: bool = False) -> str:
+    """Single-brand publish for `audit --brand X --publish`."""
+    import time
+    return publish_brand_from_result(brand, result,
+                                     run_id=time.strftime("%Y%m%dT%H%M%S"), dry_run=dry_run)

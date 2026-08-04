@@ -1,13 +1,22 @@
 # Wrapper design — scheduled runs + sheet output
 
-**Status: APPROVED 2026-08-03. Syed provides the spreadsheet and the VM. Nothing built yet.**
+**Status: BUILT 2026-08-04. Sheet is live. SCOPE CUT — no VM, no scheduling (see §7).**
+
+Sheet: `1QnKHZBnEoxW2gIcOdDz6Ac2WjUbAa94Te_KR-7r2m-E` ("testingQAtool", owned by meetashirr@gmail.com).
+Editor access for the service account verified 2026-08-04.
 
 The auditor works and has found every headline defect in the project. What it does not have is a way
 to reach Jake without a person running a command and pasting a markdown file. That is the gap.
 
 ---
 
-## 1. Where it runs
+## 0. SCOPE CHANGE 2026-08-04 — the VM was dropped
+
+Syed or the QA team runs this by hand. **Cut: the systemd timer, the `OnFailure` email, and the
+dead-man's switch.** Everything below about a VM and a 2-5am window is kept for the record but is
+NOT what shipped. What shipped instead is §8.
+
+## 1. Where it runs (NOT BUILT — kept for the record)
 
 **Recommendation: a small dedicated Linux VM (~$6–12/mo, Hetzner/DO/Fly).**
 
@@ -159,3 +168,61 @@ weekly forced-full = staggered two-per-night. Syed provides the spreadsheet and 
 **Verified as a side effect:** `NAP_SHEET_ID` (`1AU_wNukif…`) is correct — it reads as
 *"NAP Phone numbers / UTM Codes / DBAs"* with a `NAP (Current)` tab, matching the snapshot exactly.
 CLAUDE.md §8 marks it UNVERIFIED; that can now be updated.
+
+
+---
+
+## 7. THE HONEST GAP: nothing runs unless somebody remembers
+
+This is the cost of dropping the VM, written down rather than assumed away.
+
+- **The sheet is only as fresh as the last time a human ran the command.** There is no schedule, no
+  timer, no alert.
+- **A page that breaks the day after a run is not noticed until the next run.** The tool cannot tell
+  anyone about a defect it has not looked for yet.
+- **The failure mode is silence, and silence looks exactly like "no problems".** A sheet nobody
+  refreshed and a site with nothing wrong are indistinguishable from the sheet. The `Summary` tab's
+  `run_started` column is the only thing that distinguishes them, and it relies on someone checking.
+- **Interruption is handled; forgetting is not.** Resume covers the laptop closing mid-run. It does
+  nothing about a month passing between runs.
+
+**This is Syed's call and a reasonable one for now** — a manual tool that exists beats a scheduled
+one that does not. But it should be a decision, not an accident.
+
+**If it becomes a problem, the fix is the timer and it is about a day's work:** a small VM, a
+systemd timer on the schedule in §2, `OnFailure=` email, and the dead-man's switch from §5. All of
+the per-brand crash-safety, idempotence and pacing that makes unattended running safe is already
+built and tested — the only missing pieces are the trigger and the alerting.
+
+## 8. WHAT ACTUALLY SHIPPED
+
+```
+python3 -m auditor.cli all              # audit all nine brands, publish each
+python3 -m auditor.cli all --dry-run    # print exactly what would be written, touch nothing
+python3 -m auditor.cli all -b gl        # one brand
+```
+
+- **One command, no flags to remember**, because a QA person runs it — not nine invocations of
+  `audit --brand X --publish`.
+- **Smallest brand first** (TDRC 21 pages → MHD 15,635) so a broken credential or sheet permission
+  surfaces in the first minute, not four hours in.
+- **Resume is automatic and the run keeps its identity.** Closing the laptop and running the same
+  command again continues the SAME run, so completed brands do not get a duplicate history row on
+  every restart. A clean finish clears the marker.
+- **One brand failing does not stop the rest**; failures are listed at the end with what to do next,
+  and that brand's `Summary` row stays `running` as the visible marker.
+- **`--dry-run` still READS**, so the preview shows the true triage merge against what the client
+  has actually written.
+- **README.md** is written for a non-developer: install, credentials, the one command, what each tab
+  means, which two columns are theirs, and what to do when a run dies.
+
+### Bugs the live runs caught that the unit tests could not
+
+1. **A new OAuth token was minted on every single API call** → HTTP 429. Credentials now cached.
+2. **No backoff on 429/5xx.** Added, with pacing at 40 calls/min against the measured 60/min quota.
+3. **`clear`-then-write left the tab EMPTY** if the process died between the two calls. Now
+   write-then-trim, so the worst case is stale trailing rows rather than an empty tab.
+4. **The `Summary` tab had no header row**, so the first appended row was read back AS the header —
+   which meant `(run_id, brand)` could never be found and **every re-run would have appended a
+   duplicate instead of updating**. The original test fake invented a header and hid this; the fake
+   was made faithful and now reproduces it.

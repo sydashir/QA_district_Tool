@@ -15,6 +15,7 @@ import typer
 from . import audit as auditmod
 from . import crawl as crawlmod
 from .config import load_brand
+from .publish import publish_result
 
 app = typer.Typer(add_completion=False, help="District Site Auditor")
 
@@ -102,6 +103,9 @@ def audit(
     no_checks: bool = typer.Option(False, "--no-checks", help="M0 path: crawl + cache only"),
     resume: bool = typer.Option(False, "--resume",
         help="reuse pages already completed at the current check-version; fetch only the un-done tail"),
+    publish: bool = typer.Option(False, "--publish", help="write the findings to the Google Sheet"),
+    dry_run: bool = typer.Option(False, "--dry-run",
+        help="with --publish: print exactly what WOULD be written; touch nothing"),
 ):
     """Run the M1 audit (enumerate -> reconcile -> fetch -> checks) for one brand."""
     cfg = load_brand(brand)
@@ -126,7 +130,25 @@ def audit(
         cfg, limit=limit, head_sample=head, resume=resume,
         max_link_probes=None if max_link_probes == -1 else max_link_probes))
     _print_summary(cfg, result)
+    if publish:
+        line = publish_result(cfg.brand, result, dry_run=dry_run)
+        typer.echo(f"\n{line}")
 
+
+
+
+@app.command(name="all")
+def audit_all(
+    dry_run: bool = typer.Option(False, "--dry-run",
+        help="show exactly what would be written to the sheet; touch nothing"),
+    brand: list[str] = typer.Option(None, "--brand", "-b",
+        help="limit to specific brands (default: all nine, smallest first)"),
+    limit: int = typer.Option(None, "--limit", "-n", help="cap pages per brand (testing only)"),
+):
+    """Audit every brand and publish to the sheet. This is the command to run."""
+    from .runall import run_all
+    code = run_all(typer.echo, dry_run=dry_run, brands=list(brand) if brand else None, limit=limit)
+    raise typer.Exit(code)
 
 if __name__ == "__main__":
     app()

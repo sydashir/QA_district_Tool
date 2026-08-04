@@ -30,3 +30,4 @@ spike/reports/
 # Machine-local installed tooling (Claude Code skills, settings) — not project source.
 .claude/
 data/
+.run_in_progress

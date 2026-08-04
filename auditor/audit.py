@@ -442,6 +442,7 @@ async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile:
                     max_link_probes: int | None = 400, head_sample: bool = False,
                     now: str | None = None, write: bool = True, resume: bool = False) -> dict:
     now = now or time.strftime("%Y-%m-%dT%H:%M:%S")
+    brand_css = BrandCSS()          # one stylesheet fetch per brand, shared by every page
     async with C.make_client(config.crawl) as client:
         sitemap_urls, blocked, child_sitemaps, failed_sitemaps = await C.enumerate_sitemap(
             client, config.sitemap_url, max_retries=config.crawl.max_retries)
@@ -503,7 +504,7 @@ async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile:
         # Project-and-discard, streamed: parse -> intrinsic checks -> compact projection, persisted
         # per page. Peak memory is projections (small), not the DOM of every page at once.
         fresh_projections, failed = await _stream_fetch_project(
-            client, to_fetch, config, check_version, resume_path, on_done=_progress("fetch pages"))
+            client, to_fetch, config, check_version, resume_path, on_done=_progress("fetch pages"), brand_css=brand_css)
         # cross-page barriers (dup title/desc/H1, link dedup) run over ALL projections, resumed +
         # fresh — never just the fresh ones, or dup-detection silently breaks across a resume.
         # Ordered by SAMPLE position (not resumed-then-fresh, not completion order) so the capped
@@ -597,6 +598,9 @@ async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile:
             "child_sitemaps": child_sitemaps,
             "sitemap_blocked": blocked,
             "sitemap_partial": sitemap_partial,
+            # so the Summary tab can show when hidden-content detection was degraded
+            "css_status": getattr(brand_css, "status", "none"),
+            "css_missing_sheets": list(getattr(brand_css, "missing_sheets", []) or []),
             "sitemap_failed_children": failed_sitemaps,
             "fetched": len(to_fetch),
             "fetched_ok": len(fresh_projections),

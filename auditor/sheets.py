@@ -131,16 +131,24 @@ class SheetsClient:
                    params={"valueInputOption": "RAW"},
                    json={"values": [row]}).raise_for_status()
 
-    def ensure_tab(self, tab: str) -> None:
-        """Create the tab if it is absent. Idempotent."""
+    def ensure_tab(self, tab: str, header: list[str] | None = None) -> None:
+        """Create the tab if absent, and seed its header row if it has none.
+
+        The header is not cosmetic. Without it the first appended row lands in A1 and is read back
+        AS the header, so an append-only tab can never find its own (run_id, brand) row — and every
+        re-run appends a duplicate instead of updating. Found on the first live publish.
+        """
         meta = self._send("GET", f"{SHEETS_API}/{self.spreadsheet_id}?fields=sheets.properties.title")
         meta.raise_for_status()
         titles = {s_["properties"]["title"] for s_ in meta.json().get("sheets", [])}
-        if tab in titles:
-            return
-        self._send("POST", f"{SHEETS_API}/{self.spreadsheet_id}:batchUpdate",
-                   json={"requests": [{"addSheet": {"properties": {"title": tab}}}]}
-                   ).raise_for_status()
+        if tab not in titles:
+            self._send("POST", f"{SHEETS_API}/{self.spreadsheet_id}:batchUpdate",
+                       json={"requests": [{"addSheet": {"properties": {"title": tab}}}]}
+                       ).raise_for_status()
+        if header and not self.read_tab(tab):
+            self._send("PUT", f"{SHEETS_API}/{self.spreadsheet_id}/values/{tab}!A1",
+                       params={"valueInputOption": "RAW"},
+                       json={"values": [header]}).raise_for_status()
 
     def delete_tab(self, tab: str) -> None:
         """Remove a tab. Used to clean up after a live round-trip proof."""
@@ -255,8 +263,9 @@ class DryRunSheets:
     def read_tab(self, tab):
         return self.reader.read_tab(tab) if self.reader else None
 
-    def ensure_tab(self, tab):
-        self._w(f"\n=== would ENSURE tab exists: {tab!r}")
+    def ensure_tab(self, tab, header=None):
+        self._w(f"\n=== would ENSURE tab exists: {tab!r}"
+                + (f" (with header row)" if header else ""))
 
     def replace_tab(self, tab, header, rows):
         self.writes.append(("replace", tab, len(rows)))

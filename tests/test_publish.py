@@ -35,9 +35,15 @@ class FakeSheets:
         self._maybe_fail(f"read:{tab}")
         return self.tabs.get(tab)
 
-    def ensure_tab(self, tab):
+    def ensure_tab(self, tab, header=None):
         self._maybe_fail(f"ensure:{tab}")
-        self.tabs.setdefault(tab, (["fingerprint"], []))
+        # A REAL new tab is empty. The first version of this fake invented a header here, which
+        # hid a live bug: without a header row the first append lands in A1 and is then read AS
+        # the header, so (run_id, brand) can never be found and every re-run appends a duplicate.
+        if tab not in self.tabs:
+            self.tabs[tab] = (list(header) if header else [], [])
+        elif header and not self.tabs[tab][0]:
+            self.tabs[tab] = (list(header), self.tabs[tab][1])
 
     def replace_tab(self, tab, header, rows):
         self._maybe_fail(f"replace:{tab}")
@@ -45,9 +51,11 @@ class FakeSheets:
 
     def append_row(self, tab, row):
         self._maybe_fail(f"append:{tab}")
-        if tab not in self.tabs or not self.tabs[tab][0] or self.tabs[tab][0] == ["fingerprint"]:
-            self.tabs[tab] = (SUMMARY_HEADER, [])
-        self.tabs[tab][1].append(list(row))
+        hdr, rows = self.tabs.setdefault(tab, ([], []))
+        rows.append(list(row))
+
+    def read_tab_raw(self, tab):
+        return self.tabs.get(tab)
 
     def update_row(self, tab, row_index, row):
         self._maybe_fail(f"update:{tab}:{row_index}")
@@ -154,3 +162,16 @@ def test_dry_run_still_shows_the_real_triage_merge():
                   delta={"new": 0, "resolved": 0, "open": 1}, changed_checks=set(),
                   first_seen={}, run_date="2026-08-04", started="2026-08-04T02:00:00", pages=1)
     assert "wontfix" in buf.getvalue(), "the preview lost the client's existing triage"
+
+
+def test_the_summary_tab_gets_a_header_so_reruns_can_find_their_row():
+    """Without a header row the first append lands in A1 and is read back AS the header, so
+    (run_id, brand) is never found and every re-run appends a duplicate. Found on the first live
+    publish; the original fake invented a header and hid it."""
+    fake = FakeSheets()
+    _run(fake)
+    hdr, rows = fake.tabs["Summary"]
+    assert hdr and hdr[0] == "run_id", f"Summary has no header row: {hdr!r}"
+    assert len(rows) == 1
+    _run(fake)
+    assert len(fake.tabs["Summary"][1]) == 1, "a re-run duplicated the row"
