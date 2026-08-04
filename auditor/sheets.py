@@ -121,9 +121,28 @@ class SheetsClient:
         self._send("PUT", f"{SHEETS_API}/{self.spreadsheet_id}/values/{tab}!A1",
                    params={"valueInputOption": "RAW"},
                    json={"values": values}).raise_for_status()
-        self._send("POST",
-                   f"{SHEETS_API}/{self.spreadsheet_id}/values/"
-                   f"{tab}!A{len(values) + 1}:Z100000:clear").raise_for_status()
+        # TRIM ONLY WHAT EXISTS. The write auto-expands the grid to fit, so asking to clear from
+        # row N+1 when the grid is exactly N rows tall starts the range PAST the last row and Sheets
+        # answers 400. AR hit this live at 1,184 rows. Ask the grid how tall it is and skip the trim
+        # when there is nothing below the new content.
+        rows_in_grid = self._row_count(tab)
+        if rows_in_grid is None or rows_in_grid > len(values):
+            end = rows_in_grid or 100000
+            self._send("POST",
+                       f"{SHEETS_API}/{self.spreadsheet_id}/values/"
+                       f"{tab}!A{len(values) + 1}:Z{end}:clear").raise_for_status()
+
+    def _row_count(self, tab: str) -> int | None:
+        """How many rows the tab's grid actually has, or None if it cannot be determined."""
+        r = self._send("GET", f"{SHEETS_API}/{self.spreadsheet_id}"
+                              "?fields=sheets(properties(title,gridProperties(rowCount)))")
+        if r.status_code >= 400:
+            return None
+        for s_ in r.json().get("sheets", []):
+            props = s_.get("properties", {})
+            if props.get("title") == tab:
+                return props.get("gridProperties", {}).get("rowCount")
+        return None
 
     def update_row(self, tab: str, row_index: int, row: list[str]) -> None:
         """Overwrite one data row (0-based, excluding the header)."""

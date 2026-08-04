@@ -125,3 +125,37 @@ def test_summary_row_marks_a_run_as_running_before_it_finishes():
     assert len(r) == len(SUMMARY_HEADER)
     assert r[SUMMARY_HEADER.index("status")] == "running"
     assert r[SUMMARY_HEADER.index("run_finished")] == "", "an unfinished run must look unfinished"
+
+
+# --- trimming must not ask to clear rows that do not exist ---
+
+def test_replace_tab_skips_the_trim_when_content_fills_the_grid():
+    """Writing auto-expands the grid, so clearing from row N+1 of an N-row grid starts past the
+    last row and Sheets answers 400. AR hit this live at 1,184 rows."""
+    from auditor.sheets import SheetsClient
+    sent = []
+
+    class C(SheetsClient):
+        def _send(self, method, url, **kw):
+            sent.append((method, url))
+
+            class R:
+                status_code = 200
+
+                @staticmethod
+                def raise_for_status():
+                    return None
+
+                @staticmethod
+                def json():
+                    return {"sheets": [{"properties": {"title": "T",
+                                                       "gridProperties": {"rowCount": 3}}}]}
+            return R()
+
+    c = C(spreadsheet_id="s", credentials_path="x")
+    c.replace_tab("T", ["h"], [["a"], ["b"]])            # 3 rows total == grid height
+    assert not any(":clear" in u for _, u in sent), "asked to clear rows beyond the grid"
+
+    sent.clear()
+    c.replace_tab("T", ["h"], [["a"]])                   # 2 rows, grid is 3 -> one row to trim
+    assert any(":clear" in u for _, u in sent), "left a stale trailing row"
