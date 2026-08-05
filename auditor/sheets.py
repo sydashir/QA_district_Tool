@@ -18,6 +18,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
+from .humanize import check_label, plain_issue, suggestion_for
 from .report import Severity
 from .triage import OpenRow, merge_triage, parse_triage_columns, sort_key
 
@@ -34,8 +35,12 @@ SHEETS_API = "https://sheets.googleapis.com/v4/spreadsheets"
 QUOTA_PER_MIN = 60
 PACE_PER_MIN = 40          # ~1.5s between calls, a third of the quota left as headroom
 
-OPEN_HEADER = ["url", "check", "severity", "issue", "location", "snippet", "suggestion",
-               "fingerprint", "first_seen", "age_days", "status", "note"]
+# READER FIRST, MACHINERY LAST. The two columns the client fills in (`status`, `note`) sit before
+# the long fingerprint string, not after it — otherwise they scroll past our internals to reach
+# their own work. Safe to reorder because triage.parse_triage_columns looks columns up BY NAME
+# (header.index), never by position, so a sheet written in the old order still reads correctly.
+OPEN_HEADER = ["url", "check", "severity", "issue", "suggestion", "status", "note",
+               "fingerprint", "first_seen", "age_days", "location", "snippet"]
 
 
 class TriageReadFailed(RuntimeError):
@@ -221,11 +226,14 @@ def publish_open_tab(client, spreadsheet_id: str, tab: str, findings, changed_ch
     merged.sort(key=lambda r: sort_key(r.status, r.finding.severity, r.age_days))
 
     out_rows = [[
-        r.finding.url, r.finding.check,
+        r.finding.url,
+        check_label(r.finding.check),
         r.finding.severity.name if isinstance(r.finding.severity, Severity) else str(r.finding.severity),
-        r.finding.issue, r.finding.location, (r.finding.snippet or "")[:500],
-        (r.finding.suggestion or "")[:500], r.finding.fingerprint,
-        r.first_seen, str(r.age_days), r.status, r.note,
+        plain_issue(r.finding.check, r.finding.issue),
+        suggestion_for(r.finding.check, r.finding.issue, r.finding.suggestion or "")[:500],
+        r.status, r.note,
+        r.finding.fingerprint, r.first_seen, str(r.age_days),
+        r.finding.location, (r.finding.snippet or "")[:500],
     ] for r in merged]
     client.replace_tab(tab, OPEN_HEADER, out_rows)
     return merged

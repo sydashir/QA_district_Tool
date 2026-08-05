@@ -17,9 +17,9 @@ HEADER = ["url", "check", "severity", "issue", "location", "snippet", "suggestio
           "fingerprint", "first_seen", "age_days", "status", "note"]
 
 
-def _f(fp, url="https://x/a/", check="phone", sev=Severity.ERROR):
+def _f(fp, url="https://x/a/", check="phone", sev=Severity.ERROR, suggestion="sug", issue="i"):
     return Finding(url=url, check=check, severity=sev, fingerprint=fp,
-                   issue="i", location="l", snippet="s", suggestion="sug", details={})
+                   issue=issue, location="l", snippet="s", suggestion=suggestion, details={})
 
 
 class FakeSheets:
@@ -159,3 +159,41 @@ def test_replace_tab_skips_the_trim_when_content_fills_the_grid():
     sent.clear()
     c.replace_tab("T", ["h"], [["a"]])                   # 2 rows, grid is 3 -> one row to trim
     assert any(":clear" in u for _, u in sent), "left a stale trailing row"
+
+
+# --- reordering columns must not eat the client's triage ---
+
+OLD_HEADER = ["url", "check", "severity", "issue", "location", "snippet", "suggestion",
+              "fingerprint", "first_seen", "age_days", "status", "note"]
+
+
+def test_triage_written_in_the_OLD_column_order_still_survives():
+    """The sheet already holds tabs written in the old order. The new code must read those by
+    column NAME and carry the client's status/note across — if it read by position it would pick up
+    'age_days' as the status and silently destroy a month of their notes."""
+    from auditor.sheets import OPEN_HEADER
+    row = [""] * len(OLD_HEADER)
+    row[OLD_HEADER.index("fingerprint")] = "fp1"
+    row[OLD_HEADER.index("status")] = "wontfix"
+    row[OLD_HEADER.index("note")] = "agreed with client"
+    fake = FakeSheets(existing=(OLD_HEADER, [row]))
+    _publish(fake, [_f("fp1")])
+    header, rows = fake.written
+    assert header == OPEN_HEADER, "did not write the new order"
+    assert rows[0][header.index("status")] == "wontfix"
+    assert rows[0][header.index("note")] == "agreed with client"
+
+
+def test_the_readers_columns_come_before_the_fingerprint():
+    from auditor.sheets import OPEN_HEADER
+    assert OPEN_HEADER.index("status") < OPEN_HEADER.index("fingerprint")
+    assert OPEN_HEADER.index("note") < OPEN_HEADER.index("fingerprint")
+    assert OPEN_HEADER.index("suggestion") < OPEN_HEADER.index("status")
+
+
+def test_the_sheet_shows_human_labels_not_module_names():
+    fake = FakeSheets(existing=None, tab_missing=True)
+    _publish(fake, [_f("fp1", check="blank", suggestion="", issue="missing <h1>")])
+    header, rows = fake.written
+    assert rows[0][header.index("check")] == "Page content"
+    assert rows[0][header.index("suggestion")].strip(), "shipped an empty suggestion"

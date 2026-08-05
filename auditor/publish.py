@@ -26,8 +26,8 @@ _log = logging.getLogger(__name__)
 
 SUMMARY_TAB = "Summary"
 SUMMARY_HEADER_WITH_RUN = ["run_id"] + SUMMARY_HEADER
-NEW_HEADER = ["url", "check", "severity", "issue", "location", "snippet", "suggestion",
-              "fingerprint", "change"]
+NEW_HEADER = ["url", "check", "severity", "issue", "suggestion", "fingerprint", "location",
+              "snippet", "change"]
 
 
 def _find_summary_row(client, run_id: str, brand: str) -> int | None:
@@ -77,11 +77,13 @@ def publish_brand(client, *, brand: str, run_id: str, findings, delta: dict,
                             today=run_date, first_seen=first_seen, run_date=run_date)
 
     changed = [f for f in findings if f.fingerprint in (delta.get("new_fingerprints") or set())]
+    from .humanize import check_label, plain_issue, suggestion_for
     client.replace_tab(new_tab, NEW_HEADER, [[
-        f.url, f.check,
+        f.url, check_label(f.check),
         getattr(f.severity, "name", str(f.severity)),
-        f.issue, f.location, (f.snippet or "")[:500], (f.suggestion or "")[:500],
-        f.fingerprint, "new",
+        plain_issue(f.check, f.issue),
+        suggestion_for(f.check, f.issue, f.suggestion or "")[:500],
+        f.fingerprint, f.location, (f.snippet or "")[:500], "new",
     ] for f in changed])
 
     untriaged = untriaged_error_summary(rows)
