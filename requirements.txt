@@ -10,3 +10,4 @@ phonenumbers>=9.0   # phone check (M1)
 # The placeholder check imports the REAL extract_acf_tokens from the GeoData Fetcher's
 # services/geo_field_validator.py (read-only, single source of truth). Default path:
 # ~/Documents/workk/district/services — override with GEODATA_SERVICES_DIR.
+pyspellchecker>=0.9  # offline US-English dictionary for the spellcheck check

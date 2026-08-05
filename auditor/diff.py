@@ -25,7 +25,7 @@ import os
 from pathlib import Path
 
 from .checks import (blank, empty_slot, enumeration, links, meta, misspelling, phone,
-                     placeholder, scope, structure)
+                     placeholder, scope, spelling, structure)
 from .checks_version import changed_components
 from .report import Finding, Severity
 
@@ -37,7 +37,7 @@ _GLOBAL_SRC = {"src:parse.py", "src:report.py"}
 _CHECK_COMPONENT: dict[str, set[str]] = {
     m.CHECK: {f"src:{Path(m.__file__).name}"}
     for m in (blank, empty_slot, enumeration, links, meta, misspelling, phone, placeholder,
-              scope, structure)
+              scope, spelling, structure)
 }
 # enumeration output depends on crawl.py's enumerate logic (what's in the sitemap/REST sets) —
 # enumeration-scoped, so a crawl enumerate change rule-changes ONLY the 845 findings.
@@ -54,6 +54,10 @@ _CHECK_COMPONENT["meta"] = _CHECK_COMPONENT["meta"] | {"title_bounds"}
 # updating/repointing it rule-changes ONLY the [acf field] findings, never another check's.
 _CHECK_COMPONENT["placeholder"] = _CHECK_COMPONENT["placeholder"] | {
     "src:geo_field_validator.py", "geodata_gfv_path"}
+# spelling output depends on the word lists and on the English dictionary itself — spelling-scoped,
+# so adding an approved term rule-changes ONLY spelling findings, never another check's.
+_CHECK_COMPONENT["spelling"] = _CHECK_COMPONENT["spelling"] | {
+    "vocab:allowlist.json", "vocab:domain_vocab.json", "dict:pyspellchecker"}
 
 
 def load_history(path) -> dict:

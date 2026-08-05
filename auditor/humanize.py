@@ -26,6 +26,7 @@ CHECK_LABELS = {
     "phone": "Phone numbers",
     "misspelling": "Spelling",
     "scope": "Wording",
+    "spelling": "Spelling",
 }
 
 # (check, issue-prefix) -> (plain issue, suggestion). First match wins, so put specific before

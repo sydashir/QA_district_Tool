@@ -62,6 +62,21 @@ def components(config, checks_dir: Path = CHECKS_DIR) -> dict:
             _sha(_gfv.read_text(encoding="utf-8")) if _gfv.exists() else "MISSING")
     except Exception:  # never let version() fail — a missing/odd dep must degrade, not crash
         comp["src:geo_field_validator.py"] = "UNAVAILABLE"
+    # SPELLING VOCABULARIES. The dictionary spellcheck's output is decided as much by these word
+    # lists as by its code: add one term and a finding disappears. Without them as components the
+    # vanished finding reads as `resolved` — "someone fixed it" — when nothing on the site changed.
+    # Same trap as the ACF ruleset above, same fix. Scoped to `spelling` in diff.py.
+    for _name in ("allowlist.json", "domain_vocab.json"):
+        _f = checks_dir.parent / "ai" / _name
+        comp[f"vocab:{_name}"] = (
+            _sha(_f.read_text(encoding="utf-8")) if _f.exists() else "MISSING")
+    # The English dictionary itself is a ruleset we do not own — a pyspellchecker upgrade can
+    # change which words are known, so its version is a component too.
+    try:
+        import importlib.metadata as _md
+        comp["dict:pyspellchecker"] = _md.version("pyspellchecker")
+    except Exception:
+        comp["dict:pyspellchecker"] = "UNAVAILABLE"
     # Phone ruler = the canonical VALUES (not their source): an identical-numbers snapshot->live
     # swap is then a no-op for the version. Full NAP value-set when present, else the flat list.
     canon = getattr(config, "canon", None)
