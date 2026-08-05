@@ -501,9 +501,13 @@ async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile:
         # in the resume cache and fetches nothing, so the brand can be published as an explicitly
         # PARTIAL sample rather than not at all. The partial flag travels to the Summary tab; a
         # partial audit must never be presented as a complete one.
-        partial_sample = False
+        # PARTIAL means "this did not cover the brand", whichever way it happened: a --limit that
+        # truncated the URL set, or --cached-only skipping the un-fetched tail. Either way the
+        # Summary row must say so — a 400-page sample of a 15,635-page site presented without
+        # qualification reads as a complete audit.
+        partial_sample = len(sample) < len(audit_urls)
         if cached_only:
-            partial_sample = len(to_fetch) > 0
+            partial_sample = partial_sample or len(to_fetch) > 0
             print(f"[cached-only] publishing {len(done)} banked pages; "
                   f"NOT fetching the remaining {len(to_fetch)} of {len(sample)}")
             to_fetch = []
@@ -612,6 +616,7 @@ async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile:
             "sitemap_partial": sitemap_partial,
             "partial_sample": partial_sample,
             "sample_target": len(sample),
+            "scope_total": len(audit_urls),
             # so the Summary tab can show when hidden-content detection was degraded
             "css_status": getattr(brand_css, "status", "none"),
             "css_missing_sheets": list(getattr(brand_css, "missing_sheets", []) or []),

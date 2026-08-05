@@ -33,11 +33,20 @@ that is a multi-day job, so it is not what you normally want. See below.
 
 | Brands | Pages | Time |
 |---|---|---|
-| The eight brands **excluding MHD** | ~15,400 | **about 7 hours** |
-| **MHD on its own** | 15,635 | **about 29 hours** |
+| The eight brands **excluding MHD** | 15,525 | **8h20m** |
+| of which **RR alone** | 7,962 | **5h44m — 69% of the total** |
+| **MHD** | 15,640 | **cannot be completed — see below** |
 
-MHD is deliberately slow. Its web host rate-limits us, so it is locked to a gentle setting that we
-are not going to raise — pushing it risks the client's live site.
+RR is most of the run. If you only have an evening, RR is the one to leave for its own night.
+
+**MHD is a special case.** Its web host serves us at under 1 page per minute for hours at a time —
+slower than the gentle rate we already limit ourselves to. A complete MHD audit is not achievable;
+what we publish is a **sample**, and the `Summary` tab labels it `PARTIAL SAMPLE` so nobody mistakes
+it for a full check. Run it like this, and expect a sample rather than everything:
+
+```
+python3 -m auditor.cli all -b mhd -n 400
+```
 
 **So `all` is NOT an overnight job as configured.** Do this instead:
 
@@ -48,15 +57,13 @@ python3 -m auditor.cli all -b tdrc -b ah -b ar -b dbh -b cad -b coc -b gl -b rr
 That is the eight brands, about 7 hours — start it in the morning and it is done by evening, or
 start it before you leave and it is done overnight.
 
-Then run MHD separately, when a machine can be left alone for a day or more:
+Then run MHD separately as a sample (see the note on MHD below):
 
 ```
-python3 -m auditor.cli all -b mhd
+python3 -m auditor.cli all -b mhd -n 400
 ```
 
-You can stop MHD and restart it as often as you like; it resumes. If leaving a machine running for a
-day is not practical, tell Syed — the answer is to check a sample of MHD regularly and do the full
-count rarely, but that is a decision to make deliberately, not a workaround to improvise.
+You can stop MHD and restart it as often as you like; it resumes.
 
 ### Before you trust it, do a practice run
 
@@ -69,9 +76,24 @@ is changed. Use this the first time, and any time you want to see what is about 
 
 ---
 
+## Do not close the laptop lid
+
+**This is the one thing that will silently waste your time.** Closing the lid puts the machine to
+sleep and the run stops — it does not fail, it just freezes, and picks up whenever you open it
+again. On our own test that turned an 8-hour job into a 22-hour one without any error message.
+
+Leave the lid open, or start it like this on mains power:
+
+```
+caffeinate -s python3 -m auditor.cli all -b tdrc -b ah -b ar -b dbh -b cad -b coc -b gl -b rr
+```
+
+(`caffeinate -s` keeps the machine awake while plugged in. Note `caffeinate -i` alone does **not**
+stop lid-close sleep.)
+
 ## If you need to stop it
 
-Press `Ctrl+C`, or just close the laptop. Nothing breaks.
+Press `Ctrl+C`, or close the laptop. Nothing breaks.
 
 To carry on, **run the same command again.** It remembers the pages it already checked and skips
 them, so it picks up roughly where it stopped rather than starting over. It also keeps the same run

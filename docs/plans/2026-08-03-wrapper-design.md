@@ -295,3 +295,45 @@ reuses every page already fetched at the current check-version, and updates the 
 row rather than appending a second. Verified live: the restart printed
 `Continuing an earlier run that did not finish` with the original run id, and CAD reported
 `reusing 164 cached pages (version match); fetching 1075 of 1239`.
+
+
+---
+
+## 10. KNOWN LIMITATION: MHD cannot be fully audited as things stand
+
+**This is the one brand of nine the tool cannot completely cover, and the client should hear it
+from us rather than discover it.**
+
+### The measurement
+
+MHD has **15,640 live pages**. During the acceptance run its host served us at **under 1 page per
+minute** for hours at a stretch — *below* the gentle rate our own config already limits us to
+(concurrency 2, 1s delay). It is not a constant: the rate swung between roughly 1 and 17 pages per
+minute with no pattern we control.
+
+At the slow end, a full census is **weeks**. Even the capped 2,000-page acceptance sample did not
+finish in 15 hours and had to be abandoned. What is published is a **353-page sample**, and the
+`Summary` tab says so in its `detail` column.
+
+**This is not a tool problem.** Every other brand runs fine on the same code — RR audited 7,962
+pages at ~25/min. It is MHD's host deciding how fast we may read it.
+
+### What "partial" means for the findings
+
+The 2,712 findings from MHD's sample are **real**. What cannot be inferred is the opposite: the
+absence of a finding on the other ~15,300 pages means nothing at all. Any statement of the form
+"MHD has N problems" is wrong; the honest form is "in a 353-page sample of MHD we found N".
+
+### Options — for a decision, not to settle here
+
+1. **Sample on a cadence, never census.** Run a few hundred pages regularly and treat MHD as
+   monitored-by-sample. Cheapest, honest, and the sheet already labels it correctly. Accepts that a
+   defect on an unsampled page can persist indefinitely.
+2. **Ask HWA to allowlist an IP.** This is the only route to a full census. It needs a fixed IP,
+   which means the VM we dropped in §0 — so it is really "reinstate the VM *and* make an access
+   request". Out of our hands: not to be raised with HWA by us.
+3. **Accept partial coverage and say so.** What is implemented today. The `Summary` row carries the
+   PARTIAL SAMPLE note, so nobody reading the sheet can mistake it for a complete audit.
+
+The tool now supports option 1 and 3 directly: `--limit` takes a sample, and any run that does not
+cover the whole brand is flagged PARTIAL automatically — not only when someone remembers to say so.

@@ -156,10 +156,10 @@ def publish_brand_from_result(brand: str, result: dict, *, run_id: str, dry_run:
         pages=result.get("pages_audited", 0), counts=dict(counts),
         css_status=result.get("css_status", ""), duration_s=duration_s,
         sitemap_partial=bool(result.get("sitemap_partial")),
-        detail=("PARTIAL SAMPLE — %d of %d pages audited; this brand's host throttles below our "
-                "configured rate so a full pass is not currently reachable. Treat as a sample, "
-                "NOT a complete audit." % (result.get("pages_audited", 0),
-                                           result.get("sample_target", 0))
+        detail=("PARTIAL SAMPLE — %d pages audited out of %d live on this brand. This is a SAMPLE, "
+                "not a complete audit: findings here are real, but absence of a finding does NOT "
+                "mean the rest of the site is clean." % (result.get("pages_audited", 0),
+                                                        result.get("scope_total", 0))
                 if result.get("partial_sample") else ""))
 
 
