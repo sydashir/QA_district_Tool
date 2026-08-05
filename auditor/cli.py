@@ -144,10 +144,13 @@ def audit_all(
     brand: list[str] = typer.Option(None, "--brand", "-b",
         help="limit to specific brands (default: all nine, smallest first)"),
     limit: int = typer.Option(None, "--limit", "-n", help="cap pages per brand (testing only)"),
+    cached_only: bool = typer.Option(False, "--cached-only",
+        help="audit ONLY pages already cached and fetch nothing; publishes as a PARTIAL sample"),
 ):
     """Audit every brand and publish to the sheet. This is the command to run."""
     from .runall import run_all
-    code = run_all(typer.echo, dry_run=dry_run, brands=list(brand) if brand else None, limit=limit)
+    code = run_all(typer.echo, dry_run=dry_run, brands=list(brand) if brand else None, limit=limit,
+                   cached_only=cached_only)
     raise typer.Exit(code)
 
 if __name__ == "__main__":

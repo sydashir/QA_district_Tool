@@ -440,7 +440,8 @@ def write_run(findings: list[Finding], projections: list[PageProjection], *, bra
 
 async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile: bool = True,
                     max_link_probes: int | None = 400, head_sample: bool = False,
-                    now: str | None = None, write: bool = True, resume: bool = False) -> dict:
+                    now: str | None = None, write: bool = True, resume: bool = False,
+                    cached_only: bool = False) -> dict:
     now = now or time.strftime("%Y-%m-%dT%H:%M:%S")
     brand_css = BrandCSS()          # one stylesheet fetch per brand, shared by every page
     async with C.make_client(config.crawl) as client:
@@ -495,6 +496,17 @@ async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile:
         for u in dropped:
             del done[u]
         to_fetch = [u for u in sample if canonical_url(u) not in done]
+        # PUBLISH WHAT IS BANKED. MHD's host throttles below even our gentle config (<1 page/min
+        # measured), so a full pass is not reachable. --cached-only audits exactly the pages already
+        # in the resume cache and fetches nothing, so the brand can be published as an explicitly
+        # PARTIAL sample rather than not at all. The partial flag travels to the Summary tab; a
+        # partial audit must never be presented as a complete one.
+        partial_sample = False
+        if cached_only:
+            partial_sample = len(to_fetch) > 0
+            print(f"[cached-only] publishing {len(done)} banked pages; "
+                  f"NOT fetching the remaining {len(to_fetch)} of {len(sample)}")
+            to_fetch = []
         if done or dropped:
             print(f"[resume] reusing {len(done)} cached pages (version match); "
                   f"fetching {len(to_fetch)} of {len(sample)}"
@@ -598,6 +610,8 @@ async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile:
             "child_sitemaps": child_sitemaps,
             "sitemap_blocked": blocked,
             "sitemap_partial": sitemap_partial,
+            "partial_sample": partial_sample,
+            "sample_target": len(sample),
             # so the Summary tab can show when hidden-content detection was degraded
             "css_status": getattr(brand_css, "status", "none"),
             "css_missing_sheets": list(getattr(brand_css, "missing_sheets", []) or []),

@@ -101,3 +101,21 @@ def test_county_scoped_page_is_exempt():
 ])
 def test_correct_geography_never_fires(text):
     assert _scope(text=text) == [], f"false positive: {text!r}"
+
+
+def test_same_phrase_differing_only_in_whitespace_keeps_distinct_fingerprints():
+    """Live RR: the body carries 'Across\\nThe County' (visible_text preserves block boundaries)
+    while the H2 carries 'Across The County'. Those are DIFFERENT keys to the occurrence counter,
+    so both were numbered 0 — but make_fingerprint whitespace-collapses its parts, so the two
+    collapsed to ONE fingerprint. Ten collisions were logged across a full network run. The
+    occurrence key must be normalised the same way the fingerprint is."""
+    from auditor.checks import scope
+    from auditor.parse import Heading, ParsedPage
+    p = ParsedPage(url="https://x/national/",
+                   visible_text="PTSD TREATMENT CENTERS ACROSS\nTHE COUNTY and more text here",
+                   headings=[Heading(level=2, text="PTSD TREATMENT CENTERS ACROSS THE COUNTY")],
+                   title="PTSD Treatment")
+    fs = scope.run(p, None)
+    assert len(fs) == 2, f"expected both surfaces to report, got {len(fs)}"
+    assert len({f.fingerprint for f in fs}) == 2, (
+        f"fingerprints collided: {[f.fingerprint for f in fs]}")

@@ -62,7 +62,13 @@ def run(parsed: ParsedPage, config) -> list[Finding]:
     for location, text in surfaces:
         for m in _BARE_COUNTY.finditer(text):
             phrase = m.group(0)
-            key = phrase.lower()
+            # NORMALISE THE KEY THE SAME WAY make_fingerprint DOES. visible_text preserves block
+            # boundaries, so the body can carry "Across\nThe County" while the H2 carries
+            # "Across The County". Keyed raw they are two different phrases and BOTH get
+            # occurrence 0 — then make_fingerprint whitespace-collapses its parts and the two
+            # collapse to ONE fingerprint. Ten such collisions were logged on a full network run
+            # (the safety net kept both rather than dropping one, which is why nothing was lost).
+            key = " ".join(phrase.lower().split())
             occ = seen[key]
             seen[key] += 1
             slot = "county_for_country" if occ == 0 else f"county_for_country#{occ}"
@@ -75,5 +81,5 @@ def run(parsed: ParsedPage, config) -> list[Finding]:
                 suggestion="This page is not county-scoped, so \"the county\" reads as a typo for "
                            "\"the country\" — the same wording DBH's national pages get right "
                            "(\"ACROSS THE COUNTRY\"). Usually template-wide; fix the template.",
-                details={"class": "county_for_country", "phrase": phrase}))
+                details={"class": "county_for_country", "phrase": " ".join(phrase.split())}))
     return findings

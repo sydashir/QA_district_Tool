@@ -47,7 +47,7 @@ def _fmt(seconds: float) -> str:
 
 
 def run_all(echo, *, dry_run: bool = False, brands: list[str] | None = None,
-            limit: int | None = None) -> int:
+            limit: int | None = None, cached_only: bool = False) -> int:
     """Audit every brand and publish. Returns a process exit code (0 = every brand succeeded)."""
     import asyncio
 
@@ -73,7 +73,8 @@ def run_all(echo, *, dry_run: bool = False, brands: list[str] | None = None,
         echo(f"[{i}/{len(order)}] {brand.upper()} — starting")
         try:
             cfg = load_brand(brand)
-            result = asyncio.run(auditmod.run_audit(cfg, resume=True, limit=limit))
+            result = asyncio.run(auditmod.run_audit(cfg, resume=True, limit=limit,
+                                                    cached_only=cached_only))
             pages = result.get("pages_audited", 0)
             n = len(result.get("findings", []))
             echo(f"[{i}/{len(order)}] {brand.upper()} — audited {pages} pages, {n} findings "

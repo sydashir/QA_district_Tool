@@ -50,7 +50,7 @@ def publish_brand(client, *, brand: str, run_id: str, findings, delta: dict,
                   changed_checks: set[str], first_seen: dict, run_date: str,
                   started: str, pages: int, counts: dict | None = None,
                   css_status: str = "", sitemap_partial: bool = False,
-                  finished: str = "", duration_s: int = 0) -> str:
+                  finished: str = "", duration_s: int = 0, detail: str = "") -> str:
     """Publish one brand's tabs + Summary row. Returns the digest line for the email."""
     client.ensure_tab(SUMMARY_TAB, header=SUMMARY_HEADER_WITH_RUN)
     row_idx = _find_summary_row(client, run_id, brand)
@@ -88,7 +88,7 @@ def publish_brand(client, *, brand: str, run_id: str, findings, delta: dict,
     done_row = summary_row(brand=brand, status="ok", started=started,
                            finished=finished or run_date, pages=pages, counts=counts, delta=delta,
                            untriaged=untriaged, css_status=css_status,
-                           sitemap_partial=sitemap_partial, duration_s=duration_s)
+                           sitemap_partial=sitemap_partial, duration_s=duration_s, detail=detail)
     client.update_row(SUMMARY_TAB, row_idx, [run_id] + done_row)
     return digest_line(brand, delta, untriaged)
 
@@ -141,7 +141,12 @@ def publish_brand_from_result(brand: str, result: dict, *, run_id: str, dry_run:
         finished=time.strftime("%Y-%m-%dT%H:%M:%S"),
         pages=result.get("pages_audited", 0), counts=dict(counts),
         css_status=result.get("css_status", ""), duration_s=duration_s,
-        sitemap_partial=bool(result.get("sitemap_partial")))
+        sitemap_partial=bool(result.get("sitemap_partial")),
+        detail=("PARTIAL SAMPLE — %d of %d pages audited; this brand's host throttles below our "
+                "configured rate so a full pass is not currently reachable. Treat as a sample, "
+                "NOT a complete audit." % (result.get("pages_audited", 0),
+                                           result.get("sample_target", 0))
+                if result.get("partial_sample") else ""))
 
 
 def publish_result(brand: str, result: dict, *, dry_run: bool = False) -> str:
