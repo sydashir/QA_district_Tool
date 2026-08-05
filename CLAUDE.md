@@ -27,6 +27,11 @@ code. One way to do each thing — no parallel implementations "just in case."
   you are already late. Writing state costs seconds; losing a session costs hours. There is never
   a reason to defer it.
 - **Git identity for this repo:** `sydashir` / `meetashirr@gmail.com` (set repo-local, not global).
+- **PUBLISH BEFORE YOU CHANGE CHECK CODE.** The resume cache is keyed on the check-version, and
+  `checks_version` hashes every `checks/*.py` plus `parse.py`, `report.py`, `nap.py`, `crawl.py`.
+  Editing any of them invalidates every brand's banked pages instantly. This cost MHD's 1,546
+  banked pages once — a check fix landed before the partial was published, and MHD re-crawls at
+  under 1 page/minute. Land the publish first, then the check change.
 
 - **A test double must mirror the real thing, including its empty and degenerate states.** A fake
   that is kinder than reality hides the bugs it exists to catch. The fake Sheets client invented a
