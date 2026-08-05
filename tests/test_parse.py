@@ -118,3 +118,35 @@ def test_whitespace_only_node_after_punctuation_still_separates():
     # re-inserted and the words fused into "here:Outpatient".
     assert _vt('<p><strong>View more details here:</strong> <a href="/y">Outpatient Rehab</a></p>') \
         == "View more details here: Outpatient Rehab"
+
+
+# --- HTML comments are not visible text ---
+#
+# Found while mining domain vocabulary: JavaScript identifiers (addEventListener, getElementById)
+# and lorem-ipsum Latin were turning up as "words on the page" across brands. The cause was not a
+# script-stripping failure — bs4's Comment is a SUBCLASS of NavigableString, so a walk over
+# `descendants` picks comments up while `get_text()` deliberately excludes them. Commented-out
+# markup, developer TODOs and disabled tracking snippets were all being read as page copy.
+#
+# Same family as the display:none bug: text that no reader can see must never reach visible_text,
+# because visible_text is what the blank/thin check measures and what every content check reads.
+
+def test_an_html_comment_is_not_page_text():
+    vt = _vt('<p>Real copy here.</p><!-- TODO: fix this before launch -->')
+    assert vt == "Real copy here."
+
+
+def test_commented_out_script_does_not_leak_javascript():
+    vt = _vt('<p>Call us today.</p>'
+             '<!-- <script>document.addEventListener("DOMContentLoaded", go)</script> -->')
+    assert "addEventListener" not in vt and "script" not in vt.lower()
+
+
+def test_a_comment_between_two_paragraphs_does_not_weld_them():
+    vt = _vt("<p>First sentence.</p><!-- note --><p>Second sentence.</p>")
+    assert "note" not in vt
+    assert "First sentence." in vt and "Second sentence." in vt
+
+
+def test_a_doctype_is_not_page_text():
+    assert "DOCTYPE" not in _vt("<!DOCTYPE html><html><body><p>Copy.</p></body></html>").upper()

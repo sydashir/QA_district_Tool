@@ -17,7 +17,7 @@ import re
 from dataclasses import dataclass, field
 from urllib.parse import urljoin
 
-from bs4 import BeautifulSoup, NavigableString
+from bs4 import BeautifulSoup, CData, Comment, Declaration, Doctype, NavigableString, ProcessingInstruction
 
 _HEADING_RE = re.compile(r"^h[1-6]$")
 
@@ -91,6 +91,8 @@ _BLOCK_TAGS = (
     "h1", "h2", "h3", "h4", "h5", "h6",
 )
 _BLOCK_SET = frozenset(_BLOCK_TAGS)
+# NavigableString subclasses that are markup, not words a reader sees.
+_NON_TEXT = (Comment, CData, Doctype, ProcessingInstruction, Declaration)
 _INLINE_WS = re.compile(r"[^\S\n]+")   # runs of spaces/tabs, but never newlines
 _BLANK_LINES = re.compile(r"\s*\n\s*")
 
@@ -245,6 +247,12 @@ def _visible_text(soup) -> str:
     out: list[str] = []
     for el in soup.descendants:
         if isinstance(el, NavigableString):
+            # bs4's Comment/CData/Doctype/ProcessingInstruction are all SUBCLASSES of
+            # NavigableString, so a naive descendants walk reads them as page copy — get_text()
+            # excludes them for exactly this reason. Commented-out markup, developer TODOs and
+            # disabled script blocks were reaching visible_text and being counted as content.
+            if isinstance(el, _NON_TEXT):
+                continue
             s = str(el)
             if not s.strip():
                 # A WHITESPACE-ONLY node is real spacing in the markup — "<strong>details here:</strong>
