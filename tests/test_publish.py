@@ -175,3 +175,17 @@ def test_the_summary_tab_gets_a_header_so_reruns_can_find_their_row():
     assert len(rows) == 1
     _run(fake)
     assert len(fake.tabs["Summary"][1]) == 1, "a re-run duplicated the row"
+
+
+def test_a_zero_page_audit_is_never_published_as_ok():
+    """MHD hit this live: enumeration returned nothing, run_audit correctly refused to write a
+    report — and publish still wrote a Summary row saying `ok` with 0 findings. An empty audit
+    presented as a successful brand is the same lie as a partial sitemap yielding confident
+    coverage findings."""
+    import pytest as _pytest
+    from auditor.publish import EmptyAuditRefused, publish_brand_from_result
+    fake = FakeSheets()
+    with _pytest.raises(EmptyAuditRefused):
+        publish_brand_from_result("mhd", {"pages_audited": 0, "findings": []},
+                                  run_id="r1", dry_run=False, client=fake)
+    assert fake.tabs == {}, "an empty audit was published"

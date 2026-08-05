@@ -111,12 +111,26 @@ def _client(dry_run: bool, out=None):
     return DryRunSheets(out or sys.stdout, reader=real)
 
 
+class EmptyAuditRefused(RuntimeError):
+    """Raised when an audit produced no pages, so there is nothing honest to publish."""
+
+
 def publish_brand_from_result(brand: str, result: dict, *, run_id: str, dry_run: bool = False,
                               out=None, started: str | None = None,
-                              duration_s: int = 0) -> str:
+                              duration_s: int = 0, client=None) -> str:
     """Publish one brand straight from ``run_audit``'s return value."""
     import time
     from collections import Counter
+
+    # AN EMPTY AUDIT IS NOT A SUCCESSFUL ONE. run_audit already refuses to write a report when it
+    # audited nothing; publishing a Summary row saying `ok` with zero findings would present that
+    # same emptiness to the client as a clean brand. Fail loudly instead — the brand keeps whatever
+    # it had, and the failure is listed at the end of the run.
+    if not result.get("pages_audited"):
+        raise EmptyAuditRefused(
+            f"{brand.upper()}: 0 pages audited, so there is nothing to publish. The sheet is "
+            f"unchanged. Check host availability and whether the resume cache was invalidated by "
+            f"a check-version change.")
 
     findings = [f for f in result.get("findings", []) if getattr(f, "status", None) != "resolved"]
     counts = Counter(getattr(f.severity, "name", str(f.severity)) for f in findings)
@@ -134,7 +148,7 @@ def publish_brand_from_result(brand: str, result: dict, *, run_id: str, dry_run:
     }
     first_seen = {f.fingerprint: (f.first_seen or "")[:10] for f in findings if f.first_seen}
     return publish_brand(
-        _client(dry_run, out), brand=brand.upper(), run_id=run_id, findings=findings,
+        client or _client(dry_run, out), brand=brand.upper(), run_id=run_id, findings=findings,
         delta=delta, changed_checks=set(run.get("changed") or []), first_seen=first_seen,
         run_date=time.strftime("%Y-%m-%d"),
         started=started or time.strftime("%Y-%m-%dT%H:%M:%S"),
