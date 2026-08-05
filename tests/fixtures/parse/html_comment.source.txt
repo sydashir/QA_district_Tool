@@ -1,0 +1,12 @@
+brand: gl
+url:   https://www.gratitudelodge.com/
+note:  Two real comments taken verbatim from the GL homepage, which carries 23 of them totalling
+       2,823 characters — including a 1,190-char commented-out <script> block. Those were being
+       read as page copy: bs4's Comment is a SUBCLASS of NavigableString, so a descendants walk
+       picks them up while get_text() excludes them. Measured share of visible_text that was
+       comment text: GL 9.5%, CAD 27.0%.
+
+       PROVENANCE OF THE EXPECTED VALUE: unlike the other fixtures this one is NOT captured from a
+       browser render — an HTML comment is definitionally not rendered, so the expected text is the
+       surrounding copy alone. Stated plainly rather than implying a browser check that did not
+       happen.

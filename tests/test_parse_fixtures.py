@@ -50,6 +50,7 @@ REQUIRED = {
     "genuine_stray_space",    # a real client-typed " ," still surfaces
     "hidden_span",            # display:none content must NOT reach visible_text (inline <style>)
     "external_css_chip",      # ...and when the rule lives in an EXTERNAL stylesheet
+    "html_comment",           # comments are markup, not page copy
 }
 
 
