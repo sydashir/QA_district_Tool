@@ -31,9 +31,20 @@ SEEDS = dict(misspelling.KNOWN)
 SEEDS.update(misspelling.KNOWN_LOWER_ONLY)
 
 
-def _vocab_clean(word: str, cfg) -> bool:
-    """True when no vocabulary layer already knows the word (so the trial is meaningful)."""
-    return bool(spelling._unknown({word}, cfg))
+def _why_known(word: str, cfg) -> str:
+    """"" if the word is genuinely unknown, else WHY it is already known.
+
+    The distinction matters. A word sitting in our allowlist is a contamination bug we can fix; a
+    word sitting in the ENGLISH DICTIONARY is a structural limit no dictionary checker can beat —
+    `programing` (freq 145, an accepted variant of "programming") and `heath` (freq 467, open
+    uncultivated land) are both real entries. Calling both "in vocab" hid that difference.
+    """
+    from spellchecker import SpellChecker
+    if SpellChecker(language="en").known([word]):
+        return "REAL DICTIONARY WORD — no dictionary checker can flag it"
+    if not spelling._unknown({word}, cfg):
+        return "in OUR allowlist/vocab (contamination — fixable)"
+    return ""
 
 
 async def main(n_pages: int) -> None:
@@ -55,9 +66,10 @@ async def main(n_pages: int) -> None:
             await asyncio.sleep(cfg.crawl.delay_seconds)
 
     print(f"seeding into {len(pages)} real GL pages\n")
-    print("PRE-CHECK — every seeded word must be unknown to all vocabulary layers:")
+    print("PRE-CHECK — is each seeded word genuinely unknown?")
     for typo in SEEDS:
-        print(f"   {'clean ' if _vocab_clean(typo, cfg) else 'IN VOCAB (invalid trial!)'} {typo}")
+        why = _why_known(typo, cfg)
+        print(f"   {'clean' if not why else 'SKIP '} {typo:<14} {why}")
 
     print("\nRECALL — dictionary check only (misspelling.py deliberately not consulted):")
     hits = 0
