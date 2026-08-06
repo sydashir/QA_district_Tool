@@ -44,7 +44,11 @@ VOCAB_PATH = _AI_DIR / "domain_vocab.json"
 
 # Body words: letters only, >= 4 chars. Anything shorter is dominated by abbreviations and noise,
 # and a 3-letter typo is not reliably distinguishable from an acronym.
-_WORD = re.compile(r"[A-Za-z][A-Za-z'’]*(?:-[A-Za-z'’]+)*")
+_WORD = re.compile(r"[A-Za-z][A-Za-z']*(?:-[A-Za-z']+)*")
+_CURLY = str.maketrans({"\u2019": "'", "\u2018": "'"})
+# Endings that make a known base word into another real word the 160k list may simply lack:
+# "accreditation" -> "accreditations", "stressor" -> "stressors".
+_SUFFIXES = ("s", "es", "'s", "ed", "d", "ing", "ly", "er", "ers", "est")
 _SLUG_WORD = re.compile(r"[a-z]{4,}")
 MIN_LEN = 4
 
@@ -81,7 +85,7 @@ def _brand_vocab(config) -> frozenset[str]:
     return frozenset(words)
 
 
-def _is_ignorable(token: str) -> bool:
+def _is_ignorable(token: str, first_in_sentence: bool = False) -> bool:
     """Shapes that are not English words at all, so a dictionary has nothing to say about them."""
     if len(token) < MIN_LEN or any(c.isdigit() for c in token):
         return True
@@ -89,32 +93,62 @@ def _is_ignorable(token: str) -> bool:
         return True                       # acronym (PHP, EMDR, LGBTQ) — not a spelling question
     if token[1:].lower() != token[1:]:
         return True                       # internal capitals: CamelCase, brand styling
+    # A CAPITALISED word inside a sentence is a proper noun — a surname, a place, a product. A
+    # dictionary has no opinion on somebody's name, and 27% of the first GL run was staff surnames
+    # (Krier, Pennino, Muldoon, Reitz). Sentence-initial capitals are excluded from this rule
+    # because there the capital carries no information.
+    if token[:1].isupper() and not first_in_sentence:
+        return True
     return False
 
 
 def _candidates(text: str) -> Counter:
+    """Words worth asking a dictionary about, with sentence-initial position tracked."""
+    text = (text or "").translate(_CURLY)   # typography, not spelling: `we’ll` IS `we'll`
     out: Counter = Counter()
-    for m in _WORD.finditer(text or ""):
-        tok = m.group(0).strip("'’-")
-        if not _is_ignorable(tok):
+    for m in _WORD.finditer(text):
+        tok = m.group(0).strip("'-")
+        before = text[:m.start()].rstrip()
+        first = not before or before[-1] in ".!?:;\n" or before.endswith(("\u201c", '"'))
+        if not _is_ignorable(tok, first_in_sentence=first):
             out[tok] += 1
     return out
+
+
+def _base_is_known(word: str, spell, known: frozenset) -> bool:
+    """True when the word is an ordinary inflection of something known.
+
+    The 160k list carries "accreditation" but not "accreditations", and "stressor" but not
+    "stressors" — 27% of the first GL run was this shape. Stripping a common ending is far safer
+    than proposing a correction for a word that is not wrong.
+    """
+    for suf in _SUFFIXES:
+        if word.endswith(suf) and len(word) - len(suf) >= 3:
+            base = word[: -len(suf)]
+            for cand in (base, base + "e", base[:-1] if base.endswith(("i",)) else "",
+                         (base[:-1] + "y") if base.endswith("i") else ""):
+                if cand and (cand in known or spell.known([cand])):
+                    return True
+    return False
 
 
 def _unknown(tokens, config) -> set[str]:
     """Lowercased tokens no vocabulary layer recognises."""
     spell = _speller()
     known = _extra_vocab() | _brand_vocab(config)
-    lowered = {t.lower() for t in tokens}
+    lowered = {t.lower().translate(_CURLY) for t in tokens}
     candidate = {t for t in lowered if t not in known}
-    # hyphenated compounds are fine when every part is a real word ("co-occurring", "trauma-informed")
+    # hyphenated compounds are fine when every part is a real word ("co-occurring", "pre-screening")
     simple, compound = set(), set()
     for t in candidate:
         (compound if "-" in t else simple).add(t)
-    bad = set(spell.unknown(simple)) if simple else set()
+    bad = {t for t in spell.unknown(simple)} if simple else set()
+    bad = {t for t in bad if not _base_is_known(t, spell, known)}
     for t in compound:
-        parts = [p for p in t.split("-") if p]
-        if any(p not in known and spell.unknown([p]) for p in parts):
+        # short joiners ("pre", "co", "non") are not words to spellcheck on their own
+        parts = [p for p in t.split("-") if len(p) >= MIN_LEN]
+        if any(p not in known and spell.unknown([p]) and not _base_is_known(p, spell, known)
+               for p in parts):
             bad.add(t)
     return bad
 

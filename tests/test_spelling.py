@@ -139,3 +139,47 @@ def test_ordinary_copy_is_not_mistaken_for_lorem_ipsum(text):
     from auditor.parse import ParsedPage
     assert [f for f in placeholder.run(ParsedPage(url="https://x/a/", visible_text=text), None)
             if f.details.get("class") == "lorem_ipsum"] == []
+
+
+# --- the three causes that made the first GL run unusable (1,873 findings on 150 pages) ---
+
+@pytest.mark.parametrize("text", [
+    "We’ll call you back and you’ll hear from us; it doesn’t take long.",
+    "The body’s response isn’t the same as a person’s expectations here.",
+    "Gratitude Lodge’s team can’t promise outcomes but won’t stop trying.",
+])
+def test_curly_apostrophes_are_typography_not_misspellings(text):
+    """38% of the first run's findings were contractions and possessives written with a curly
+    apostrophe. `we’ll` is not a misspelling of `well` — it is `we'll` with different punctuation."""
+    assert _run(text) == [], f"flagged a contraction: {[f.details['word'] for f in _run(text)]}"
+
+
+@pytest.mark.parametrize("text", [
+    "Our clinical team includes Krier, Pennino, Muldoon and Reitz.",
+    "The sessions are led by Jayla and Valanda every week.",
+])
+def test_capitalised_names_in_running_text_are_not_spellchecked(text):
+    """27% of the first run was staff surnames. A capitalised word INSIDE a sentence is a proper
+    noun; a dictionary has no opinion on somebody's surname."""
+    assert _run(text) == [], f"flagged a name: {[f.details['word'] for f in _run(text)]}"
+
+
+def test_a_name_at_the_START_of_a_sentence_is_a_known_limitation():
+    """Stated rather than hidden: sentence-initial capitals carry no information, so a name there
+    cannot be told from an ordinary word. `Jayla and Valanda lead...` will flag `Jayla`. The
+    alternative — skipping every sentence-initial word — would blind the check to the first word of
+    every sentence, which is worse. Names that recur elsewhere in running text are already
+    suppressed, so in practice this bites only for a name used exactly once, sentence-initially."""
+    fs = _run("Jayla leads the family sessions each week without fail.")
+    assert [f.details["word"] for f in fs] == ["Jayla"]
+
+
+@pytest.mark.parametrize("word,sentence", [
+    ("accreditations", "Our accreditations are listed on the about page."),
+    ("stressors", "Common stressors include work and family pressure."),
+    ("pre-screening", "A short pre-screening call happens before admission."),
+])
+def test_ordinary_derived_and_compound_words_are_not_flagged(word, sentence):
+    """27% of the first run was real English the 160k dictionary simply lacks: plurals of known
+    words, and hyphenated compounds whose parts are all known."""
+    assert _run(sentence) == [], f"flagged {word}: {[f.details['word'] for f in _run(sentence)]}"
