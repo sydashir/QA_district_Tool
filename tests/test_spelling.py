@@ -20,6 +20,13 @@ class _Cfg:
     base_url = "https://www.gratitudelodge.com"
 
 
+@pytest.fixture(autouse=True)
+def _enable(monkeypatch):
+    """The check is PARKED (ARCHITECTURE.md D10) and returns nothing by default. These tests still
+    exercise it, because the code is kept for re-measurement and must not rot."""
+    monkeypatch.setattr(spelling, "ENABLED", True)
+
+
 def _run(text="", title=None, desc=None, url="https://www.gratitudelodge.com/rehab/"):
     return spelling.run(ParsedPage(url=url, visible_text=text, title=title,
                                    meta_description=desc), _Cfg())

@@ -27,6 +27,7 @@ decision from editing a sentence.
 from __future__ import annotations
 
 import json
+import os
 import re
 from collections import Counter
 from functools import lru_cache
@@ -37,6 +38,17 @@ from ..parse import ParsedPage
 from ..report import Finding, Severity, make_fingerprint
 
 CHECK = "spelling"
+
+# PARKED — NOT IN THE DEFAULT PIPELINE. Measured on 150 GL pages: 9% precision by distinct word,
+# 12% by finding count (7 real of 78). See ARCHITECTURE.md D10 for the full result and why tuning
+# cannot fix it: the residue is rare single-brand pharmaceutical vocabulary (isotonitazene,
+# solriamfetol, pitolisant), and single-brand rarity is exactly the signal that identifies a typo,
+# so the two are indistinguishable on this corpus.
+#
+# Kept, not deleted, because the measurement is the asset and the code is correct — it simply does
+# not clear the cry-wolf bar. Enable with SPELLCHECK=1 to reproduce or to re-measure after adding a
+# pharmaceutical vocabulary.
+ENABLED = os.getenv("SPELLCHECK", "") not in ("", "0", "false", "False")
 
 _AI_DIR = Path(__file__).resolve().parent.parent / "ai"
 ALLOWLIST_PATH = _AI_DIR / "allowlist.json"
@@ -162,6 +174,8 @@ def _suggest(word: str) -> str:
 
 
 def run(parsed: ParsedPage, config) -> list[Finding]:
+    if not ENABLED:
+        return []
     findings: list[Finding] = []
     seen: Counter = Counter()
 

@@ -663,3 +663,82 @@ on click, and check #7 explicitly audits FAQ/accordion blocks — blanket-stripp
 accordion would blind the auditor to a section the client asked us to check. The correct fix
 distinguishes **static hiding** (strip: the reader can never see it) from **interaction-state hiding**
 (keep: revealed on click), and needs a decision about which side accordion content falls on.
+
+---
+
+## D10. RESULT — the dictionary spellchecker was measured and is NOT shipped as an ERROR check
+
+**Status: measured, documented, parked behind `SPELLCHECK=1`. Do not rebuild without reading this.**
+Second documented negative result after D9, and for a different reason: D9's AI layer lost to
+regexes; this one loses to the corpus itself.
+
+### What was built
+
+`checks/spelling.py` — pyspellchecker 0.9.0 (160,572-word offline US-English dictionary, chosen on
+measurement: `unknown()` on 8,000 words is 12ms because detection is a set lookup) layered under
+three vocabularies: the 2,488-term proper-noun allowlist, a mined domain vocabulary, and the
+brand's own words. Scope was body text, meta title, meta description and slug.
+
+### The number, hand-classified in full
+
+150 GL pages, **every one of the 78 distinct flagged words classified by hand** — not a sample:
+
+| | |
+|---|---|
+| findings | 98 (0.7/page, 27% of pages) |
+| precision by distinct word | **7/78 = 9%** |
+| precision by finding count | **12/98 = 12%** |
+
+The seven real ones: `txreatment`, `noteable`, `lorazapam` and `lorazepan` (both misspellings of the
+drug *lorazepam*), `acetaminop`, `ency`, `alcoholusedisorderaud`.
+
+An earlier run scored 1,873 findings before three fixes — curly apostrophes read as misspellings
+(38% of findings), staff surnames spellchecked (27%), and plurals/compounds the dictionary lacks
+(27%). Those were real bugs, all now tested. **The 95% cut to 98 findings did not make it
+shippable**, which is the point of recording it.
+
+### Why tuning cannot fix the rest
+
+The residue is **rare pharmaceutical and clinical vocabulary appearing on exactly one brand**:
+isotonitazene, solriamfetol, pitolisant, methemoglobinemia, armodafinil, xerostomia, mephedrone,
+pentedrone, loperamide, estazolam. The cross-brand rule excludes single-brand words *by design*,
+because single-brand rarity is precisely where a typo lives. **On this corpus those two populations
+are the same population.** Rehab marketing copy is saturated with rare drug names.
+
+The obvious filter was tested and rejected: reporting only words with a confident distance-1
+correction lifts precision to 23% **but loses 4 of the 7 real findings, including both drug
+misspellings** — `lorazapam` cannot be corrected because *lorazepam* is not in the English
+dictionary either. That trade discards the highest-value findings a rehab site can have.
+
+Adding a pharmaceutical vocabulary (RxNorm-style) would remove roughly 44 of the 71 false positives
+→ about **26%**. Still three-in-four wrong, still cry-wolf by this project's standard, for real
+effort. Not pursued.
+
+### Recall, which is the part worth keeping
+
+Seeded with Connor's seven confirmed misspellings (`spike/spelling_recall.py`):
+
+* **Dictionary alone: 5/7.** Both misses are words the English dictionary legitimately CONTAINS —
+  `programing` (frequency 145, an accepted variant of "programming") and `heath` (frequency 467,
+  open uncultivated land). Not contamination, and no dictionary checker can flag either.
+* **Combined with `misspelling.py`'s known list: 7/7.**
+
+**That is the structural argument for keeping both checks.** The known list is not a weaker version
+of the dictionary — it covers a class dictionaries **cannot reach**, because the misspelling is
+itself a real word.
+
+### What was salvaged instead
+
+Three of the seven real findings were never misspellings at all: `acetaminop` (truncated mid-stem),
+`ency` (a broken word fragment) and `alcoholusedisorderaud` (run-together). Those are **text
+corruption** — template and data-pipeline defects — and are detectable structurally with no
+dictionary. That half moved into `empty_slot`, which already owned `truncated_word`. See D11.
+
+### The mining heuristic, which is reusable
+
+Cross-brand frequency alone is NOT evidence: the brands share templates, so one author's typo
+propagates and looks like vocabulary (it trusted `behavorial`). What works is **context diversity** —
+real vocabulary appears in many different sentences (measured `angeles` 1,064 distinct contexts,
+`meth` 879, `adhd` 518) while copied junk sits at exactly 1 (every lorem-ipsum word scored 1).
+Correction confidence supports it but cannot lead: `behavorial->behavioral` and `comorbid->morbid`
+are identical on that signal. Recorded in `auditor/ai/build_vocab.py`.
