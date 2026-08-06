@@ -49,6 +49,52 @@ proident culpa officia deserunt mollit anim laborum
 _LOREM_MIN_MARKERS = 3
 _WORD_RE = re.compile(r"[a-z]+")
 
+# --- TEMPLATE PLACEHOLDERS THAT REACHED PRODUCTION -------------------------------------------
+# We believed this module already covered these. It caught `[acf field=…]` and nothing else, while
+# the client reported five other shapes across three documents (see
+# docs/plans/2026-08-06-client-reported-defect-coverage.md, item B2). Written as PATTERNS rather
+# than as those five strings, so the sixth variant nobody has reported yet is caught too.
+
+# 1) A widget's EMPTY-STATE message rendered as page copy: "No content found",
+#    "No accordion items found", "No Content Found in this Field".
+#    Anchored to a whole LINE — visible_text carries one newline per block element, so a widget's
+#    own message is its own line. That is what separates it from "The team found no evidence…",
+#    which is a clause inside a sentence.
+_EMPTY_STATE = re.compile(
+    r"^[\s\W]*no\s+[\w'’\- ]{0,40}?found(?:\s+in\s+this\s+field)?[\s\W]*$",
+    re.IGNORECASE | re.MULTILINE)
+
+# 2) An unrendered shortcode: "[sobriety_calculator]", "[contact_form id=4]". Requires a
+#    shortcode-SHAPED identifier — an underscore, attributes, or a long lowercase name — so that
+#    "[1]" citations and "[sic]" are not swept up.
+_SHORTCODE = re.compile(r"\[(?=[a-z])([a-z][a-z0-9]*(?:[_-][a-z0-9]+)+|[a-z_]{6,})"
+                        r"(\s+[^\]\n]{0,80})?\]")
+
+# 3) A bare variable NAME left where its value belonged: "What Addictions Do We Treat? - GEO".
+#    Restricted to the ACF field names this network actually uses (the Fetcher's own skip-list),
+#    matched as a standalone ALL-CAPS token, so ordinary capitals and acronyms are unaffected.
+_VARIABLE_NAMES = ("GEO", "CITY", "STATE", "TOPIC", "DRUG", "FULL_GEO", "NEAR_IN", "NEAR-IN")
+#    The trailing guard matters: "The GEO Group" is a real company. A variable name standing in for
+#    a value is never followed by another capitalised word, so requiring that excludes proper-noun
+#    phrases without losing "- GEO" (end of line) or "Rehab in CITY for adults" (mid-sentence).
+_BARE_VARIABLE = re.compile(
+    r"(?<![\w-])(" + "|".join(_VARIABLE_NAMES) + r")(?![\w-])(?!\s+[A-Z][a-z])")
+
+_PLACEHOLDER_PATTERNS = (
+    ("empty_state", _EMPTY_STATE, Severity.ERROR,
+     "a widget's \"nothing here\" message is showing as page content",
+     "This is the message a widget prints when it has nothing to display, and a visitor can read "
+     "it. Either fill the section in WordPress or hide the widget when it is empty."),
+    ("shortcode", _SHORTCODE, Severity.ERROR,
+     "an unrendered shortcode is visible on the page",
+     "WordPress did not turn this shortcode into content, so the raw code is on the page. Check "
+     "the plugin that provides it is active, or remove the shortcode."),
+    ("variable_name", _BARE_VARIABLE, Severity.ERROR,
+     "a template field NAME is showing where its value should be",
+     "The page is printing the name of a template field instead of the value it should hold — for "
+     "example \"- GEO\" where a city name belongs. Fill the field in, or fix the template."),
+)
+
 
 @lru_cache(maxsize=1)
 def _extract_acf_tokens():
@@ -70,6 +116,27 @@ def _extract_acf_tokens():
     return module.extract_acf_tokens
 
 
+def _pattern_findings(parsed: ParsedPage) -> list[Finding]:
+    text = parsed.visible_text or ""
+    out: list[Finding] = []
+    seen: dict = {}
+    for cls, pattern, severity, issue, suggestion in _PLACEHOLDER_PATTERNS:
+        for m in pattern.finditer(text):
+            hit = m.group(0).strip()
+            key = (cls, hit.lower())
+            occ = seen.get(key, 0)
+            seen[key] = occ + 1
+            slot = cls if occ == 0 else f"{cls}#{occ}"
+            out.append(Finding(
+                url=parsed.url, check=CHECK, severity=severity,
+                fingerprint=make_fingerprint(CHECK, slot, parsed.url, hit.lower()),
+                issue=issue, location="page body",
+                snippet=text[max(0, m.start() - 40):m.end() + 60].strip(),
+                suggestion=suggestion,
+                details={"class": cls, "matched": hit}))
+    return out
+
+
 def _lorem_findings(parsed: ParsedPage) -> list[Finding]:
     text = parsed.visible_text or ""
     hits = sorted(_LOREM_WORDS.intersection(_WORD_RE.findall(text.lower())))
@@ -89,7 +156,7 @@ def _lorem_findings(parsed: ParsedPage) -> list[Finding]:
 
 
 def run(parsed: ParsedPage, config) -> list[Finding]:
-    findings: list[Finding] = _lorem_findings(parsed)
+    findings: list[Finding] = _lorem_findings(parsed) + _pattern_findings(parsed)
     text = parsed.visible_text  # already script/style/cfemail-stripped
 
     # On a LIVE page, ANY visible [acf field=...] token is unresolved (do NOT apply the

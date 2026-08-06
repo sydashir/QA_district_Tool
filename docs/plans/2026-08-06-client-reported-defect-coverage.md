@@ -1,5 +1,11 @@
 # Client-reported defects vs. our coverage — all 7 PDFs on ClickUp 86baawd2a
 
+> **"Thanks Connor! Assigned to devs and adding these scenarios to the automated audit tool."**
+> — Jake Heinrichs, 2026-06-18, replying to Connor Bringas on this thread.
+>
+> These seven attachments are the specification for this tool, in the client's own words. Where
+> this table and anyone's reading of the ticket disagree, the attachments win.
+
 Every defect Connor Bringas (Blue Media) reported to Jake between 2026-06-05 and 2026-07-23, read
 from the seven PDF attachments, classified for **deterministic detectability** and **current
 coverage**. Jake's own reply on 2026-06-18: *"Assigned to devs and adding these scenarios to the
