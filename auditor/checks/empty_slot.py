@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import re
 from collections import Counter
+from functools import lru_cache
 
 from ..parse import ParsedPage
 from ..report import Finding, Severity, make_fingerprint
@@ -75,6 +76,83 @@ _UNITS = (r"miles?|mi|km|kilometers?|metres?|meters?|m|feet|ft|blocks?|minutes?|
 _MISSING_UNIT = re.compile(
     rf"\bwithin\s+(?>{_NUM}(?:{_RANGE_SEP}{_NUM})*)(?!\s*(?:{_UNITS})\b)", re.IGNORECASE)
 
+# 6) "alcoholusedisorderaud" / "bestrehabcentersincalifornia" — several whole words fused with no
+#    separator. A template concatenated fields that were meant to be spaced, or a slug leaked into
+#    body copy. Salvaged from the parked dictionary spellchecker (ARCHITECTURE.md D10), where three
+#    of its seven REAL findings turned out to be corruption of this kind rather than misspellings.
+#
+#    Structural, not a spelling judgement: the word list is used only to SEGMENT, never to decide
+#    whether a word is spelled correctly. Requires FOUR or more whole words covering the entire
+#    token, because ordinary long English ("detoxification", "benzodiazepines") never decomposes
+#    that way and two-word compounds ("healthcare", "bandmate") are real words.
+_MIN_RUN_TOGETHER_LEN = 16
+# THREE, not four: `alcoholusedisorderaud` is alcohol+use+disorder plus an acronym tail. Safe
+# because the 16-character candidate floor already excludes the only 3-part English compound
+# the segmenter finds — `notwithstanding` (15 chars, not+with+standing).
+_MIN_RUN_TOGETHER_PARTS = 3
+_MIN_PART_LEN = 3
+_MIN_COVERAGE = 0.80        # the words found must account for most of the token
+_MAX_TAIL = 4               # "alcoholusedisorderaud" ends in an acronym; tolerate a short remainder
+_SEG_MIN_FREQ = 1_000       # measured: `disorder` 4,963, `centers` 3,672, `california` 1,029
+_RUN_TOGETHER_CANDIDATE = re.compile(r"\b[a-z]{%d,}\b" % _MIN_RUN_TOGETHER_LEN)
+
+
+@lru_cache(maxsize=1)
+def _segmenter():
+    """Common English words used ONLY to SPLIT a token, never to judge whether one is spelled right.
+
+    Frequency-bounded on purpose. With rare entries admitted, almost any string decomposes; with the
+    floor at 1,000 the real clinical words stay whole — `detoxification` (117) and
+    `benzodiazepines` (0) are not in the set and cannot be built from it either.
+    """
+    try:
+        from spellchecker import SpellChecker
+    except ImportError:
+        return frozenset()
+    freq = SpellChecker(language="en").word_frequency.dictionary
+    return frozenset(w for w, n in freq.items() if len(w) >= _MIN_PART_LEN and n >= _SEG_MIN_FREQ)
+
+
+@lru_cache(maxsize=4096)
+def _segments(token: str) -> tuple[str, ...]:
+    """Longest full-coverage split into known words, or () when the token is not run-together.
+
+    Dynamic programming rather than greedy: a greedy longest-first pass strands itself on tokens
+    like "bestrehabcentersincalifornia", where taking the longest prefix first blocks a split that
+    does exist.
+    """
+    words = _segmenter()
+    if not words:
+        return ()
+    n = len(token)
+    # best[i] = the segmentation covering token[:i] that consumed the most characters in words
+    best: list[tuple[int, tuple[str, ...]] | None] = [None] * (n + 1)
+    best[0] = (0, ())
+    for i in range(n):
+        if best[i] is None:
+            continue
+        covered, parts = best[i]
+        for j in range(i + _MIN_PART_LEN, n + 1):
+            w = token[i:j]
+            if w in words:
+                cand = (covered + len(w), parts + (w,))
+                if best[j] is None or cand[0] > best[j][0]:
+                    best[j] = cand
+    # accept the furthest split that leaves at most a short unmatched tail
+    for end in range(n, max(0, n - _MAX_TAIL) - 1, -1):
+        if best[end] and best[end][0] / n >= _MIN_COVERAGE:
+            return best[end][1]
+    return ()
+
+
+def _run_together(text: str):
+    for m in _RUN_TOGETHER_CANDIDATE.finditer(text):
+        tok = m.group(0)
+        parts = _segments(tok)
+        if len(parts) >= _MIN_RUN_TOGETHER_PARTS:
+            yield m, parts
+
+
 _PATTERNS = (
     ("orphan_comma", _ORPHAN_COMMA, Severity.ERROR,
      "A variable rendered empty and left a dangling comma (e.g. \"In , the …\")."),
@@ -101,6 +179,22 @@ def run(parsed: ParsedPage, config) -> list[Finding]:
     # The same broken string can appear twice on one page (a repeated template block); key each
     # occurrence so identities stay distinct instead of colliding (the label_leak / phone lesson).
     seen: Counter = Counter()
+
+    for m, parts in _run_together(text):
+        tok = m.group(0)
+        key = ("run_together", tok)
+        occ = seen[key]
+        seen[key] += 1
+        slot = "run_together" if occ == 0 else f"run_together#{occ}"
+        findings.append(Finding(
+            url=parsed.url, check=CHECK, severity=Severity.ERROR,
+            fingerprint=make_fingerprint(CHECK, slot, parsed.url, tok),
+            issue="several words are run together with no spaces",
+            location="page body", snippet=_context(text, m.start(), m.end()),
+            suggestion=f"\"{tok}\" reads as {len(parts)} separate words with the spaces missing "
+                       f"({' + '.join(parts)}). A template joined fields that should have been "
+                       f"separate, or a web address leaked into the wording. Put the spaces back.",
+            details={"class": "run_together", "matched": tok, "parts": list(parts)}))
 
     for cls, pattern, severity, why in _PATTERNS:
         for m in pattern.finditer(text):

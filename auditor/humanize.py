@@ -158,6 +158,11 @@ _RULES: list[tuple[str, str, str, str]] = [
     ("broken_links", "",
      "", ""),                       # 404/403/staging already read clearly
 
+    ("empty_slot", "several words are run together",
+     "Several words are stuck together with no spaces between them.",
+     "Text like \"alcoholusedisorderaud\" is several words fused into one — usually a template that "
+     "joined fields without spaces, or a web address that leaked into the wording. Put the spaces "
+     "back, or replace it with the wording that was meant to appear."),
     ("empty_slot", "", "", ""),      # already writes a full explanation
     ("misspelling", "", "", ""),     # already writes the correction
     ("scope", "", "", ""),           # already writes the explanation

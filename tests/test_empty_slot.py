@@ -119,3 +119,43 @@ def test_finding_shape_is_actionable():
     assert f.check == "empty_slot" and f.severity is Severity.ERROR
     assert f.snippet and f.suggestion
     assert "empty" in f.suggestion.lower() or "variable" in f.suggestion.lower()
+
+
+# --- TEXT CORRUPTION: template/pipeline damage, detectable structurally ---
+#
+# Salvaged from the parked dictionary spellchecker (ARCHITECTURE.md D10). Three of its seven real
+# findings were never misspellings — `acetaminop` (truncated mid-stem), `alcoholusedisorderaud`
+# (run-together) and `ency` (a stray fragment). Those are the SAME family as truncated_word: a
+# template or data pipeline damaged the text, not a human mistyping it. No dictionary is needed to
+# decide correctness, only structure.
+
+@pytest.mark.parametrize("text,cls", [
+    ("Read our alcoholusedisorderaud guide before admission today.", "run_together"),
+    ("The bestrehabcentersincalifornia listing was published last week.", "run_together"),
+])
+def test_run_together_words_are_caught(text, cls):
+    fs = [f for f in _run(text) if f.details["class"] == cls]
+    assert len(fs) >= 1 and fs[0].severity is Severity.ERROR
+
+
+@pytest.mark.parametrize("text", [
+    "Notwithstanding the above, our interdisciplinary team reviews every case.",
+    "We provide individualized and comprehensive confidentiality agreements.",
+    "Our responsibilities include transportation and recommendations for care.",
+    "Our detoxification and rehabilitation programs run continuously.",
+    "The counselor recommended pharmacotherapy alongside psychotherapy.",
+    "Benzodiazepines and buprenorphine are dispensed under supervision.",
+    "Visit gratitudelodge.com or email admissions@gratitudelodge.com today.",
+])
+def test_long_ordinary_words_are_not_run_together(text):
+    """Long clinical words and domain names are normal. A run-together needs several whole words
+    fused with no separator, which ordinary English never produces."""
+    assert [f for f in _run(text) if f.details["class"] == "run_together"] == [], \
+        f"false positive: {[f.details.get('matched') for f in _run(text)]}"
+
+
+def test_a_run_together_finding_says_what_it_found():
+    f = [x for x in _run("See the alcoholusedisorderaud page.")
+         if x.details["class"] == "run_together"][0]
+    assert "alcohol" in f.suggestion.lower()
+    assert "separate" in f.suggestion.lower() or "space" in f.suggestion.lower()
