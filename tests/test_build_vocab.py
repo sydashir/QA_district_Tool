@@ -36,12 +36,29 @@ def test_real_domain_vocabulary_has_no_correction_at_all(term, spell):
     assert corr == "", f"{term} was 'corrected' to {corr!r} — it is a real clinical term"
 
 
-def test_distance_2_cases_fall_through_to_the_context_signal(spell):
-    """behavorial (a typo) and comorbid (a real term) are BOTH distance 2 from a common word, so
-    the correction signal deliberately declines to judge either — that tie belongs to the context
-    signal. Distance 2 is also where correction() costs 10-41 SECONDS per word."""
-    assert bv._correction_signal("behavorial", spell)[0] == ""
-    assert bv._correction_signal("comorbid", spell)[0] == ""
+def test_distance_2_alone_cannot_separate_a_typo_from_a_real_term(spell):
+    """behavorial (a typo) and comorbid (a real clinical term) are BOTH two letters from a common
+    word. The correction signal therefore reports distance 2 for each and CANNOT decide between
+    them — which is exactly why the caller requires missing context diversity as well."""
+    bad = bv._correction_signal("behavorial", spell)
+    good = bv._correction_signal("comorbid", spell)
+    assert bad[0] == "behavioral" and bad[1] == 2
+    assert good[0] == "morbid" and good[1] == 2
+
+
+def test_long_words_skip_the_expensive_distance_2_search(spell):
+    """Distance 2 is O(n^2): 995ms at 10 chars, 5.3s at 23. Long unknown words are never typos of a
+    dictionary word, so the cap costs no recall and keeps the mine finishing."""
+    import time
+    t = time.time()
+    assert bv._correction_signal("about-the-asam-criteria", spell)[0] == ""
+    assert time.time() - t < 1.0
+
+
+def test_curly_apostrophes_are_typography_not_spelling():
+    """`it’s` must be tested as `it's`. Without this every contraction on the site — it’s, don’t,
+    doesn’t, person’s — was mined as an unknown word and rejected as a typo."""
+    assert bv._normalise("it\u2019s and don\u2019t") == "it's and don't"
 
 
 def test_the_correction_signal_is_fast_enough_to_run_on_thousands_of_words(spell):
@@ -51,7 +68,7 @@ def test_the_correction_signal_is_fast_enough_to_run_on_thousands_of_words(spell
     for w in words:
         bv._correction_signal(w, spell)
     per = (time.time() - t) / len(words)
-    assert per < 1.0, f"{per:.1f}s per word — correction() distance-2 slowness is back"
+    assert per < 1.5, f"{per:.1f}s per word — correction() distance-2 slowness is back"
 
 
 # --- signal 2: context diversity ---

@@ -53,12 +53,27 @@ MIN_BRANDS = 2
 DEFAULT_PAGES = 120
 
 # Lowercase alphabetic words only. Digits, codes and capitalised proper nouns are handled elsewhere.
-_WORD = re.compile(r"\b[a-z][a-z'’\-]{3,}\b")
+_WORD = re.compile(r"\b[a-z][a-z'\-]{3,}\b")
+
+
+def _normalise(text: str) -> str:
+    """Curly apostrophes are typography, not spelling: `it’s` must be tested as `it's`, or every
+    contraction on the site reads as an unknown word."""
+    return text.replace("\u2019", "'").replace("\u2018", "'")
 CONTEXT_WORDS = 6        # words either side; enough to identify a copied block, short enough to vary
 # Threshold set from measurement, not taste. Coincidental "corrections" of real clinical terms land
 # at frequency 50 (breathwork->breastwork, suboxone->suboxide); genuine correction targets start at
 # 117 (detoxifcation->detoxification) and 181 (inpateint->inpatient). 100 separates them.
 MIN_CORR_FREQ = 100
+# Distance-2 is affordable ONLY for short words: measured 995ms at 10 chars, 2.0s at 14, 5.3s at 23.
+# The cases that need it are short — `behavorial` (10) and `comorbid` (8) — and long unknown words
+# are essentially never typos of a dictionary word, so capping at 10 costs no real recall and keeps
+# the analysis pass to roughly a second per candidate instead of several.
+MAX_D2_LEN = 10
+# Real vocabulary turns up in many different sentences: measured `angeles` 1,064 distinct contexts,
+# `meth` 879, `adhd` 518. Copied junk sits at exactly 1 — every lorem-ipsum word in the corpus
+# (enim, labore, magna, nostrud, tempor) scored 1. Three is a deliberately cautious line.
+MIN_CONTEXTS = 3
 
 # British -> US transformations. NOT suffix-only: "behavioural" is behaviour+al and "counselling"
 # doubles the l, so the marker sits inside the word. Each is applied to the LAST occurrence and
@@ -116,14 +131,28 @@ def _correction_signal(word: str, spell) -> tuple[str, int, int]:
       which is the one that actually knows the difference.
     """
     dictionary = spell.word_frequency.dictionary
-    best, best_freq = "", 0
-    for cand in spell.known(spell.edit_distance_1(word)):
-        if cand == word:
-            continue
-        f = dictionary.get(cand, 0)
-        if f > best_freq:
-            best, best_freq = cand, f
-    return (best, 1, best_freq) if best else ("", 0, 0)
+
+    def _best(cands):
+        b, bf = "", 0
+        for c in cands:
+            if c == word:
+                continue
+            f = dictionary.get(c, 0)
+            if f > bf:
+                b, bf = c, f
+        return b, bf
+
+    best, freq = _best(spell.known(spell.edit_distance_1(word)))
+    if best:
+        return best, 1, freq
+    # Distance 2 only for short words, and only when distance 1 found nothing. This is the path
+    # that reaches `behavorial -> behavioral`; it is ambiguous on its own (`comorbid -> morbid`
+    # scores the same), so the caller must weigh it against context diversity.
+    if len(word) <= MAX_D2_LEN:
+        best, freq = _best(spell.known(spell.edit_distance_2(word)))
+        if best:
+            return best, 2, freq
+    return "", 0, 0
 
 
 async def mine_brand(brand: str, n_pages: int, spell):
@@ -152,7 +181,8 @@ async def mine_brand(brand: str, n_pages: int, spell):
             pages += 1
             await css.load(client, html, fin or u, max_retries=2)
             p = parse_html(html, page_url=u, base_url=u, extra_css=css.css, css_status=css.status)
-            text = " ".join(filter(None, [p.visible_text, p.title, p.meta_description])).lower()
+            text = _normalise(
+                " ".join(filter(None, [p.visible_text, p.title, p.meta_description])).lower())
             unknown = set(spell.unknown(_WORD.findall(text)))
             found |= unknown
             for w, windows in _contexts(text, unknown).items():
@@ -177,25 +207,33 @@ async def build(n_pages: int) -> dict:
             per_ctx[term][brand] = ctx.get(term, set())
 
     vocab, typos, british, template = [], [], [], []
-    for term, brands in sorted(per_term.items()):
-        if len(brands) < MIN_BRANDS:
-            continue
+    candidates = [(t, b) for t, b in sorted(per_term.items()) if len(b) >= MIN_BRANDS]
+    print(f"\n  analysing {len(candidates)} cross-brand candidates "
+          f"(distance-2 search runs on those <= {MAX_D2_LEN} chars)")
+    for n, (term, brands) in enumerate(candidates, 1):
+        if n % 200 == 0:
+            print(f"    ...{n}/{len(candidates)}", flush=True)
         us = _looks_british(term, spell)
         if us:
             british.append({"word": term, "us_spelling": us, "brands": sorted(brands)})
             continue
         corr, ed, cfreq = _correction_signal(term, spell)
-        # SIGNAL 2: does this word live in DIFFERENT sentences on different brands, or the same one?
+        # SIGNAL 2 decides, because it is the one that knows the difference. Real vocabulary is used
+        # in many different sentences; a copied block is one author counted many times.
         windows = [w for b in brands for w in per_ctx[term].get(b, set())]
         distinct_ctx = len(set(windows))
-        copied = distinct_ctx <= 1                # every occurrence sits in identical surroundings
-        # SIGNAL 3: a confident nearby correction to a common word means typo, not vocabulary.
-        correctable = bool(corr) and cfreq >= MIN_CORR_FREQ
+        copied = distinct_ctx < MIN_CONTEXTS
+        # SIGNAL 3 supports it. A one-letter fix to a common word is decisive on its own; a
+        # two-letter fix is not — `behavorial->behavioral` and `comorbid->morbid` are identical on
+        # that signal — so distance 2 only counts when context diversity is ALSO absent.
+        correctable = bool(corr) and cfreq >= MIN_CORR_FREQ and (ed == 1 or copied)
         if correctable:
             typos.append({"word": term, "correction": corr, "edit_distance": ed,
                           "correction_frequency": cfreq, "brands": sorted(brands),
                           "distinct_contexts": distinct_ctx,
-                          "why": "one letter away from a common word"})
+                          "why": ("one letter away from a common word" if ed == 1 else
+                                  "two letters away from a common word AND used in fewer than "
+                                  f"{MIN_CONTEXTS} distinct sentences — not independent usage")})
         elif copied and len(brands) >= MIN_BRANDS:
             template.append({"word": term, "brands": sorted(brands),
                              "note": "identical context on every brand — one template, not "
