@@ -103,15 +103,27 @@ def _looks_british(word: str, spell) -> str:
 
 
 def _correction_signal(word: str, spell) -> tuple[str, int, int]:
-    """(correction, edit distance, frequency of the correction). Empty when there is none."""
-    try:
-        c = spell.correction(word)
-    except Exception:
-        c = None
-    if not c or c == word:
-        return "", 0, 0
-    ed = 1 if c in spell.edit_distance_1(word) else 2
-    return c, ed, spell.word_frequency.dictionary.get(c, 0)
+    """(correction, edit distance, frequency). Empty when there is no distance-1 correction.
+
+    EDIT DISTANCE 1 ONLY, for two reasons that agree with each other:
+
+    * Speed, measured: ``spell.correction()`` explores distance 2, which is O(n^2) in word length
+      and takes **10-41 SECONDS** for a long unknown word (`acamprosate` 10.3s,
+      `about-the-asam-criteria` 41.3s). Across thousands of candidates that is hours. The
+      distance-1 candidate set is O(n) and a set intersection.
+    * Correctness. Distance 2 cannot tell a typo from a real term anyway — `behavorial->behavioral`
+      and `comorbid->morbid` are indistinguishable on it. Those ties belong to the CONTEXT signal,
+      which is the one that actually knows the difference.
+    """
+    dictionary = spell.word_frequency.dictionary
+    best, best_freq = "", 0
+    for cand in spell.known(spell.edit_distance_1(word)):
+        if cand == word:
+            continue
+        f = dictionary.get(cand, 0)
+        if f > best_freq:
+            best, best_freq = cand, f
+    return (best, 1, best_freq) if best else ("", 0, 0)
 
 
 async def mine_brand(brand: str, n_pages: int, spell):
@@ -178,14 +190,12 @@ async def build(n_pages: int) -> dict:
         distinct_ctx = len(set(windows))
         copied = distinct_ctx <= 1                # every occurrence sits in identical surroundings
         # SIGNAL 3: a confident nearby correction to a common word means typo, not vocabulary.
-        correctable = bool(corr) and cfreq >= MIN_CORR_FREQ and (ed == 1 or copied)
+        correctable = bool(corr) and cfreq >= MIN_CORR_FREQ
         if correctable:
             typos.append({"word": term, "correction": corr, "edit_distance": ed,
                           "correction_frequency": cfreq, "brands": sorted(brands),
                           "distinct_contexts": distinct_ctx,
-                          "why": ("edit distance 1 to a common word" if ed == 1 else
-                                  "edit distance 2 AND identical surrounding text on every brand — "
-                                  "one copied template, so cross-brand frequency proves nothing")})
+                          "why": "one letter away from a common word"})
         elif copied and len(brands) >= MIN_BRANDS:
             template.append({"word": term, "brands": sorted(brands),
                              "note": "identical context on every brand — one template, not "

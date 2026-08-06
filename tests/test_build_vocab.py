@@ -36,13 +36,22 @@ def test_real_domain_vocabulary_has_no_correction_at_all(term, spell):
     assert corr == "", f"{term} was 'corrected' to {corr!r} — it is a real clinical term"
 
 
-def test_edit_distance_2_alone_cannot_separate_a_typo_from_a_real_term(spell):
-    """This is WHY the context signal exists. Measured: behavorial->behavioral (freq 2,932) and
-    comorbid->morbid (freq 2,677) are indistinguishable on the correction signal alone."""
-    bad = bv._correction_signal("behavorial", spell)
-    good = bv._correction_signal("comorbid", spell)
-    assert bad[1] == good[1] == 2
-    assert bad[2] > bv.MIN_CORR_FREQ and good[2] > bv.MIN_CORR_FREQ
+def test_distance_2_cases_fall_through_to_the_context_signal(spell):
+    """behavorial (a typo) and comorbid (a real term) are BOTH distance 2 from a common word, so
+    the correction signal deliberately declines to judge either — that tie belongs to the context
+    signal. Distance 2 is also where correction() costs 10-41 SECONDS per word."""
+    assert bv._correction_signal("behavorial", spell)[0] == ""
+    assert bv._correction_signal("comorbid", spell)[0] == ""
+
+
+def test_the_correction_signal_is_fast_enough_to_run_on_thousands_of_words(spell):
+    import time
+    words = ["acamprosate", "about-the-asam-criteria", "cardiomyopathy", "addeventlistener"]
+    t = time.time()
+    for w in words:
+        bv._correction_signal(w, spell)
+    per = (time.time() - t) / len(words)
+    assert per < 1.0, f"{per:.1f}s per word — correction() distance-2 slowness is back"
 
 
 # --- signal 2: context diversity ---
