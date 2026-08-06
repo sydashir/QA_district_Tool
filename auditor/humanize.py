@@ -149,6 +149,23 @@ _RULES: list[tuple[str, str, str, str]] = [
      "A link to another website could not be checked automatically.",
      "The other site blocked our automated check — this often means the link is fine. Click it "
      "yourself to confirm it still works."),
+    ("broken_links", "link address contains a doubled slash",
+     "A link on this page has a doubled slash (//) in its web address.",
+     "This usually still opens, but Google treats it as a different address from the correct one, "
+     "so the two compete. It comes from a template joining a site address to a path that already "
+     "starts with a slash — fix it in the template, not link by link."),
+    ("placeholder", "a widget's \"nothing here\" message",
+     "A widget's \"nothing here\" message is showing as page content.",
+     "Visitors can read the message a widget prints when it has nothing to show — for example \"No "
+     "content found\". Fill the section in WordPress, or set the widget to hide when empty."),
+    ("placeholder", "an unrendered shortcode",
+     "Raw shortcode text is visible on the page instead of what it should produce.",
+     "Something like [sobriety_calculator] is printing as text. The plugin that turns it into real "
+     "content is missing or switched off — enable it, or take the shortcode out."),
+    ("placeholder", "a template field NAME",
+     "The page is showing the NAME of a template field instead of its value.",
+     "For example \"- GEO\" where a city name belongs. The field is empty in WordPress, so the "
+     "template printed its own label. Fill the field in."),
     ("broken_links", "malformed / truncated URL",
      "A link on this page is broken or incomplete.",
      "The web address is malformed, so clicking it goes nowhere. Fix the link."),

@@ -57,6 +57,22 @@ def _is_malformed(url: str) -> bool:
     return not p.netloc or "." not in p.netloc
 
 
+def has_double_slash(url: str) -> bool:
+    """True when the PATH contains "//" — a template joined a base URL to a path that already had
+    its leading slash.
+
+    Only the path is examined. A protocol-relative URL ("//cdn.example.com/x") is legitimate, and a
+    URL nested inside a query string ("?next=https://x.com/y") is not this defect.
+    """
+    try:
+        p = urlparse(url)
+    except ValueError:
+        return False
+    if p.scheme not in ("http", "https", ""):
+        return False
+    return "//" in (p.path or "")
+
+
 async def _head_or_get(client, url, timeout):
     """Return (status, final_url, error). HEAD first; GET fallback on 403/405/501 or error.
     ``timeout`` is explicit per call so the caller can give internal links the full budget and
@@ -137,7 +153,8 @@ async def check_links(pages, client, config, max_links: int | None = None, on_do
     internal = _registrable(_host(config.base_url))
     findings: list[Finding] = []
     stats = {"unique_targets": len(targets), "cdn_cgi_excluded": excluded_cdn, "probed": 0,
-             "malformed": 0, "staging": 0, "broken": 0, "unverified": 0, "redirects": 0}
+             "malformed": 0, "staging": 0, "broken": 0, "unverified": 0, "redirects": 0,
+             "double_slash": 0}
 
     # Content-bug classes are decidable WITHOUT a probe — flag them and don't waste a request.
     to_probe: list[str] = []
@@ -149,6 +166,18 @@ async def check_links(pages, client, config, max_links: int | None = None, on_do
                 url, sources, "malformed", Severity.ERROR,
                 "malformed / truncated URL in page content", "Not a valid URL (truncated or "
                 "broken) — fix the link.", "malformed_link"))
+        elif has_double_slash(url):
+            # Reported by the client 2026-06-05 and still live 2026-08-06. Usually still loads, so
+            # it is a WARNING — but it is a distinct URL to Google, so it splits link equity and can
+            # be indexed as a duplicate of the correct one.
+            stats["double_slash"] += 1
+            findings.append(_finding(
+                url, sources, "double_slash", Severity.WARNING,
+                "link address contains a doubled slash (//)",
+                "The web address has \"//\" in the middle of it, which usually happens when a "
+                "template joins a site address to a path that already starts with a slash. The "
+                "page normally still loads, but Google treats it as a separate address from the "
+                "correct one. Fix the template that builds this link.", "double_slash"))
         elif _STAGING_RE.search(_host(url)):
             stats["staging"] += 1
             findings.append(_finding(
