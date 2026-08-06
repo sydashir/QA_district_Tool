@@ -109,3 +109,33 @@ def test_the_same_word_twice_on_a_page_keeps_distinct_fingerprints():
               title="Inpateint Rehab")
     fps = [f.fingerprint for f in fs if f.details.get("class") == "dictionary"]
     assert len(fps) == len(set(fps)), f"fingerprints collided: {fps}"
+
+
+# --- lorem ipsum is placeholder text, not a spelling question ---
+
+def test_lorem_ipsum_is_caught_by_the_placeholder_check():
+    """Found only because a vocabulary mine turned up Latin: enim, labore, magna, nostrud, tempor
+    and aliqua all appeared on >=2 brands' LIVE pages. Placeholder Latin shipping to production is
+    the same class of defect as an unresolved [acf field] token, and it should not take a
+    spellchecker to notice it."""
+    from auditor.checks import placeholder
+    from auditor.parse import ParsedPage
+    text = ("Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor "
+            "incididunt ut labore et dolore magna aliqua.")
+    fs = [f for f in placeholder.run(ParsedPage(url="https://x/a/", visible_text=text), None)
+          if f.details.get("class") == "lorem_ipsum"]
+    assert len(fs) == 1
+    assert fs[0].severity is Severity.ERROR
+    assert "placeholder" in fs[0].suggestion.lower()
+
+
+@pytest.mark.parametrize("text", [
+    "Our team treats anxiety, depression and dual diagnosis at every location.",
+    "Sed is a surname and elit is not a word we use, but one Latin-looking token is not enough.",
+    "The magna cum laude graduate joined our clinical team in 2019.",
+])
+def test_ordinary_copy_is_not_mistaken_for_lorem_ipsum(text):
+    from auditor.checks import placeholder
+    from auditor.parse import ParsedPage
+    assert [f for f in placeholder.run(ParsedPage(url="https://x/a/", visible_text=text), None)
+            if f.details.get("class") == "lorem_ipsum"] == []

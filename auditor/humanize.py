@@ -87,6 +87,10 @@ _RULES: list[tuple[str, str, str, str]] = [
      "There is a problem with this page's search listing.",
      "Check the SEO title and description for this page in Rank Math."),
 
+    ("placeholder", "placeholder Latin",
+     "This page is showing lorem-ipsum placeholder text.",
+     "Lorem ipsum is the Latin filler used while a design is being built — a visitor can read it "
+     "on the live page. Replace it with the real copy, or hide that section until the copy exists."),
     ("placeholder", "unresolved [acf field]",
      "A template placeholder is showing on the page instead of real content.",
      "Visitors can see raw template code such as [acf field=near-in]. The field it refers to is "

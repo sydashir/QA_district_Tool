@@ -33,6 +33,22 @@ _GEODATA_GFV = Path(
 
 _CURLY_RE = re.compile(r"\{\{[^}]+\}\}")
 
+# LOREM IPSUM. Found on live pages of >=2 brands by a vocabulary mine, not by any check — there was
+# no pattern for it anywhere. Placeholder Latin reaching production is the same defect class as an
+# unresolved [acf field] token: a template shipped before its content was written.
+#
+# Requires THREE distinct markers before firing. Individually several of these are ordinary English
+# or real names ("sed", "elit", "magna cum laude"), so one or two hits prove nothing; three in the
+# same page do not happen by accident.
+_LOREM_WORDS = frozenset("""
+lorem ipsum dolor consectetur adipiscing elit eiusmod tempor incididunt labore dolore magna aliqua
+enim minim veniam quis nostrud exercitation ullamco laboris aliquip commodo consequat duis aute
+irure reprehenderit voluptate velit cillum fugiat nulla pariatur excepteur sint occaecat cupidatat
+proident culpa officia deserunt mollit anim laborum
+""".split())
+_LOREM_MIN_MARKERS = 3
+_WORD_RE = re.compile(r"[a-z]+")
+
 
 @lru_cache(maxsize=1)
 def _extract_acf_tokens():
@@ -54,8 +70,26 @@ def _extract_acf_tokens():
     return module.extract_acf_tokens
 
 
+def _lorem_findings(parsed: ParsedPage) -> list[Finding]:
+    text = parsed.visible_text or ""
+    hits = sorted(_LOREM_WORDS.intersection(_WORD_RE.findall(text.lower())))
+    if len(hits) < _LOREM_MIN_MARKERS:
+        return []
+    i = text.lower().find(hits[0])
+    return [Finding(
+        url=parsed.url, check=CHECK, severity=Severity.ERROR,
+        fingerprint=make_fingerprint(CHECK, "lorem_ipsum", parsed.url),
+        issue="placeholder Latin (lorem ipsum) is visible on the page",
+        location="page body",
+        snippet=text[max(0, i - 40):i + 120].strip(),
+        suggestion="This page is showing lorem-ipsum placeholder text — the Latin filler used while "
+                   "a design is being built. A visitor sees it. Replace it with the real copy, or "
+                   "hide the section until the copy exists.",
+        details={"class": "lorem_ipsum", "markers": hits[:10], "marker_count": len(hits)})]
+
+
 def run(parsed: ParsedPage, config) -> list[Finding]:
-    findings: list[Finding] = []
+    findings: list[Finding] = _lorem_findings(parsed)
     text = parsed.visible_text  # already script/style/cfemail-stripped
 
     # On a LIVE page, ANY visible [acf field=...] token is unresolved (do NOT apply the
