@@ -98,6 +98,21 @@ _RUN_TOGETHER_CANDIDATE = re.compile(r"\b[a-z]{%d,}\b" % _MIN_RUN_TOGETHER_LEN)
 
 
 @lru_cache(maxsize=1)
+def _full_dictionary():
+    """EVERY word the dictionary knows, at any frequency — used only to veto.
+
+    The segmenter set is frequency-bounded, so an uncommon but perfectly real word can decompose
+    into common ones: `disproportionately` was the single most frequent finding across 300 live
+    pages. Checking the whole token against the full dictionary first kills that entire class.
+    """
+    try:
+        from spellchecker import SpellChecker
+    except ImportError:
+        return frozenset()
+    return frozenset(SpellChecker(language="en").word_frequency.dictionary)
+
+
+@lru_cache(maxsize=1)
 def _segmenter():
     """Common English words used ONLY to SPLIT a token, never to judge whether one is spelled right.
 
@@ -146,8 +161,14 @@ def _segments(token: str) -> tuple[str, ...]:
 
 
 def _run_together(text: str):
+    full = _full_dictionary()
     for m in _RUN_TOGETHER_CANDIDATE.finditer(text):
         tok = m.group(0)
+        if tok in full:
+            continue                      # a real word, however uncommon — never corruption
+        # a domain in a citation ("medicalnewstoday.com") is a URL, not damaged prose
+        if text[m.end():m.end() + 1] == "." or text[max(0, m.start() - 1):m.start()] == ".":
+            continue
         parts = _segments(tok)
         if len(parts) >= _MIN_RUN_TOGETHER_PARTS:
             yield m, parts

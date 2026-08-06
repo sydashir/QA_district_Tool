@@ -159,3 +159,17 @@ def test_a_run_together_finding_says_what_it_found():
          if x.details["class"] == "run_together"][0]
     assert "alcohol" in f.suggestion.lower()
     assert "separate" in f.suggestion.lower() or "space" in f.suggestion.lower()
+
+
+@pytest.mark.parametrize("text", [
+    "Overdose deaths affect some communities disproportionately across the state.",
+    "The disproportionate impact on young adults is well documented.",
+    "See medicalnewstoday.com for the full write-up of the study.",
+])
+def test_real_words_and_domains_are_not_run_together(text):
+    """Measured on 300 live pages: the only run_together findings were `disproportionate`,
+    `disproportionately` (real words the SEGMENTER set lacks, so they decompose) and
+    `medicalnewstoday` (a domain in a citation). Checking the FULL dictionary for the whole token
+    first, and skipping anything followed by a dot, removes both."""
+    assert [f for f in _run(text) if f.details["class"] == "run_together"] == [], \
+        f"false positive: {[f.details.get('matched') for f in _run(text)]}"
