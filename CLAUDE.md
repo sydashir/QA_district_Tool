@@ -33,6 +33,14 @@ code. One way to do each thing — no parallel implementations "just in case."
   banked pages once — a check fix landed before the partial was published, and MHD re-crawls at
   under 1 page/minute. Land the publish first, then the check change.
 
+- **`parse.py` is the highest-blast-radius file in the repo — BATCH every change to it.** It is in
+  `_GLOBAL_SRC`, so *any* edit rule-changes **every check on every brand at once** and costs a full
+  re-crawl of all nine (~7 hours without MHD; MHD alone ~29h). A one-line addition costs exactly the
+  same as ten. So before touching it, work out everything the next few checks will need from it and
+  make those changes in **one** commit — never one field at a time as each check comes up. The same
+  is true of `report.py`. Compare a check module: editing `checks/phone.py` rule-changes only phone
+  findings, because `diff.py::_CHECK_COMPONENT` scopes it.
+
 - **A test double must mirror the real thing, including its empty and degenerate states.** A fake
   that is kinder than reality hides the bugs it exists to catch. The fake Sheets client invented a
   header row on first append; the real API does not, so the first row landed in A1 and was read back

@@ -28,6 +28,30 @@ _DROPDOWN_CLASSES = frozenset({
 
 # Non-content / per-request-volatile nodes stripped before text + hashing.
 _VOLATILE_TAGS = ("script", "style", "noscript", "template")
+# Block-level units worth reasoning about individually. Deliberately NOT <div>: divs nest without
+# limit, so collecting them yields the same sentence at five levels of depth.
+# NOTE the name: `_BLOCK_TAGS` already exists further down for visible-text newline separation.
+# Shadowing it made _blocks() match every <div>/<header> and inflated body_text past visible_text.
+_TEXT_BLOCK_TAGS = ("p", "li", "td", "th", "h1", "h2", "h3", "h4", "h5", "h6",
+                    "dd", "dt", "blockquote", "figcaption")
+_TEXT_BLOCK_SET = frozenset(_TEXT_BLOCK_TAGS)
+# Content that occupies a slot without contributing text — an icon cell is populated, not empty.
+_MEDIA_TAGS = frozenset({"img", "svg", "picture", "video", "iframe", "canvas", "object",
+                         "embed", "input", "select", "textarea"})
+# Page furniture. A brand named in here is boilerplate; the same name in body copy is content.
+_REGION_TAGS = ("nav", "header", "footer", "aside")
+# WordPress/Elementor mark furniture with classes far more often than with landmark elements, so
+# both are needed — COC's footer is a <div class="site-footer">, not a <footer>.
+# BARE "header"/"footer" are deliberately absent. `page-header`, `entry-header`, `section-header`
+# and `elementor-heading-title` are CONTENT, and matching them classified a body <h2> as furniture
+# — which silently shrank body text for every check reading it. COC's archived page hid its
+# "California Detox" heading that way. Only the site-furniture compounds are matched here; the
+# real <header>/<footer>/<nav> landmark elements are handled separately and are reliable.
+_REGION_CLASS = re.compile(
+    r"(?:^|\s)(?:"
+    r"(?:site|main|global|primary|sticky|top|bottom)[_-](?:header|footer|nav|navigation|menu|bar)"
+    r"|masthead|colophon|navbar|nav-?menu|mega-?menu|breadcrumbs?|sidebar|widget-area"
+    r")(?:\s|$)", re.IGNORECASE)
 _CDN_CGI_EMAIL = "/cdn-cgi/l/email-protection"
 
 
@@ -63,6 +87,33 @@ class Actionable:
     has_js_hooks: bool = False
     in_nav: bool = False
     has_submenu: bool = False
+    # Same region/group vocabulary as Block. A repeated CTA down a long page is normal design; the
+    # SAME link twice inside ONE list is the duplicate the client reported, and only the container
+    # tells those apart.
+    region: str = "body"
+    group: int = 0
+
+
+@dataclass
+class Block:
+    """One block-level unit of visible text, with the page region it belongs to.
+
+    Added in ONE batched change (see CLAUDE.md: parse.py is `_GLOBAL_SRC`, so every edit costs a
+    full nine-brand re-crawl) to serve three checks at once:
+
+    * **region** — separates BODY COPY from nav/header/footer boilerplate. A sister brand named in
+      a footer network list is intentional; the same name in body copy is the defect Connor
+      reported ("Gratitude Lodge" on the Connections site).
+    * **text + group** — a repeated paragraph inside one page, and an EMPTY slot sitting beside
+      populated siblings, are both statements about a block and the group it belongs to.
+    """
+    tag: str                      # p, li, td, h2, ...
+    text: str                     # normalized visible text of this block alone
+    region: str                   # "body" | "nav" | "header" | "footer" | "aside"
+    group: int                    # id of the parent container — siblings share it
+    # An empty <td> holding an icon is populated; an empty <td> holding nothing is a missing value.
+    # Without this the empty-slot check cannot tell them apart and would flag every icon cell.
+    has_media: bool = False
 
 
 @dataclass
@@ -76,12 +127,23 @@ class ParsedPage:
     visible_text: str = ""  # normalized: script/style/cfemail stripped
     raw_html: str = ""
     actionables: list["Actionable"] = field(default_factory=list)
+    blocks: list["Block"] = field(default_factory=list)
     # Whether the CSS needed to know what is HIDDEN was actually readable. "ok" (or "none" — the
     # page links no stylesheets) means visible_text is trustworthy. "partial"/"unavailable" means
     # display:none rules may have been missed, so hidden text can still be in visible_text and any
     # finding derived from it is lower-confidence. Same principle as withholding coverage findings
     # on a partial sitemap read: a partial read must never produce a confident claim.
     css_status: str = "none"
+
+    @property
+    def body_text(self) -> str:
+        """Visible text with nav/header/footer boilerplate removed.
+
+        Falls back to the whole page when no block carries a body region, so a page built without
+        recognisable landmarks degrades to today's behaviour instead of silently going empty.
+        """
+        body = "\n".join(b.text for b in self.blocks if b.region == "body" and b.text)
+        return body or self.visible_text
 
 
 def strip_volatile(soup: BeautifulSoup) -> BeautifulSoup:
@@ -100,6 +162,58 @@ def strip_volatile(soup: BeautifulSoup) -> BeautifulSoup:
     for el in soup.find_all(attrs={"data-cfemail": True}):
         del el["data-cfemail"]
     return soup
+
+
+def _region_map(soup) -> dict[int, str]:
+    """id(element) -> region name, for every element inside page furniture.
+
+    Top-down: find the furniture roots once and mark their subtrees, rather than walking ancestors
+    from each of the ~400 blocks on a page. Outermost root wins, so a <nav> inside a <footer> is
+    reported as footer — which is what a reader would call it.
+    """
+    marked: dict[int, str] = {}
+    for el in soup.find_all(_REGION_TAGS):
+        region = el.name if el.name != "aside" else "aside"
+        for d in el.find_all(True):
+            marked.setdefault(id(d), region)
+        marked.setdefault(id(el), region)
+    for el in soup.find_all(attrs={"class": _REGION_CLASS}):
+        if id(el) in marked:
+            continue
+        m = _REGION_CLASS.search(" ".join(el.get("class") or ()))
+        word = (m.group(0) if m else "").lower()
+        region = ("footer" if "footer" in word or "colophon" in word
+                  else "header" if "header" in word or "masthead" in word
+                  else "aside" if "sidebar" in word or "widget-area" in word else "nav")
+        for d in el.find_all(True):
+            marked.setdefault(id(d), region)
+        marked.setdefault(id(el), region)
+    return marked
+
+
+def _blocks(soup) -> list["Block"]:
+    """Leaf block-level text units with their page region.
+
+    LEAF only — an element containing another block tag is a container, and collecting it as well
+    would report the same sentence twice (once as the <li>, once as the <p> inside it).
+    """
+    regions = _region_map(soup)
+    groups: dict[int, int] = {}
+    out: list[Block] = []
+    for el in soup.find_all(_TEXT_BLOCK_TAGS):
+        kids = el.find_all(True, recursive=True)
+        if any(c.name in _TEXT_BLOCK_SET for c in kids):
+            continue                      # a container, not a leaf
+        parent = el.parent
+        pid = id(parent) if parent is not None else 0
+        group = groups.setdefault(pid, len(groups))
+        out.append(Block(
+            tag=el.name,
+            text=" ".join((el.get_text(" ", strip=True) or "").split()),
+            region=regions.get(id(el), "body"),
+            group=group,
+            has_media=any(c.name in _MEDIA_TAGS for c in kids)))
+    return out
 
 
 def stable_markup(html: str) -> str:
@@ -335,6 +449,10 @@ def parse_html(html: str, page_url: str, base_url: str | None = None,
     ]
 
     actionables: list[Actionable] = []
+    # Computed here rather than shared with _blocks(): _strip_hidden() runs between the two and
+    # decomposes elements, so ids from a map built now could be recycled by later objects.
+    act_regions = _region_map(soup)
+    act_groups: dict[int, int] = {}
     for el in soup.find_all(["a", "button"]):
         raw_href = el.get("href")
         classes = tuple(el.get("class") or ())
@@ -363,6 +481,9 @@ def parse_html(html: str, page_url: str, base_url: str | None = None,
             has_js_hooks=js_hook,
             in_nav=bool(el.find_parent(["nav", "header"])),
             has_submenu=submenu,
+            region=act_regions.get(id(el), "body"),
+            group=act_groups.setdefault(id(el.parent) if el.parent is not None else 0,
+                                        len(act_groups)),
         ))
 
     links: list[Link] = []
@@ -381,10 +502,14 @@ def parse_html(html: str, page_url: str, base_url: str | None = None,
     _strip_hidden(soup, extra_css)   # drop what the rendered page does not show
     strip_volatile(soup)  # then normalize away script/style/cfemail noise
     visible_text = _visible_text(soup)
+    # AFTER the hidden/volatile strip, so blocks describe what a reader actually sees — the same
+    # discipline visible_text follows, and the reason the hidden-span bug was a correctness issue.
+    blocks = _blocks(soup)
 
     return ParsedPage(
         url=page_url,
         actionables=actionables,
+        blocks=blocks,
         title=title,
         meta_description=meta_description,
         is_noindex=is_noindex,
