@@ -20,6 +20,11 @@ from urllib.parse import urljoin
 from bs4 import BeautifulSoup, CData, Comment, Declaration, Doctype, NavigableString, ProcessingInstruction
 
 _HEADING_RE = re.compile(r"^h[1-6]$")
+# Class names that mean "JavaScript opens something when this is clicked". A dropdown toggle has no
+# href by design, and treating one as a broken button is how a dead-link check cries wolf.
+_DROPDOWN_CLASSES = frozenset({
+    "dropbtn", "dropdown", "dropdown-toggle", "submenu", "sub-menu", "has-children",
+    "menu-item-has-children", "expander", "disclosure"})
 
 # Non-content / per-request-volatile nodes stripped before text + hashing.
 _VOLATILE_TAGS = ("script", "style", "noscript", "template")
@@ -39,6 +44,28 @@ class Heading:
 
 
 @dataclass
+class Actionable:
+    """A thing a visitor can click — `<a>` (WITH OR WITHOUT an href) or `<button>`.
+
+    Links are collected separately and deliberately require an href. That is correct for link
+    checking and was a BLIND SPOT for everything else: `find_all("a", href=True)` discarded every
+    hrefless anchor before any check could see it, so a dead button — the single most-reported
+    defect in the client's own attachments, 12 times — was structurally invisible to this tool.
+    """
+    tag: str                      # "a" | "button"
+    text: str
+    href: str | None              # None when the attribute is absent entirely
+    classes: tuple[str, ...] = ()
+    role: str = ""
+    aria_label: str = ""
+    # attributes that mean JavaScript drives this element, so a "#" href is not proof of a dead
+    # control: popup/modal/tab/accordion triggers all legitimately look like that in the markup.
+    has_js_hooks: bool = False
+    in_nav: bool = False
+    has_submenu: bool = False
+
+
+@dataclass
 class ParsedPage:
     url: str
     title: str | None = None
@@ -48,6 +75,7 @@ class ParsedPage:
     links: list[Link] = field(default_factory=list)
     visible_text: str = ""  # normalized: script/style/cfemail stripped
     raw_html: str = ""
+    actionables: list["Actionable"] = field(default_factory=list)
     # Whether the CSS needed to know what is HIDDEN was actually readable. "ok" (or "none" — the
     # page links no stylesheets) means visible_text is trustworthy. "partial"/"unavailable" means
     # display:none rules may have been missed, so hidden text can still be in visible_text and any
@@ -306,6 +334,37 @@ def parse_html(html: str, page_url: str, base_url: str | None = None,
         for h in soup.find_all(_HEADING_RE)
     ]
 
+    actionables: list[Actionable] = []
+    for el in soup.find_all(["a", "button"]):
+        raw_href = el.get("href")
+        classes = tuple(el.get("class") or ())
+        attrs = el.attrs
+        js_hook = bool(
+            el.get("onclick") or el.get("aria-controls") or el.get("aria-haspopup")
+            or el.get("data-toggle") or el.get("data-bs-toggle") or el.get("data-target")
+            or any(k.startswith("data-elementor") or k.startswith("data-popup") for k in attrs)
+            or any("popup" in c or "modal" in c or "toggle" in c or "accordion" in c or "tab" in c
+                   for c in classes)
+            or any(c.lower() in _DROPDOWN_CLASSES for c in classes))
+        # A disclosure control — mega-menu parent, accordion header — has no destination of its own
+        # because opening the container that follows IS its job. GL builds these as
+        # `<a class="dropbtn">` with a sibling <div>, NOT the <li><a>+<ul> the first version assumed,
+        # so key on the structure that is actually true: a container of links immediately after.
+        # TWO or more links, because a menu has items; one following link is not a menu.
+        sib = el.find_next_sibling(["ul", "div", "nav"])
+        submenu = bool(sib and len(sib.find_all("a", href=True)) >= 2)
+        actionables.append(Actionable(
+            tag=el.name,
+            text=" ".join((el.get_text(" ", strip=True) or "").split())[:120],
+            href=raw_href.strip() if isinstance(raw_href, str) else None,
+            classes=classes,
+            role=(el.get("role") or ""),
+            aria_label=(el.get("aria-label") or el.get("title") or ""),
+            has_js_hooks=js_hook,
+            in_nav=bool(el.find_parent(["nav", "header"])),
+            has_submenu=submenu,
+        ))
+
     links: list[Link] = []
     seen: set[str] = set()
     for a in soup.find_all("a", href=True):
@@ -325,6 +384,7 @@ def parse_html(html: str, page_url: str, base_url: str | None = None,
 
     return ParsedPage(
         url=page_url,
+        actionables=actionables,
         title=title,
         meta_description=meta_description,
         is_noindex=is_noindex,
