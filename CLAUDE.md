@@ -27,6 +27,12 @@ code. One way to do each thing — no parallel implementations "just in case."
   you are already late. Writing state costs seconds; losing a session costs hours. There is never
   a reason to defer it.
 - **Git identity for this repo:** `sydashir` / `meetashirr@gmail.com` (set repo-local, not global).
+- **The `gh` active account DRIFTS — check it, never assume it.** Three accounts are logged in
+  (`sydashir`, `dev778d`, `hybridmediaworks`) and the active one has silently flipped to `dev778d`
+  twice, which fails as a bogus `Repository not found` on push. So **before every remote op**
+  (push, PR, any `gh api`): run `gh api user --jq .login`; if it is not `sydashir`, run
+  `gh auth switch --user sydashir`. Do this without asking — it is a known, recurring condition,
+  not a surprise worth stopping for.
 - **PUBLISH BEFORE YOU CHANGE CHECK CODE.** The resume cache is keyed on the check-version, and
   `checks_version` hashes every `checks/*.py` plus `parse.py`, `report.py`, `nap.py`, `crawl.py`.
   Editing any of them invalidates every brand's banked pages instantly. This cost MHD's 1,546
