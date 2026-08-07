@@ -53,9 +53,9 @@ Ordered by how often the client reported them.
 | ~~**B6**~~ | ~~Wrong brand named in copy~~ | 2 | **SHIPPED** — `brands` sister_brand (WARNING, worded as a question) | live: COC serves an archived California Detox page design |
 | ~~**B7**~~ | ~~Double slash in URL~~ | 1 | **SHIPPED** — `broken_links` | |
 | ~~**B8**~~ | ~~Social icons pointing at the wrong network~~ | 1 | **SHIPPED** — `actions` social_misrouted | 7 findings; GL has no working Instagram link at all |
-| **B9** | **Two distinct addresses sharing one map link** | **1** | duplicate href across different address blocks | — |
-| **B10** | **Stale/`-old` URL leaking into nav** — `rehab-admissions-old/` | **1** | slug pattern + redirect check | — |
-| **B11** | **`/feed/` URLs published** — 960 of 1,000 crawled-not-indexed | **1** | enumeration filter | — |
+| **B9** | ~~Two distinct addresses sharing one map link~~ | 1 | **MOVED TO SECTION C** — needs judgement, see below | zero instances found on the 3 likeliest pages |
+| ~~**B10**~~ | ~~Stale/`-old` URL leaking into nav~~ | 1 | **SHIPPED** — `broken_links` cruft_link (ERROR) | **YES — the client's own URL, `rehab-admissions-old/`, still linked from 56 RR pages** |
+| ~~**B11**~~ | ~~`/feed/` URLs published~~ | 1 | **SHIPPED** — `broken_links` feed_link (WARNING) — but measures **ZERO**, see below | 0 across all 16,564 cached pages |
 
 ## C. NEEDS JUDGEMENT — deliberately NOT building
 
@@ -69,7 +69,24 @@ We have measured twice what judgement-based checks cost (ARCHITECTURE.md D9, D10
 | California landmarks listed on Florida pages | needs a landmark→geo authority |
 | Meta description doesn't mention Tennessee | editorial |
 | Clinical stats with no citation | editorial |
+| **B9 — two distinct addresses sharing one map link** | **Deliberately not built.** Detecting that one map href is used twice is trivial; deciding it is WRONG is not. Measured on the three likeliest pages: GL `/locations/` has 4 map links and 4 distinct targets (no duplicates at all); RR `/about-us/sober-living-gallery` lists 16 addresses and **zero** map links; DBH `/our_locations/` has neither. GL's links are `maps.app.goo.gl` shortlinks, so **the href carries no address** — confirming a mismatch would mean resolving each shortlink against Google and pairing it to an address by DOM proximity. That is a judgement call plus an external dependency, for a single report with zero observed instances. |
 | "Are these sections supposed to be clickable?" | intent — and now **measured**: TDRC's homepage styles 14 amenity labels ("Paintball", "Hiking") as `elementor-button` with no href. They were never links. `dead_cta` therefore requires an ACTION PHRASE when the href is absent, and button styling alone is not enough. |
+
+## B11 — shipped, but the reported phenomenon is a setting, not a page defect
+
+The check is live and costs nothing: an `<a href>` in page content pointing at `/feed/`, `/rss/`
+or `/atom/` is flagged. **It finds nothing.** Scanning every link target in the crawl cache —
+16,564 pages across all nine brands — returned **zero** feed links.
+
+That is not a gap in the check; it is the wrong surface. WordPress does not *link* to feeds from
+page content, it **declares** them in `<head>` (`<link rel="alternate" type="application/rss+xml">`)
+on every page, which is how Google found the 960 crawled-not-indexed URLs the client reported.
+Flagging that declaration would produce a finding on every page of every brand for stock WordPress
+behaviour — the definition of crying wolf.
+
+**So the client's `/feed/` observation is real but is a one-time site-wide setting** (disable feeds,
+or `noindex` them, in Rank Math / robots), not something a per-page content audit should report.
+Worth passing to whoever owns SEO config; not worth 16,564 rows.
 
 ## D. NOT DETECTABLE WITHOUT A BROWSER — state the boundary to the client
 
