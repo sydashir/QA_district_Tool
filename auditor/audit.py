@@ -26,8 +26,9 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from . import checks_version, crawl as C, diff, writers
-from .checks import (actions, blank, empty_slot, enumeration, links, meta, misspelling,
-                     phone, placeholder, scope, spelling, structure)
+from .checks import (actions, blank, brands, duplication, empty_row, empty_slot,
+                     enumeration, links, meta, misspelling, phone, placeholder, scope,
+                     spelling, structure)
 from .config import BrandConfig
 from .css_cache import BrandCSS
 from .parse import ParsedPage, parse_html
@@ -36,7 +37,7 @@ from .report import (AuditReport, Finding, PageAudit, Severity, canonical_url,
 
 # Per-page checks that operate purely on a ParsedPage.
 _PAGE_CHECKS = (structure, placeholder, empty_slot, misspelling, scope, spelling, phone,
-                blank, meta, actions)
+                blank, meta, actions, brands, duplication, empty_row)
 # Checks whose findings are derived from ``visible_text`` and are therefore only as trustworthy as
 # our knowledge of what the page HIDES (see ParsedPage.css_status).
 _VISIBLE_TEXT_CHECKS = frozenset({"blank", "placeholder", "empty_slot", "misspelling",
@@ -358,6 +359,95 @@ def _url_template(url: str) -> str:
     return f"/{section}/*  (depth {len(segs)})"
 
 
+# A sister brand named on a LARGE SHARE of a brand's pages is a template, a footer-adjacent
+# disclosure, or a real network relationship — all deliberate. One named on a handful of pages is
+# the anomaly the client reported. Measured on 95 live pages: legitimate mentions ran 67-92% of
+# pages (AH's disclosure copy 10/11, DBH's directory 11/12), never a thin tail.
+_BRAND_SHARE_MAX = 0.02      # keep only a sister appearing on <=2% of the brand's pages
+_BRAND_PAGES_MAX = 25        # ...and never more than this many pages outright
+_BRAND_MIN_CORPUS = 50       # below this, there is no baseline -> claim nothing
+
+
+def _collapse_brands(findings: list[Finding], audited_pages: int) -> list[Finding]:
+    """Keep only ANOMALOUSLY RARE sister-brand mentions; drop the site-wide ones.
+
+    The per-page check cannot tell a stray copy-paste from deliberate cross-brand copy, because
+    the two are identical on the page. Across the site they are not: the deliberate ones are
+    everywhere. This is the discriminator, and it is why B6 could ship at all — see the
+    measurement in `checks/brands.py`.
+
+    On a small run there is no baseline to judge rarity against, so nothing is reported rather
+    than reported wrongly — the same discipline as withholding coverage findings on a partial
+    sitemap read.
+    """
+    keep: list[Finding] = []
+    groups: dict[str, list[Finding]] = {}
+    for f in findings:
+        if f.check == "brands":
+            groups.setdefault(str(f.details.get("other_brand", "")), []).append(f)
+        else:
+            keep.append(f)
+    if not groups:
+        return keep
+    if audited_pages < _BRAND_MIN_CORPUS:
+        _log.info("brands: %d pages audited (<%d) — no baseline for rarity, withholding %d finding(s)",
+                  audited_pages, _BRAND_MIN_CORPUS, sum(len(v) for v in groups.values()))
+        return keep
+    for other, fs in groups.items():
+        pages = {f.url for f in fs}
+        share = len(pages) / max(1, audited_pages)
+        if share <= _BRAND_SHARE_MAX and len(pages) <= _BRAND_PAGES_MAX:
+            keep.extend(fs)
+        else:
+            _log.info("brands: %r named on %d/%d pages (%.1f%%) — deliberate, dropping %d finding(s)",
+                      other, len(pages), audited_pages, share * 100, len(fs))
+    return keep
+
+
+# `actions` belongs here for the same reason: GL's Instagram-icon-to-LinkedIn fault is in the
+# header and footer template, so it produced 119 rows across 60 pages — one template field, one
+# fix. Keyed on the snippet, which is the button label for a dead CTA and the destination for a
+# misrouted icon, so two different dead buttons never merge into one row.
+_TEMPLATE_COLLAPSE_CHECKS = {"duplication", "empty_row", "actions"}
+_TEMPLATE_MIN_PAGES = 3     # two pages is a coincidence; three is a template
+
+
+def _collapse_repeats(findings: list[Finding]) -> list[Finding]:
+    """One template fault on 1,500 pages is ONE fix, not 1,500 rows.
+
+    Same principle as `_collapse_phone` (a wrong number site-wide) and `_collapse_headings`. The
+    two defects this collapses are template-driven by nature: GL's "Addictions Gratitude Lodge
+    Treats" grid has a hole in the same row on every geo page, and the Hydromorphone paragraph
+    renders three times on the same template across two brands. Identity is the CONTENT, not the
+    page, so fixing the template resolves one finding instead of leaving 1,500 half-resolved.
+    """
+    keep: list[Finding] = []
+    groups: dict[tuple[str, str, str], list[Finding]] = {}
+    for f in findings:
+        if f.check in _TEMPLATE_COLLAPSE_CHECKS:
+            d = f.details or {}
+            key = str(d.get("text") or d.get("example") or f.snippet or "")[:120].lower()
+            groups.setdefault((f.check, str(d.get("class", "")), key), []).append(f)
+        else:
+            keep.append(f)
+    for (check, cls, key), fs in groups.items():
+        sources = sorted({f.url for f in fs})
+        if len(sources) < _TEMPLATE_MIN_PAGES:
+            keep.extend(fs)
+            continue
+        rep = fs[0]
+        keep.append(Finding(
+            url=sources[0], check=check, severity=rep.severity,
+            fingerprint=make_fingerprint(check, cls, "template", key),
+            issue=f"{rep.issue} — on {len(sources)} pages",
+            location=rep.location, snippet=rep.snippet,
+            suggestion=(f"{rep.suggestion} This appears on {len(sources)} pages, so it comes from "
+                        f"a shared template — one fix corrects all of them."),
+            details={**(rep.details or {}), "page_count": len(sources),
+                     "sources": sources[:8], "template_wide": True}))
+    return keep
+
+
 def _collapse_headings(findings: list[Finding]) -> list[Finding]:
     """Collapse template-driven heading walls by (subtype, URL-template): identity = the template,
     sources = the pages, and a REPRESENTATIVE H1 text carried so the finding says WHAT to look at
@@ -553,6 +643,10 @@ async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile:
 
         findings = dedupe_findings(findings)  # one finding per fingerprint across the run
         findings = _collapse_phone(findings)  # site-wide numbers -> one finding each
+        # sister-brand mentions: keep only the anomalously rare ones (deliberate ones are site-wide)
+        findings = _collapse_brands(findings, len(projections))
+        # template-driven duplicate/empty-slot faults -> one finding per template
+        findings = _collapse_repeats(findings)
         findings = _collapse_headings(findings)  # template-driven multi-H1 -> one per template
 
         run = None

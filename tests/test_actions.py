@@ -173,3 +173,36 @@ def test_a_mega_menu_column_heading_is_not_a_broken_button():
     assert _run(_a("Admissions Resources", "#", in_nav=True)) == []
     # ...but a real CTA in the header is still a real CTA
     assert len(_run(_a("Verify Insurance", "#", in_nav=True))) == 1
+
+
+def test_a_template_wide_footer_fault_is_one_finding_not_one_per_page():
+    """GL's Instagram-icon-to-LinkedIn fault is in the header and footer template: 119 rows across
+    60 pages on the first real run. One template field, one fix, one row."""
+    from auditor.audit import _collapse_repeats
+    from auditor.report import Finding
+    fs = [Finding(url=f"https://www.gratitudelodge.com/p{i}/", check="actions",
+                  severity=Severity.ERROR, fingerprint=f"actions:social:{i}",
+                  issue="the instagram icon links to linkedin", location="page body",
+                  snippet="https://www.linkedin.com/company/gratitude-lodge",
+                  suggestion="Point it at the Instagram profile.",
+                  details={"class": "social_misrouted", "intended": "instagram",
+                           "actual": "linkedin"})
+          for i in range(60)]
+    out = _collapse_repeats(fs)
+    assert len(out) == 1 and out[0].details["page_count"] == 60
+
+
+def test_two_different_dead_buttons_do_not_merge():
+    from auditor.audit import _collapse_repeats
+    from auditor.report import Finding
+
+    def dead(label, i):
+        return Finding(url=f"https://x/p{i}/", check="actions", severity=Severity.ERROR,
+                       fingerprint=f"actions:dead:{label}:{i}",
+                       issue=f'button goes nowhere: "{label}"', location="page body",
+                       snippet=label, suggestion="Fix it.",
+                       details={"class": "dead_cta", "label": label})
+    fs = [dead("View All", i) for i in range(5)] + [dead("Verify Insurance", i) for i in range(5)]
+    out = _collapse_repeats(fs)
+    assert len(out) == 2
+    assert {f.details["label"] for f in out} == {"View All", "Verify Insurance"}

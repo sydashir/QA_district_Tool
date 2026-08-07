@@ -27,6 +27,9 @@ CHECK_LABELS = {
     "misspelling": "Spelling",
     "scope": "Wording",
     "actions": "Buttons and links",
+    "brands": "Brand names",
+    "duplication": "Repeated content",
+    "empty_row": "Blank slots",
     "spelling": "Spelling",
 }
 
