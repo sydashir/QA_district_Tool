@@ -60,3 +60,27 @@ def test_the_check_emits_a_finding_for_a_doubled_slash():
     assert len(ds) == 1 and ds[0].severity is Severity.WARNING
     assert "//" in ds[0].suggestion
     assert stats["double_slash"] == 1
+
+
+# --- two URLs fused into one: found live on CAD, every page sampled ---
+
+@pytest.mark.parametrize("url", [
+    # verbatim from californiadetox.com — the footer LinkedIn href with a YouTube URL inside it
+    "https://www.linkedin.cohttps://www.youtube.com/channel/UCb5lI0qik4zE4w-8EBkX08Qm/company/californiadetox/",
+    "https://example.com/pagehttps://other.com/x",
+    "http://a.com/bhttp://c.com/d",
+])
+def test_two_urls_fused_into_one_is_its_own_class(url):
+    from auditor.checks.links import has_embedded_scheme
+    assert has_embedded_scheme(url), url
+
+
+@pytest.mark.parametrize("url", [
+    "https://example.com/path?next=https://x.com/y",     # a URL in a query string is legitimate
+    "https://example.com/redirect#https://x.com",        # ...and in a fragment
+    "https://www.gratitudelodge.com/locations/",
+    "https://www.renaissancerecovery.com//facility/nashville-tn/",   # plain doubled slash
+])
+def test_a_url_inside_a_query_or_fragment_is_not_fused(url):
+    from auditor.checks.links import has_embedded_scheme
+    assert not has_embedded_scheme(url), url

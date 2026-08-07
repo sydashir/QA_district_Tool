@@ -57,6 +57,27 @@ def _is_malformed(url: str) -> bool:
     return not p.netloc or "." not in p.netloc
 
 
+def has_embedded_scheme(url: str) -> bool:
+    """True when a SECOND URL is fused inside this one — two hrefs concatenated by a template.
+
+    Found live on California Detox, on every page sampled: the footer LinkedIn link is
+    ``https://www.linkedin.co`` + ``https://www.youtube.com/channel/…`` + ``m/company/californiadetox/``.
+    It does not resolve, so it is an ERROR rather than the WARNING a plain doubled slash gets.
+
+    ``_is_malformed`` does not catch it — the netloc "www.linkedin.cohttps" contains a dot, so it
+    looks structurally valid. Only the path and netloc are examined, because a URL legitimately
+    appears inside a query string ("?next=https://…") or a fragment.
+    """
+    try:
+        p = urlparse(url)
+    except ValueError:
+        return False
+    if p.scheme not in ("http", "https"):
+        return False
+    body = (p.netloc or "") + (p.path or "")
+    return "http://" in body or "https://" in body
+
+
 def has_double_slash(url: str) -> bool:
     """True when the PATH contains "//" — a template joined a base URL to a path that already had
     its leading slash.
@@ -166,6 +187,15 @@ async def check_links(pages, client, config, max_links: int | None = None, on_do
                 url, sources, "malformed", Severity.ERROR,
                 "malformed / truncated URL in page content", "Not a valid URL (truncated or "
                 "broken) — fix the link.", "malformed_link"))
+        elif has_embedded_scheme(url):
+            stats["fused_url"] = stats.get("fused_url", 0) + 1
+            findings.append(_finding(
+                url, sources, "fused_url", Severity.ERROR,
+                "two web addresses have been joined into one broken link",
+                "This link contains a second web address inside it, so it points nowhere. A "
+                "template joined two links together — commonly two social-media icons sharing one "
+                "field. Fix the template; every page using it has the same broken link.",
+                "fused_url"))
         elif has_double_slash(url):
             # Reported by the client 2026-06-05 and still live 2026-08-06. Usually still loads, so
             # it is a WARNING — but it is a distinct URL to Google, so it splits link equity and can

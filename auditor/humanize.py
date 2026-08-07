@@ -149,6 +149,11 @@ _RULES: list[tuple[str, str, str, str]] = [
      "A link to another website could not be checked automatically.",
      "The other site blocked our automated check — this often means the link is fine. Click it "
      "yourself to confirm it still works."),
+    ("broken_links", "two web addresses have been joined",
+     "Two web addresses have been joined into one link, so it goes nowhere.",
+     "The link has a second web address buried inside it — usually two social-media icons sharing "
+     "one template field. It is broken for every visitor who clicks it, on every page that uses "
+     "the template. Fix it in the template."),
     ("broken_links", "link address contains a doubled slash",
      "A link on this page has a doubled slash (//) in its web address.",
      "This usually still opens, but Google treats it as a different address from the correct one, "
