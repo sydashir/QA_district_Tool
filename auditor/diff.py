@@ -43,6 +43,9 @@ _CHECK_COMPONENT: dict[str, set[str]] = {
 # enumeration output depends on crawl.py's enumerate logic (what's in the sitemap/REST sets) —
 # enumeration-scoped, so a crawl enumerate change rule-changes ONLY the 845 findings.
 _CHECK_COMPONENT["enumeration"] = _CHECK_COMPONENT["enumeration"] | {"src:crawl.py"}
+# broken_links imports CRUFT_RE from enumeration for the cruft_link class (B10), so an edit to
+# that shared pattern must rule-change link findings too — links-scoped, not global.
+_CHECK_COMPONENT["broken_links"] = _CHECK_COMPONENT["broken_links"] | {"src:enumeration.py"}
 # phone output also depends on the canonical VALUES and on nap.py's parse (P1) — both
 # phone-scoped (a nap.py edit rule-changes ONLY phone, never other checks).
 _CHECK_COMPONENT["phone"] = _CHECK_COMPONENT["phone"] | {"canonical_phones", "src:nap.py",

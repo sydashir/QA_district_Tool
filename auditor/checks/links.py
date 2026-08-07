@@ -25,6 +25,10 @@ from urllib.parse import urlparse
 import httpx
 
 from ..report import Finding, Severity, make_fingerprint
+# Shared with the enumeration check so the two can never disagree about what a cleanup slug is.
+# enumeration flags the cruft PAGE that exists; this flags a link POINTING at one. The dependency
+# is registered in diff.py::_CHECK_COMPONENT so an edit there rule-changes these findings too.
+from .enumeration import CRUFT_RE
 
 CHECK = "broken_links"
 _CDN_CGI = "/cdn-cgi/"
@@ -39,6 +43,13 @@ _PROBE_SEED = 0xB0BA  # fixed -> the capped probe window is the same set every r
 _REFUSED = {400, 401, 402, 403, 406, 429, 999}
 # WP staging hosts leaked into production content — a real copy-paste-from-staging defect.
 _STAGING_RE = re.compile(r"(cloudwaysapps\.com|wpengine\.com|\bstaging\b)", re.I)
+# WordPress feed endpoints: /feed/, /comments/feed/, /?feed=rss2 handled by the path form only.
+_FEED_RE = re.compile(r"/(?:feed|rss|rss2|atom)/?$", re.IGNORECASE)
+
+
+def _is_internal(url: str, internal: str) -> bool:
+    """Only OUR cruft and OUR feeds matter; another site's URL shape is not our defect."""
+    return _registrable(_host(url)) == internal
 
 
 def _host(url: str) -> str:
@@ -208,6 +219,28 @@ async def check_links(pages, client, config, max_links: int | None = None, on_do
                 "template joins a site address to a path that already starts with a slash. The "
                 "page normally still loads, but Google treats it as a separate address from the "
                 "correct one. Fix the template that builds this link.", "double_slash"))
+        elif _is_internal(url, internal) and CRUFT_RE.search(urlparse(url).path):
+            # B10. The client found `rehab-admissions-old/` linked from the NAV. enumeration
+            # already reports the cruft page itself; this reports the page POINTING at it, which
+            # is what a visitor actually hits and what carries the link equity.
+            stats["cruft_link"] = stats.get("cruft_link", 0) + 1
+            findings.append(_finding(
+                url, sources, "cruft_link", Severity.ERROR,
+                "a link points at an old/duplicate page kept for cleanup",
+                "The address ends in -old, -copy or -delete, which marks a page somebody kept "
+                "while rebuilding. Visitors and Google are being sent to the leftover instead of "
+                "the real page. Repoint the link, then remove the old page.", "cruft_link"))
+        elif _is_internal(url, internal) and _FEED_RE.search(urlparse(url).path):
+            # B11. 960 of the 1,000 crawled-not-indexed URLs the client reported were /feed/ ones.
+            # A feed is machine-readable XML: correct to exist, wrong to link to as a page.
+            stats["feed_link"] = stats.get("feed_link", 0) + 1
+            findings.append(_finding(
+                url, sources, "feed_link", Severity.WARNING,
+                "a link points at a feed address rather than a page",
+                "This address ends in /feed/, which is the machine-readable version of a page "
+                "meant for feed readers, not visitors. Google reports these as crawled-not-"
+                "indexed and they waste crawl budget. Point the link at the page itself.",
+                "feed_link"))
         elif _STAGING_RE.search(_host(url)):
             stats["staging"] += 1
             findings.append(_finding(
