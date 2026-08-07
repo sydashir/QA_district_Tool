@@ -47,10 +47,10 @@ Ordered by how often the client reported them.
 |---|---|---|---|---|
 | ~~**B1**~~ | ~~CTA/nav element with no destination~~ | 12 | **SHIPPED** — `actions` dead_cta | 22 findings across 8 brands, all hand-verified |
 | ~~**B2**~~ | ~~Placeholder strings rendering as copy~~ | 6 | **SHIPPED** — `placeholder` | |
-| **B3** | **Duplicate content inside one page** — identical paragraph under different headings; step 2 = step 3; CBT text reused for Couples; 3 accordion entries sharing one description | **5** | normalised paragraph hash within a page | — |
-| **B4** | **Empty structural slots** — blank table rows, blank accordion rows, "read more" with no read-more button, blank widget | **5** | empty `<td>`/`<li>`/accordion item beside populated siblings | — |
-| **B5** | **Duplicate anchor text + href repeated** (nav rendered 3×; interlink widget listing the same link twice) | **3** | count identical (text, href) pairs per page | — |
-| **B6** | **Wrong brand named in copy** — "Gratitude Lodge" on the Connections site | **2** | brand-name scan, exactly like `cross_brand_dial` for numbers | — |
+| ~~**B3**~~ | ~~Duplicate content inside one page~~ | 5 | **SHIPPED** — `duplication` duplicate_paragraph | live: the Hydromorphone description renders 3x on one AR page |
+| ~~**B4**~~ | ~~Empty structural slots~~ | 5 | **SHIPPED** — `empty_row` | only INTERIOR gaps; trailing blanks are grid padding (492 of 492 first-pass findings) |
+| ~~**B5**~~ | ~~Duplicate anchor text + href repeated~~ | 3 | **SHIPPED** — `duplication` duplicate_link | scoped to ONE container; a repeated CTA down a page is normal design |
+| ~~**B6**~~ | ~~Wrong brand named in copy~~ | 2 | **SHIPPED** — `brands` sister_brand (WARNING, worded as a question) | live: COC serves an archived California Detox page design |
 | ~~**B7**~~ | ~~Double slash in URL~~ | 1 | **SHIPPED** — `broken_links` | |
 | ~~**B8**~~ | ~~Social icons pointing at the wrong network~~ | 1 | **SHIPPED** — `actions` social_misrouted | 7 findings; GL has no working Instagram link at all |
 | **B9** | **Two distinct addresses sharing one map link** | **1** | duplicate href across different address blocks | — |
