@@ -33,6 +33,11 @@ More Site Issues 7/23.
 | Misspellings incl. in URLs (`inpateint`, `residental`, `tennesse`) | `misspelling` | Connor's 7, body + slug |
 | Empty / thin sections | `blank` | partial — see B4 |
 | Wrong-brand phone number dialled | `phone` cross_brand_dial | the flagship check |
+| CTA with no destination (`Verify Insurance`, `Learn More`) — **B1** | `actions` dead_cta | 22 live findings, hand-verified; 17 on the DBH homepage alone |
+| Social icon wired to the wrong network — **B8** | `actions` social_misrouted | GL's Instagram icon → LinkedIn; RR's YouTube icon → Instagram |
+| Double slash in a URL — **B7** | `broken_links` double_slash | |
+| Two URLs fused into one link — **B7** | `broken_links` fused_url | CAD's footer |
+| `No content found` / `[sobriety_calculator]` / bare `GEO` — **B2** | `placeholder` | general pattern set, not the five reported strings |
 
 ## B. DETERMINISTIC AND **NOT** COVERED — build these
 
@@ -40,14 +45,14 @@ Ordered by how often the client reported them.
 
 | # | Defect | Times reported | Detection | Verified live? |
 |---|---|---|---|---|
-| **B1** | **CTA/nav element with no destination** — `href` missing, `#`, or `javascript:` | **12** | `<a>`/`<button>` with CTA text and no usable href | **YES — 14 on districtbehavioralhealth.com today**, incl. `Verify Insurance` (`href="#"`) |
-| **B2** | **Placeholder strings rendering as copy** — `No content found`, `No accordion items found`, `No Content Found in this Field`, literal `GEO`, `[sobriety_calculator]` | **6** (18+ URLs listed) | exact string / shortcode regex | placeholder.py **misses all five** (verified) |
+| ~~**B1**~~ | ~~CTA/nav element with no destination~~ | 12 | **SHIPPED** — `actions` dead_cta | 22 findings across 8 brands, all hand-verified |
+| ~~**B2**~~ | ~~Placeholder strings rendering as copy~~ | 6 | **SHIPPED** — `placeholder` | |
 | **B3** | **Duplicate content inside one page** — identical paragraph under different headings; step 2 = step 3; CBT text reused for Couples; 3 accordion entries sharing one description | **5** | normalised paragraph hash within a page | — |
 | **B4** | **Empty structural slots** — blank table rows, blank accordion rows, "read more" with no read-more button, blank widget | **5** | empty `<td>`/`<li>`/accordion item beside populated siblings | — |
 | **B5** | **Duplicate anchor text + href repeated** (nav rendered 3×; interlink widget listing the same link twice) | **3** | count identical (text, href) pairs per page | — |
 | **B6** | **Wrong brand named in copy** — "Gratitude Lodge" on the Connections site | **2** | brand-name scan, exactly like `cross_brand_dial` for numbers | — |
-| **B7** | **Double slash in URL** — `//facility/...` | **1** | path regex | **YES — live on gratitudelodge.com/locations/** |
-| **B8** | **Social icons pointing at the wrong network** — LinkedIn and YouTube both → instagram.com | **1** | icon/aria label vs href host | — |
+| ~~**B7**~~ | ~~Double slash in URL~~ | 1 | **SHIPPED** — `broken_links` | |
+| ~~**B8**~~ | ~~Social icons pointing at the wrong network~~ | 1 | **SHIPPED** — `actions` social_misrouted | 7 findings; GL has no working Instagram link at all |
 | **B9** | **Two distinct addresses sharing one map link** | **1** | duplicate href across different address blocks | — |
 | **B10** | **Stale/`-old` URL leaking into nav** — `rehab-admissions-old/` | **1** | slug pattern + redirect check | — |
 | **B11** | **`/feed/` URLs published** — 960 of 1,000 crawled-not-indexed | **1** | enumeration filter | — |
@@ -64,7 +69,7 @@ We have measured twice what judgement-based checks cost (ARCHITECTURE.md D9, D10
 | California landmarks listed on Florida pages | needs a landmark→geo authority |
 | Meta description doesn't mention Tennessee | editorial |
 | Clinical stats with no citation | editorial |
-| "Are these sections supposed to be clickable?" | intent |
+| "Are these sections supposed to be clickable?" | intent — and now **measured**: TDRC's homepage styles 14 amenity labels ("Paintball", "Hiking") as `elementor-button` with no href. They were never links. `dead_cta` therefore requires an ACTION PHRASE when the href is absent, and button styling alone is not enough. |
 
 ## D. NOT DETECTABLE WITHOUT A BROWSER — state the boundary to the client
 
@@ -76,6 +81,23 @@ reported and we cannot see them** — the client should know that rather than as
 * Mobile-only failures: Faculty Members widget, missing Therapists button, `/our-facilities/` layout
 * Broken image icons in the mobile mega-menu
 * Largest Contentful Paint regression on mobile
+* **Whether a `<button>` works.** A `<button>` has no `href` by design — what it does lives in
+  JavaScript, which this tool does not execute. Every `<button>` the dead-CTA check reached on live
+  pages was working (GL's form Submit, COC's `relatedloadMoreBtn`, a modal's close "x"), so the
+  check reads `<a>` elements only. A genuinely dead `<button>` is invisible to us.
+
+## The footer-template corruption family
+
+Three of the shipped classes are the same defect wearing different clothes, and they should be
+reported to the client as ONE thing: **a footer/header template whose link fields were filled in
+wrongly, so the error is on every page of the site at once.**
+
+* `fused_url` — CAD's LinkedIn field contains a LinkedIn URL and a YouTube URL welded together.
+* `social_misrouted` — GL's Instagram icon points at LinkedIn; RR's YouTube icon points at Instagram.
+* `double_slash` — GL's `//facility/...`.
+
+Nobody clicks their own footer, so these survive indefinitely. They are also the cheapest fix in
+the whole audit: one template field, every page corrected at once.
 
 ## Recommendation
 
