@@ -531,7 +531,13 @@ def parse_html(html: str, page_url: str, base_url: str | None = None,
         href = a["href"].strip()
         if href.startswith(("mailto:", "tel:", "javascript:", "#")):
             continue
-        absu = urljoin(base_url, href).split("#")[0]
+        try:
+            absu = urljoin(base_url, href).split("#")[0]
+        except ValueError:
+            # urlsplit raises on unbalanced [ ] — which is exactly the shape of an UNRESOLVED
+            # `[acf field=...]` token leaking into an href, a defect this tool exists to find.
+            # Crashing the whole brand's audit over it would be the worst possible response.
+            continue
         if not absu.lower().startswith("http") or absu in seen:
             continue
         seen.add(absu)
