@@ -205,3 +205,47 @@ def test_a_one_off_stays_per_page():
     fs = [_dup_finding("https://x/a/", "one page only"),
           _dup_finding("https://x/b/", "a different paragraph entirely")]
     assert len(_collapse_repeats(fs)) == 2
+
+
+# --- grouping: found by review, confirmed on a live page ---
+
+def test_sibling_links_in_one_list_share_a_group():
+    """Each <a> sits in its OWN <li>, so keying the group on the immediate parent put 78 body
+    anchors on GL /locations/ into 72 groups — duplicate_link could never fire for the case the
+    client reported. The group must be the enclosing list, not the <li>."""
+    from auditor.parse import parse_html
+    html = ('<body><main><ul>'
+            '<li><a href="/detox/long-beach/">Detox in Long Beach</a></li>'
+            '<li><a href="/detox/long-beach/">Detox in Long Beach</a></li>'
+            '<li><a href="/detox/newport/">Detox in Newport</a></li>'
+            '</ul></main></body>')
+    p = parse_html(html, page_url="https://x/a/", base_url="https://x/")
+    assert len({a.group for a in p.actionables}) == 1
+    fs = [f for f in duplication.run(p, _Cfg()) if f.details["class"] == "duplicate_link"]
+    assert len(fs) == 1 and fs[0].details["count"] == 2
+
+
+def test_separate_cards_are_separate_groups():
+    """The other side: two Elementor cards each holding one link are NOT one list, so a repeated
+    CTA across cards must stay silent."""
+    from auditor.parse import parse_html
+    html = ('<body><main><div class="cards">'
+            '<div class="card"><a href="/verify/">Verify Insurance</a></div>'
+            '<div class="card"><a href="/verify/">Verify Insurance</a></div>'
+            '</div></main></body>')
+    p = parse_html(html, page_url="https://x/a/", base_url="https://x/")
+    assert len({a.group for a in p.actionables}) == 2
+    assert [f for f in duplication.run(p, _Cfg()) if f.details["class"] == "duplicate_link"] == []
+
+
+def test_an_icon_only_cell_counts_as_populated():
+    """Elementor renders ticks as an icon font on an empty <i> — 57 of them on one GL page. Those
+    cells have no text and no <img>, so without icon-class detection every one reads as blank."""
+    from auditor.parse import parse_html
+    html = ('<body><main><table><tr>'
+            '<td>Detox</td><td><i class="fas fa-check"></i></td>'
+            '<td>Inpatient</td><td>Yes</td></tr></table></main></body>')
+    p = parse_html(html, page_url="https://x/a/", base_url="https://x/")
+    icon = [b for b in p.blocks if b.tag == "td" and not b.text]
+    assert icon and icon[0].has_media is True
+    assert empty_row.run(p, _Cfg()) == []

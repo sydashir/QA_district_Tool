@@ -38,8 +38,26 @@ _TEXT_BLOCK_SET = frozenset(_TEXT_BLOCK_TAGS)
 # Content that occupies a slot without contributing text — an icon cell is populated, not empty.
 _MEDIA_TAGS = frozenset({"img", "svg", "picture", "video", "iframe", "canvas", "object",
                          "embed", "input", "select", "textarea"})
+# An ICON FONT is content too, and it is the dominant idiom on these Elementor sites (57 <i>
+# elements on one GL page). It renders as a glyph from a CSS class on an empty <i>/<span>, so it
+# has no text and no media TAG — without this a cell holding a tick would read as blank.
+_ICON_CLASS = re.compile(
+    r"(?:^|\s)(?:fa|fas|far|fab|fal|fad|fa-[\w-]+|icon|icon-[\w-]+|[\w-]*-icon|dashicons|"
+    r"dashicons-[\w-]+|eicon|eicon-[\w-]+|elementor-icon|material-icons|glyphicon)(?:\s|$)",
+    re.IGNORECASE)
+
+
+def _is_icon(el) -> bool:
+    return bool(el.name in ("i", "span") and _ICON_CLASS.search(" ".join(el.get("class") or ())))
 # Page furniture. A brand named in here is boilerplate; the same name in body copy is content.
 _REGION_TAGS = ("nav", "header", "footer", "aside")
+# Containers that make sibling links part of ONE list, for duplicate-link purposes.
+_LIST_CONTAINERS = frozenset({"ul", "ol", "dl", "table", "tbody", "nav", "menu"})
+_CONTAINER_LOOKUP_DEPTH = 4     # <a> -> <li> -> <ul> normally; a couple of wrappers tolerated
+
+
+def _gid(node) -> int:
+    return id(node) if node is not None else 0
 # WordPress/Elementor mark furniture with classes far more often than with landmark elements, so
 # both are needed — COC's footer is a <div class="site-footer">, not a <footer>.
 # BARE "header"/"footer" are deliberately absent. `page-header`, `entry-header`, `section-header`
@@ -173,6 +191,11 @@ def _region_map(soup) -> dict[int, str]:
     """
     marked: dict[int, str] = {}
     for el in soup.find_all(_REGION_TAGS):
+        # HTML5 allows <header>/<footer> INSIDE an <article> — that is a post's byline or tag
+        # list, i.e. CONTENT. Only a page-level one is site furniture. Same class of mistake as
+        # the `page-header` class bug: treating content as furniture hides real defects.
+        if el.name in ("header", "footer") and el.find_parent("article"):
+            continue
         region = el.name if el.name != "aside" else "aside"
         for d in el.find_all(True):
             marked.setdefault(id(d), region)
@@ -212,7 +235,7 @@ def _blocks(soup) -> list["Block"]:
             text=" ".join((el.get_text(" ", strip=True) or "").split()),
             region=regions.get(id(el), "body"),
             group=group,
-            has_media=any(c.name in _MEDIA_TAGS for c in kids)))
+            has_media=any(c.name in _MEDIA_TAGS or _is_icon(c) for c in kids)))
     return out
 
 
@@ -453,6 +476,23 @@ def parse_html(html: str, page_url: str, base_url: str | None = None,
     # decomposes elements, so ids from a map built now could be recycled by later objects.
     act_regions = _region_map(soup)
     act_groups: dict[int, int] = {}
+
+
+    def _container(el):
+        """The list/table an anchor belongs to — NOT its own <li>.
+
+        Measured on GL /locations/: every <a> sits in its own <li>, so keying on the immediate
+        parent put 78 body anchors into 72 groups and made the duplicate-link check unable to
+        fire for the very case the client reported (an interlink widget listing one link twice).
+        """
+        node = el
+        for _ in range(_CONTAINER_LOOKUP_DEPTH):
+            node = node.parent
+            if node is None:
+                break
+            if node.name in _LIST_CONTAINERS:
+                return node
+        return el.parent
     for el in soup.find_all(["a", "button"]):
         raw_href = el.get("href")
         classes = tuple(el.get("class") or ())
@@ -482,8 +522,7 @@ def parse_html(html: str, page_url: str, base_url: str | None = None,
             in_nav=bool(el.find_parent(["nav", "header"])),
             has_submenu=submenu,
             region=act_regions.get(id(el), "body"),
-            group=act_groups.setdefault(id(el.parent) if el.parent is not None else 0,
-                                        len(act_groups)),
+            group=act_groups.setdefault(_gid(_container(el)), len(act_groups)),
         ))
 
     links: list[Link] = []
