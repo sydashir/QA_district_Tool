@@ -38,7 +38,12 @@ _CTA_TEXT = re.compile(
     r"view\s|see\s+(?:our|all|centers)|contact|start|begin|book|schedule|check\s|download|"
     r"submit|send|request|enroll|join|find\s+(?:a|out|help)|talk\s+to|speak|reach|tour|explore|"
     r"claim|register|sign\s+up|subscribe|donate"
-    r")", re.IGNORECASE)
+    r")\b", re.IGNORECASE)
+# The trailing \b is load-bearing. Without it the head-anchored alternation PREFIX-matches, so
+# "Joint Commission Accredited" (join), "Registered Nurse, BSN" (register), "Tours of Our Campus"
+# (tour) and "Explorer Program" (explore) each read as a call to action — all normal rehab-site
+# wording, and all would have shipped to the client as ERROR "button goes nowhere". The asymmetry
+# gave it away: "Campus Tours" was correctly silent while "Tours of Our Campus" fired.
 # NOT in the list: "admissions". It reads as an action but on this network it is a menu-label
 # NOUN — RR's "Admissions Resources" column heading, GL's "Admissions" dropdown. Every occurrence
 # measured was structural, none was a defect.
@@ -111,7 +116,10 @@ def _is_dead(a) -> bool:
 
 
 def _network_from_host(url: str) -> str:
-    host = (urlparse(url).netloc or "").lower()
+    try:
+        host = (urlparse(url).netloc or "").lower()
+    except ValueError:
+        return ""            # an unparseable href has no identifiable network; never crash a run
     for part in host.replace("www.", "").split("."):
         if part in _SOCIAL_HOSTS:
             return _SOCIAL_HOSTS[part]

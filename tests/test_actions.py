@@ -206,3 +206,39 @@ def test_two_different_dead_buttons_do_not_merge():
     out = _collapse_repeats(fs)
     assert len(out) == 2
     assert {f.details["label"] for f in out} == {"View All", "Verify Insurance"}
+
+
+# --- prefix-match leak: found by adversarial review, confirmed by execution ---
+
+@pytest.mark.parametrize("label", [
+    "Joint Commission Accredited",   # an accreditation badge on nearly every rehab site
+    "Registered Nurse, BSN",         # every staff card
+    "Tours of Our Campus",
+    "Explorer Program",
+    "Claims Department",
+    "Contactless Check-in",
+    "Beginning Yoga",
+])
+def test_a_label_that_merely_starts_with_a_cta_verbs_letters_is_not_a_cta(label):
+    """_CTA_TEXT is head-anchored; without a trailing \\b it PREFIX-matched, so "Joint …" matched
+    `join` and "Registered Nurse" matched `register`. Each fired ERROR "button goes nowhere" on a
+    hrefless button-styled element — ordinary wording, shipped to the client as a fault. The
+    asymmetry gave it away: "Campus Tours" was silent while "Tours of Our Campus" fired."""
+    assert _run(_a(label, None, classes=("elementor-button",), role="button")) == []
+
+
+@pytest.mark.parametrize("label", [
+    "Verify Your Insurance", "Apply Now", "Call us now", "Get Started", "Contact",
+    "Learn More", "Tour Our Facility", "Join Our Team",
+])
+def test_the_word_boundary_costs_no_real_call_to_action(label):
+    assert len(_run(_a(label, "#"))) == 1
+
+
+def test_an_unparseable_href_never_crashes_the_run():
+    """A run is ~7 hours; an exception late in it destroys the lot. An unresolved `[acf field=…]`
+    token in an href is a defect this tool exists to FIND, not to die on."""
+    # brackets in the NETLOC are what makes urlsplit raise ("Invalid IPv6 URL")
+    bad = "https://[acf field=geo].com/"
+    assert actions._network_from_host(bad) == ""
+    actions.run(_page(_a("Facebook", bad, aria_label="Facebook")), _Cfg())
