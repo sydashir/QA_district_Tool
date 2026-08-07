@@ -77,8 +77,13 @@ _VARIABLE_NAMES = ("GEO", "CITY", "STATE", "TOPIC", "DRUG", "FULL_GEO", "NEAR_IN
 #    The trailing guard matters: "The GEO Group" is a real company. A variable name standing in for
 #    a value is never followed by another capitalised word, so requiring that excludes proper-noun
 #    phrases without losing "- GEO" (end of line) or "Rehab in CITY for adults" (mid-sentence).
+#    A second guard, added after a live false positive on RR: "Certified by: STATE OF TENNESSEE
+#    DEPARTMENT OF MENTAL HEALTH…". The Title-Case guard alone missed it because "OF" is also
+#    capitalised. A leaked variable stands among ordinary sentence case; a word inside an ALL-CAPS
+#    run is part of that run.
 _BARE_VARIABLE = re.compile(
-    r"(?<![\w-])(" + "|".join(_VARIABLE_NAMES) + r")(?![\w-])(?!\s+[A-Z][a-z])")
+    r"(?<![\w-])(?<![A-Z]{2}\s)(" + "|".join(_VARIABLE_NAMES) + r")(?![\w-])"
+    r"(?!\s+[A-Z][a-z])(?!\s+[A-Z]{2,})")
 
 _PLACEHOLDER_PATTERNS = (
     ("empty_state", _EMPTY_STATE, Severity.ERROR,

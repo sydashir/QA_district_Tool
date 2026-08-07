@@ -82,6 +82,10 @@ def test_literal_variable_names_left_in_copy_are_caught(text):
     "Call us at (888) 707-6073 or email admissions today for help.",
     "We treat addiction across California, Florida and Tennessee.",
     "The GEO Group is unrelated to our organisation entirely.",
+    # live false positive on renaissancerecovery.com/drug/rehab/sobriety-calculator/ — an all-caps
+    # certification line, not a leaked template variable
+    "Certified by: STATE OF TENNESSEE DEPARTMENT OF MENTAL HEALTH AND SUBSTANCE ABUSE",
+    "Licensed by the CITY OF NEWPORT BEACH PLANNING DEPARTMENT",
 ])
 def test_ordinary_copy_stays_silent(text):
     assert _run(text) == [], f"false positive on: {text!r} -> {_run(text)}"
