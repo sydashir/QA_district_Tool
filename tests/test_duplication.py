@@ -249,3 +249,16 @@ def test_an_icon_only_cell_counts_as_populated():
     icon = [b for b in p.blocks if b.tag == "td" and not b.text]
     assert icon and icon[0].has_media is True
     assert empty_row.run(p, _Cfg()) == []
+
+
+def test_two_paragraphs_sharing_a_long_prefix_get_distinct_fingerprints():
+    """The live run logged "fingerprint collision … maps to 2 DIFFERENT findings" on an AH page
+    with two lorem-ipsum paragraphs sharing their first 80 characters."""
+    a = ("Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt "
+         "ut labore et dolore magna aliqua ALPHA")
+    b = ("Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt "
+         "ut labore et dolore magna aliqua BETA")
+    page = _page([_blk(a, group=1), _blk(a, group=2), _blk(b, group=3), _blk(b, group=4)])
+    fs = _run(page, "duplicate_paragraph")
+    assert len(fs) == 2
+    assert len({f.fingerprint for f in fs}) == 2

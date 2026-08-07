@@ -24,6 +24,7 @@ pair renders the same links twice on every page of every brand.
 """
 from __future__ import annotations
 
+import hashlib
 import re
 from collections import Counter, defaultdict
 
@@ -42,6 +43,11 @@ _MIN_DUP_WORDS = 18
 _SKIP_TAGS = frozenset({"h1", "h2", "h3", "h4", "h5", "h6", "th"})
 _PUNCT = re.compile(r"[^\w\s]+")
 _WS = re.compile(r"\s+")
+
+
+def _digest(text: str) -> str:
+    """Short stable hash of the FULL text — a prefix is not an identity."""
+    return hashlib.sha1(text.encode("utf-8")).hexdigest()[:16]
 
 
 def _normalise(text: str) -> str:
@@ -85,7 +91,10 @@ def run(parsed: ParsedPage, config) -> list[Finding]:
         slot = "duplicate_paragraph" if occ == 0 else f"duplicate_paragraph#{occ}"
         findings.append(Finding(
             url=parsed.url, check=CHECK, severity=Severity.WARNING,
-            fingerprint=make_fingerprint(CHECK, slot, parsed.url, _key[:80]),
+            # HASH the whole normalised text, never a prefix. The live run reported
+            # "fingerprint collision ... maps to 2 DIFFERENT findings" on an AH page carrying two
+            # lorem-ipsum paragraphs that share their first 80 characters.
+            fingerprint=make_fingerprint(CHECK, slot, parsed.url, _digest(_key)),
             issue=f"the same paragraph appears {len(texts)} times on this page",
             location="page body",
             snippet=sample[:200],
