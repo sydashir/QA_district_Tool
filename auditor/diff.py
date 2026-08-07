@@ -46,6 +46,11 @@ _CHECK_COMPONENT["enumeration"] = _CHECK_COMPONENT["enumeration"] | {"src:crawl.
 # broken_links imports CRUFT_RE from enumeration for the cruft_link class (B10), so an edit to
 # that shared pattern must rule-change link findings too — links-scoped, not global.
 _CHECK_COMPONENT["broken_links"] = _CHECK_COMPONENT["broken_links"] | {"src:enumeration.py"}
+# The collapses in audit.py mint these checks' fingerprints, so an edit there rule-changes
+# exactly those checks — never the ones it does not touch.
+for _c in ("phone", "brands", "duplication", "empty_row", "actions", "heading_structure"):
+    if _c in _CHECK_COMPONENT:
+        _CHECK_COMPONENT[_c] = _CHECK_COMPONENT[_c] | {"src:audit.py"}
 # phone output also depends on the canonical VALUES and on nap.py's parse (P1) — both
 # phone-scoped (a nap.py edit rule-changes ONLY phone, never other checks).
 _CHECK_COMPONENT["phone"] = _CHECK_COMPONENT["phone"] | {"canonical_phones", "src:nap.py",

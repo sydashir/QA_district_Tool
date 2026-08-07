@@ -427,10 +427,16 @@ def _collapse_repeats(findings: list[Finding]) -> list[Finding]:
         if f.check in _TEMPLATE_COLLAPSE_CHECKS:
             d = f.details or {}
             key = str(d.get("text") or d.get("example") or f.snippet or "")[:120].lower()
-            groups.setdefault((f.check, str(d.get("class", "")), key), []).append(f)
+            # The content string alone is not an identity: two social icons can share one wrong
+            # destination while being labelled for DIFFERENT networks, and two dead buttons can
+            # share a snippet. Fold in the per-class discriminator so distinct defects stay
+            # distinct rows instead of silently merging into one.
+            disc = "|".join(str(d.get(k, "")) for k in
+                            ("intended", "actual", "label", "href", "tag", "matched"))
+            groups.setdefault((f.check, str(d.get("class", "")), key, disc), []).append(f)
         else:
             keep.append(f)
-    for (check, cls, key), fs in groups.items():
+    for (check, cls, key, _disc), fs in groups.items():
         sources = sorted({f.url for f in fs})
         if len(sources) < _TEMPLATE_MIN_PAGES:
             keep.extend(fs)

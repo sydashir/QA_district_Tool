@@ -142,7 +142,11 @@ def publish_brand_from_result(brand: str, result: dict, *, run_id: str, dry_run:
     by_status = dict(getattr(rollup, "by_status", None) or {})
     delta = {
         "new": by_status.get("new", 0),
-        "resolved": len(run.get("resolved") or []),
+        # ONLY genuine resolutions. The tail also carries page_removed / page_unsitemapped /
+        # rule_changed — states diff.py exists precisely to keep APART from "fixed" — so counting
+        # its length told the client a defect was fixed when the page had merely not been audited.
+        "resolved": sum(1 for f in (run.get("resolved") or [])
+                        if getattr(f, "status", None) == "resolved"),
         "rule_changed": by_status.get("rule_changed", 0),
         "open": len(findings),
         "new_fingerprints": {f.fingerprint for f in findings

@@ -45,7 +45,12 @@ def components(config, checks_dir: Path = CHECKS_DIR) -> dict:
     # nap.py -> phone (classifies via its parse, P1); crawl.py -> enumeration (its enumerate
     # logic decides the sitemap/REST sets, hence the 845). Hashed here so an edit moves the
     # version; scoped (not global) to the right check in diff.py so only that check rule-changes.
-    for dep in ("nap.py", "crawl.py"):
+    # audit.py MINTS the fingerprint of every collapsed finding (_collapse_phone/_collapse_brands/
+    # _collapse_repeats/_collapse_headings) and can suppress a whole class. So a collapse-threshold
+    # edit changes identities while the version stays put, and the diff reads the vanished ones as
+    # `resolved` — a fix that never happened. Hashed here, and SCOPED in diff.py to the checks the
+    # collapses actually touch, so an unrelated orchestration edit does not rule-change everything.
+    for dep in ("nap.py", "crawl.py", "audit.py"):
         f = checks_dir.parent / dep
         if f.exists():
             comp[f"src:{dep}"] = _sha(f.read_text(encoding="utf-8"))
