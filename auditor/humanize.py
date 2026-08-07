@@ -26,6 +26,7 @@ CHECK_LABELS = {
     "phone": "Phone numbers",
     "misspelling": "Spelling",
     "scope": "Wording",
+    "actions": "Buttons and links",
     "spelling": "Spelling",
 }
 

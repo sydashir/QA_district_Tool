@@ -24,8 +24,8 @@ import json
 import os
 from pathlib import Path
 
-from .checks import (blank, empty_slot, enumeration, links, meta, misspelling, phone,
-                     placeholder, scope, spelling, structure)
+from .checks import (actions, blank, empty_slot, enumeration, links, meta, misspelling,
+                     phone, placeholder, scope, spelling, structure)
 from .checks_version import changed_components
 from .report import Finding, Severity
 
@@ -36,8 +36,8 @@ _GLOBAL_SRC = {"src:parse.py", "src:report.py"}
 # check name (Finding.check) -> the check-version component(s) that drive it.
 _CHECK_COMPONENT: dict[str, set[str]] = {
     m.CHECK: {f"src:{Path(m.__file__).name}"}
-    for m in (blank, empty_slot, enumeration, links, meta, misspelling, phone, placeholder,
-              scope, spelling, structure)
+    for m in (actions, blank, empty_slot, enumeration, links, meta, misspelling, phone,
+              placeholder, scope, spelling, structure)
 }
 # enumeration output depends on crawl.py's enumerate logic (what's in the sitemap/REST sets) —
 # enumeration-scoped, so a crawl enumerate change rule-changes ONLY the 845 findings.
