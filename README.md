@@ -8,6 +8,26 @@ You do not need to be a developer to run it. It is one command.
 
 ---
 
+## Before anything else: STOP THE MACHINE SLEEPING
+
+**This has now cost days of wall-clock time TWICE.** If the machine sleeps mid-run the audit does
+not fail and does not warn you — it freezes and silently resumes whenever the machine wakes.
+
+* On one run it turned an 8-hour job into a 22-hour one.
+* On the 2026-08-08 nine-brand run it turned **~7h of actual crawling into 69h36m of wall clock** —
+  the machine slept for ~62 hours in the middle of Gratitude Lodge. Nothing in the log says so; the
+  only clue is a gap between timestamps.
+
+So always start a real run with `caffeinate -s`, on mains power, lid open:
+
+```
+caffeinate -s python3 -m auditor.cli all -b tdrc -b ah -b ar -b dbh -b cad -b coc -b gl -b rr
+```
+
+(`caffeinate -s` keeps the machine awake while plugged in. `caffeinate -i` alone does **not** stop
+lid-close sleep.) If a run reports a wildly longer time than the table below, suspect sleep first
+and check the log for a timestamp gap.
+
 ## The command to run
 
 ```
@@ -18,10 +38,11 @@ That audits eight of the nine brands, smallest first, and publishes each to the 
 It prints progress as it works and a summary at the end. **It takes about 7 hours** — start it
 before you leave and it is done by morning.
 
-The ninth brand, **MHD, is run separately** because it takes about 29 hours on its own:
+The ninth brand, **MHD, cannot be audited in full at all** — see the MHD note below. It is
+run separately, and what gets published is an explicitly labelled **sample**:
 
 ```
-python3 -m auditor.cli all -b mhd
+python3 -m auditor.cli all -b mhd -n 400
 ```
 
 There is also `python3 -m auditor.cli all` with no `-b` flags, which does all nine in one go — but
@@ -35,14 +56,34 @@ that is a multi-day job, so it is not what you normally want. See below.
 |---|---|---|
 | The eight brands **excluding MHD** | 15,525 | **8h20m** |
 | of which **RR alone** | 7,962 | **5h44m — 69% of the total** |
-| **MHD** | 15,640 | **cannot be completed — see below** |
+| **MHD** | 15,635 | **~131h for a full census — not attempted; audited as a sample** |
 
 RR is most of the run. If you only have an evening, RR is the one to leave for its own night.
 
-**MHD is a special case.** Its web host serves us at under 1 page per minute for hours at a time —
-slower than the gentle rate we already limit ourselves to. A complete MHD audit is not achievable;
-what we publish is a **sample**, and the `Summary` tab labels it `PARTIAL SAMPLE` so nobody mistakes
-it for a full check. Run it like this, and expect a sample rather than everything:
+**MHD is a special case, and the reason is CONCURRENCY, not speed.**
+
+Its host collapses under parallel requests. Measured 2026-07-30 across concurrency levels:
+2 parallel connections give ~90% of pages and the best rate we can get; 3 starts throttling; **4
+pushed the origin into HTTP 500s that outlasted the run** — the next audit could not even read the
+sitemap. So 2 is a permanent locked ceiling (`config/mhd.toml`), and the resulting **~2 pages per
+minute is the CONSEQUENCE of that ceiling, not a separate throughput problem.** You cannot buy
+speed here by waiting or retrying; the only lever is concurrency, and it is already at its safe
+maximum.
+
+At that rate a full **15,635-page** census is **~131 hours (5.5 days)**. That is why a complete MHD
+audit is not attempted: what we publish is a **sample**, and the `Summary` tab labels it
+`PARTIAL SAMPLE` so nobody mistakes it for a full check.
+
+> An earlier version of this file said MHD "takes about 29 hours". **That figure was never
+> supported by any measurement** and has been removed — do not reinstate it. The measured numbers
+> are the ones above.
+
+**If enumeration comes back `blocked` with 0 URLs, stop.** That state is itself evidence the origin
+is degraded, and the tool correctly refuses to publish anything from it. Leave MHD alone and try
+another day — retrying into a degraded client origin makes it worse. A refusal here is the guard
+working, not a failure.
+
+Run it like this, and expect a sample rather than everything:
 
 ```
 python3 -m auditor.cli all -b mhd -n 400
@@ -78,18 +119,8 @@ is changed. Use this the first time, and any time you want to see what is about 
 
 ## Do not close the laptop lid
 
-**This is the one thing that will silently waste your time.** Closing the lid puts the machine to
-sleep and the run stops — it does not fail, it just freezes, and picks up whenever you open it
-again. On our own test that turned an 8-hour job into a 22-hour one without any error message.
-
-Leave the lid open, or start it like this on mains power:
-
-```
-caffeinate -s python3 -m auditor.cli all -b tdrc -b ah -b ar -b dbh -b cad -b coc -b gl -b rr
-```
-
-(`caffeinate -s` keeps the machine awake while plugged in. Note `caffeinate -i` alone does **not**
-stop lid-close sleep.)
+See **"Before anything else: stop the machine sleeping"** at the top of this file. It is the single
+most common way to lose a day on this tool, and it has happened twice.
 
 ## If you need to stop it
 
@@ -100,6 +131,22 @@ them, so it picks up roughly where it stopped rather than starting over. It also
 identity, so the sheet does not fill up with duplicate rows every time you stop and start.
 
 ---
+
+## DBH is enumerated from a static page list
+
+District Behavioral Health was **rebuilt on a different platform on 2026-08-08** — it is now
+headless WordPress behind Next.js. It serves **no sitemap, no `robots.txt` and no WP-REST**, so
+there is nothing for the crawler to read to find out what pages exist. Its content is still fully
+auditable (the pages are server-rendered and still Elementor-shaped), so the brand is enumerated
+from a fixed list instead: `config/urls/dbh.txt`, wired via `urls_file` in `config/dbh.toml`.
+
+**This has a permanent limitation you must know about: a fixed list cannot discover new pages.**
+Anything DBH publishes after that list was written is invisible to the audit and will never be
+checked — silently. It is not a temporary workaround; on this platform there is no index to read.
+
+So whenever DBH adds pages, the list has to be regenerated by hand, and any report covering DBH
+should say it was audited from a fixed list. **A page the audit cannot see must never be mistaken
+for a page it checked and found clean.**
 
 ## If a brand fails
 

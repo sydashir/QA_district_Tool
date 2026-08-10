@@ -742,3 +742,31 @@ real vocabulary appears in many different sentences (measured `angeles` 1,064 di
 `meth` 879, `adhd` 518) while copied junk sits at exactly 1 (every lorem-ipsum word scored 1).
 Correction confidence supports it but cannot lead: `behavorial->behavioral` and `comorbid->morbid`
 are identical on that signal. Recorded in `auditor/ai/build_vocab.py`.
+
+
+## D5. Enumeration when a site has no index (DBH, 2026-08-08)
+
+**Decision: a per-brand static URL list is a first-class enumeration source, not a workaround.**
+
+DBH was replatformed to **headless WordPress behind Next.js** during the 2026-08-08 run (verified:
+`X-Powered-By: Next.js`, `x-nextjs-prerender: 1`, 188 `/_next/static` references, and 18,402
+`elementor` markers still in the markup — WordPress went headless, it did not go away). Its DNS
+also disappeared for ~2 days across the cutover; see `docs/incidents/2026-08-08-dbh-dns-outage.md`.
+
+`sitemap_index.xml`, `sitemap.xml`, `wp-sitemap.xml`, four other sitemap variants, `robots.txt` and
+`/wp-json/wp/v2/pages` **all return 404**, each serving the same 902 KB app shell. Both of our
+enumeration sources are therefore gone. The content is unaffected — it is prerendered, still
+Elementor-shaped, and 30 of 30 sampled pre-migration URLs still return 200 — so every check works;
+only *finding the pages* is broken.
+
+`BrandConfig.urls_file` supplies the list, consumed by `crawl.enumerate_pages` **after** sitemap and
+WP-REST both yield nothing. Implementation note worth keeping: the WP-REST branch used to `return`
+even on an empty result, which made the fallback unreachable for exactly the brand it exists for.
+It now falls through only when a `urls_file` is configured, so the other eight brands' enumeration
+metadata is unchanged.
+
+**The limitation is permanent and must be stated in any report covering DBH: a static list cannot
+discover pages added later.** There is no index on this platform to diff against, so new pages are
+invisible and will silently never be audited. `enumerate_pages` returns
+`cannot_discover_new_pages: True` in its meta so this travels with the data rather than living only
+in someone's memory.
