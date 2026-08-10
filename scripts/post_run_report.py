@@ -48,7 +48,9 @@ def run_dirs(brand: str) -> list[Path]:
     base = REPORTS / brand
     if not base.is_dir():
         return []
-    return sorted(d for d in base.iterdir() if d.is_dir() and (d / "findings.jsonl").exists())
+    # `d.is_dir()` alone is not enough — reports/ also holds stray .md/.log files.
+    return sorted(d for d in base.iterdir()
+                  if d.is_dir() and (d / "findings.jsonl").is_file())
 
 
 def latest_dir(brand: str) -> Path | None:
