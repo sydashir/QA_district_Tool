@@ -47,6 +47,14 @@ code. One way to do each thing — no parallel implementations "just in case."
   is true of `report.py`. Compare a check module: editing `checks/phone.py` rule-changes only phone
   findings, because `diff.py::_CHECK_COMPONENT` scopes it.
 
+- **A SAMPLED run (`-n N`) overwrites the diff baseline — never leave one as a brand's last run.**
+  `write_run` persists history on every audit, publish or not, and the diff compares the next run
+  against whatever ran last. A `-n 40` tuning run on CAD left a ~158-finding baseline, so the next
+  FULL run reported **3,362 "new"** findings that were not new at all. The open count stays correct;
+  only the new/resolved delta is junk, and it self-corrects on the following full run. The tell is
+  unmistakable: brands never sampled showed 1/36/42 new, the sampled ones thousands. So: tune with
+  `-n` freely, but finish with a full run before anyone reads the sheet.
+
 - **A test double must mirror the real thing, including its empty and degenerate states.** A fake
   that is kinder than reality hides the bugs it exists to catch. The fake Sheets client invented a
   header row on first append; the real API does not, so the first row landed in A1 and was read back
