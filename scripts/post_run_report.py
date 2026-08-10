@@ -124,6 +124,21 @@ def triageable(rows: list[dict]) -> list[dict]:
     return [r for r in rows if r.get("status") not in CARRIED]
 
 
+_DIGITS = __import__("re").compile(r"\d+")
+
+
+def _shape(row: dict) -> str:
+    """The defect's SHAPE, with instance detail normalised away.
+
+    "within 25 of Long Beach" and "within 30 of Newport" are the same missing word in the same
+    template, and counting them as two problems is how a real one-line fix reads as 4,002.
+    """
+    d = row.get("details") or {}
+    raw = str(d.get("matched") or d.get("label") or d.get("text") or d.get("example")
+              or row.get("issue") or "")
+    return _DIGITS.sub("N", raw)[:60].lower()
+
+
 def cls_of(row: dict) -> str:
     return str((row.get("details") or {}).get("class", "") or "")
 
@@ -186,6 +201,27 @@ def main() -> int:
     print("-" * 96)
     print(f"{'ALL':<6} {grand['rows']:>7} {grand['new']:>7} "
           f"{100.0 * grand['new'] / max(1, grand['rows']):>5.1f}%")
+
+    print()
+    print("=" * 96)
+    print("1b. CONCENTRATION — is a long tab many problems, or ONE template repeated?")
+    print("=" * 96)
+    print("A row count only means something next to the number of DISTINCT defect shapes behind it.")
+    print("GL: 4,002 `missing_unit` rows reduce to 2 shapes (\"within N\") across 1,149 pages —")
+    print("one template field missing the word \"miles\", not 4,002 problems.\n")
+    for b in BRANDS:
+        d, all_rows = load(b)
+        rows = triageable(all_rows)
+        if not rows:
+            continue
+        worst = Counter(f"{r.get('check')}/{cls_of(r)}" for r in rows).most_common(1)[0]
+        key, n = worst
+        same = [r for r in rows if f"{r.get('check')}/{cls_of(r)}" == key]
+        shapes = {_shape(r) for r in same}
+        pages = len({r.get("url") for r in same})
+        print(f"  {b.upper():<5} biggest class {key:<34} {n:>6} rows | "
+              f"{len(shapes):>4} distinct shapes | {pages:>5} pages"
+              + ("   <-- ONE TEMPLATE" if len(shapes) <= 3 and n > 100 else ""))
 
     print()
     print("=" * 96)

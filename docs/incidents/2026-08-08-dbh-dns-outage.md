@@ -44,8 +44,39 @@ DBH's audit **failed loudly and changed nothing**:
 This is the designed behaviour: *a brand that could not be audited must never look like a brand
 with no problems.* Had the guard not existed, a DNS blip would have silently reported DBH as clean.
 
+## It was a REPLATFORM, not a blip — confirmed 2026-08-10
+
+Probing the recovered site settles what the DNS gap was: **DBH has been rebuilt on a new stack.**
+
+* `X-Powered-By: Next.js`, `x-nextjs-prerender: 1`, `x-nextjs-cache: HIT`, `Server: nginx/1.24.0`.
+* 188 `/_next/static` references and 134 `self.__next_f` chunks in the homepage.
+* **Every WordPress path is gone**: `/robots.txt`, `/wp-json/wp/v2/pages`, `/sitemap.xml`,
+  `/wp-sitemap.xml`, `/sitemap_index.xml` and four other sitemap variants all return **404** — and
+  every one returns the *same* 902 KB HTML shell, i.e. a client-app catch-all, not a real 404.
+* WordPress has not disappeared, it has gone **headless**: the markup still carries **18,402**
+  `elementor` class markers and `wp-content` asset URLs. Content is still authored in WP/Elementor
+  and prerendered by Next.js.
+
+**What this means for the audit — good and bad:**
+
+* **Good.** The HTML is server-PRERENDERED and still Elementor-shaped, so every content check works
+  unchanged. And the **URL structure survived**: 8 of 8 sampled pre-migration URLs still return 200.
+* **Bad.** **Enumeration is broken.** The tool finds pages via `sitemap_index.xml` with a WP-REST
+  fallback, and this site has neither. Without a URL source DBH cannot be crawled at all — which is
+  exactly why the run reported "0 pages audited" even after DNS recovered.
+
+**The rebuild fixed most of the dead buttons.** The old homepage carried **17** `<a href="#">` CTAs
+on 2026-08-07. The rebuilt one carries **2** — `Learn More` and `Contact`. So 15 were fixed in the
+replatform and two shipped forward.
+
 ## Follow-up
 
-* **DBH will be re-audited** now that the domain resolves; its tab currently holds pre-outage data.
+* **DBH cannot be re-audited until it has a URL source.** DNS is fine; enumeration is the blocker.
+  The fix is a per-brand static URL list (or an enumeration fallback to the last known page set —
+  576 URLs are already cached and still resolve). Deliberately NOT hacked in mid-run: `crawl.py` is
+  a check-version component, so editing it while GL/RR are crawling would make brands in one run
+  audit under different rule versions.
+* Its sheet tab still holds pre-migration data and is **stale by a replatform**, not merely by a
+  few days. Worth saying so to whoever reads it.
 * If this recurs, the same signature identifies it instantly: audit finishes in seconds with
   "0 pages audited (enumeration returned nothing)" and `dig +short <domain> A @8.8.8.8` is empty.
