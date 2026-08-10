@@ -4,7 +4,13 @@
 brand = "DBH"
 name = "District Behavioral Health"
 base_url = "https://districtbehavioralhealth.com"
-sitemap_url = "https://districtbehavioralhealth.com/sitemap_index.xml"
+sitemap_url = "https://districtbehavioralhealth.com/sitemap_index.xml"  # 404s since the replatform
+# DBH was rebuilt as headless WordPress behind Next.js on 2026-08-08 (X-Powered-By: Next.js,
+# x-nextjs-prerender: 1). Sitemap, robots.txt and WP-REST ALL return 404 — the site has no index to
+# read — so enumeration falls back to this static page list. LIMITATION: a static list cannot
+# discover pages added after it was written. Regenerate from a fresh crawl or from the CMS whenever
+# DBH publishes new pages, or they will never be audited.
+urls_file = "config/urls/dbh.txt"
 canonical_phones = ["888-707-6073"]  # national only; NAP canon (canon_for) carries the full set
 
 [crawl]

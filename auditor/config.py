@@ -71,6 +71,12 @@ class BrandConfig(BaseModel):
     name: str  # display name
     base_url: str
     sitemap_url: str
+    # Enumeration of LAST RESORT: a file of one URL per line, used only when the sitemap AND
+    # WP-REST both yield nothing. DBH was replatformed to headless Next.js on 2026-08-08 and serves
+    # no sitemap, no robots.txt and no WP-REST — without this the parent brand is simply
+    # un-auditable. See the limitation note in crawl.enumerate_pages: a static list cannot
+    # discover pages added later.
+    urls_file: str | None = None
     canonical_phones: list[str]  # flat national numbers (TOML); legacy + fallback ruler
     crawl: CrawlRules = Field(default_factory=CrawlRules)
     wp_rest: WPRestConfig | None = None
