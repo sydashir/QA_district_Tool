@@ -18,6 +18,7 @@ import json
 import logging
 import os
 import random
+import re
 import shutil
 import time
 from collections import defaultdict
@@ -408,7 +409,17 @@ def _collapse_brands(findings: list[Finding], audited_pages: int) -> list[Findin
 # header and footer template, so it produced 119 rows across 60 pages — one template field, one
 # fix. Keyed on the snippet, which is the button label for a dead CTA and the destination for a
 # misrouted icon, so two different dead buttons never merge into one row.
-_TEMPLATE_COLLAPSE_CHECKS = {"duplication", "empty_row", "actions"}
+_TEMPLATE_COLLAPSE_CHECKS = {"duplication", "empty_row", "actions",
+                             # Added after the first full nine-brand run, which showed every long
+                             # tab is ONE template repeated, not many problems:
+                             #   GL   4,002 missing_unit rows ->    1 shape over 1,149 pages
+                             #   COC  1,873 missing_unit rows ->    2 shapes over  811 pages
+                             #   MHD  1,056 misspellings     ->    1 shape over  352 pages
+                             #   AH     171 county_for_country ->  1 shape over  169 pages
+                             # A row per page told the QA team there were 4,002 things to fix when
+                             # there was one missing word ("within 25 of Long Beach" wants "miles").
+                             "empty_slot", "misspelling", "scope"}
+_DIGITS = re.compile(r"\d+")
 _TEMPLATE_MIN_PAGES = 3     # two pages is a coincidence; three is a template
 
 
@@ -426,7 +437,12 @@ def _collapse_repeats(findings: list[Finding]) -> list[Finding]:
     for f in findings:
         if f.check in _TEMPLATE_COLLAPSE_CHECKS:
             d = f.details or {}
-            key = str(d.get("text") or d.get("example") or f.snippet or "")[:120].lower()
+            # Key on the defect's SHAPE, not the instance. The snippet carries the surrounding
+            # sentence, so "within 25 of Long Beach" and "within 30 of Newport" looked like two
+            # defects; `matched`/`word` with digits normalised makes them the one they are.
+            shape = str(d.get("matched") or d.get("word") or d.get("text")
+                        or d.get("example") or f.snippet or "")
+            key = _DIGITS.sub("N", shape)[:120].lower()
             # The content string alone is not an identity: two social icons can share one wrong
             # destination while being labelled for DIFFERENT networks, and two dead buttons can
             # share a snippet. Fold in the per-class discriminator so distinct defects stay
