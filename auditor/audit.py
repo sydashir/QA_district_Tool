@@ -494,10 +494,17 @@ def _stamp(now: str) -> str:
 
 def write_run(findings: list[Finding], projections: list[PageProjection], *, brand: str,
               base_url: str, now: str, config: BrandConfig, live, out_dir: Path,
-              history_path: Path, extra_meta: dict | None = None) -> dict:
+              history_path: Path, extra_meta: dict | None = None,
+              persist_history: bool = True) -> dict:
     """Annotate in-stream, emit the resolved tail, write JSONL+CSV+summary, persist history.
     Pure w.r.t. the network — unit-tested directly. ``live`` is the WP-REST live-page set (or
-    None); ``audited`` is every URL we actually evaluated this run."""
+    None); ``audited`` is every URL we actually evaluated this run.
+
+    ``persist_history=False`` writes the report but leaves the diff baseline ALONE. A ``-n``
+    sample is a tuning tool, not a baseline: a 40-page CAD sample became the baseline for the next
+    FULL run, which then reported **3,362 "new"** findings that were not new at all. The open count
+    stayed correct; the delta in front of the QA team was meaningless. Brands never sampled showed
+    1/36/42 new in the same run, which is what a real delta looks like."""
     components = checks_version.components(config)
     prior = diff.load_history(history_path)
     rd = diff.RunDiff(prior, now, components,
@@ -515,6 +522,7 @@ def write_run(findings: list[Finding], projections: list[PageProjection], *, bra
     meta_blob = {
         "brand": brand, "base_url": base_url, "run_at": now,
         "pages_audited": len(projections), "changed_components": changed,
+        "history_written": bool(persist_history),
         **(extra_meta or {}),
     }
 
@@ -529,7 +537,12 @@ def write_run(findings: list[Finding], projections: list[PageProjection], *, bra
     writers.write_jsonl(rows, staging / "findings.jsonl")
     writers.write_csv(rows, staging / "findings.csv", brand, titles)
     writers.write_summary(rollup, meta_blob, staging / "summary.json")
-    rd.persist(history_path)               # atomic (temp + os.replace)
+    if persist_history:
+        rd.persist(history_path)           # atomic (temp + os.replace)
+    else:
+        print(f"[diff] sampled run — diff baseline for {brand.upper()} left untouched "
+              f"(this report is complete; the next run still diffs against the last FULL run)",
+              flush=True)
     os.replace(staging, out_dir)           # atomic promote: partial -> authoritative
     return {"out_dir": out_dir, "rollup": rollup, "resolved": resolved,
             "components": components, "changed": changed}
@@ -603,6 +616,8 @@ async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile:
         # Summary row must say so — a 400-page sample of a 15,635-page site presented without
         # qualification reads as a complete audit.
         partial_sample = len(sample) < len(audit_urls)
+        # Narrower than partial_sample on purpose — see the write_run call below.
+        limit_truncated = bool(limit) and len(sample) < len(audit_urls)
         if cached_only:
             partial_sample = partial_sample or len(to_fetch) > 0
             print(f"[cached-only] publishing {len(done)} banked pages; "
@@ -689,10 +704,14 @@ async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile:
                     "Per-location numbers are validated brand-wide, not per-page; a valid "
                     "number rendered on the wrong location's page is NOT flagged. Canonical "
                     "from the 2026-07-20 snapshot of the verified live NAP sheet.")
+            # A --limit sample must NOT become the diff baseline. --cached-only is deliberately
+            # EXCLUDED from this rule: it is MHD's standing publishing mode (its host throttles
+            # below a full pass), so refusing it a baseline would make every MHD run report its
+            # whole finding set as "new" forever.
             run = write_run(
                 findings, projections, brand=config.brand, base_url=config.base_url,
                 now=now, config=config, live=live, out_dir=out_dir, history_path=history,
-                extra_meta=extra)
+                extra_meta=extra, persist_history=not limit_truncated)
             write_projection_cache(config.brand, projections)  # B5 light projection (no findings)
             # The run COMPLETED and its report is written — retire the resume cache so a later
             # `--resume` can't silently replay a finished crawl as a fresh report. Kept (renamed)
