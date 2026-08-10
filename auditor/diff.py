@@ -48,7 +48,13 @@ _CHECK_COMPONENT["enumeration"] = _CHECK_COMPONENT["enumeration"] | {"src:crawl.
 _CHECK_COMPONENT["broken_links"] = _CHECK_COMPONENT["broken_links"] | {"src:enumeration.py"}
 # The collapses in audit.py mint these checks' fingerprints, so an edit there rule-changes
 # exactly those checks — never the ones it does not touch.
-for _c in ("phone", "brands", "duplication", "empty_row", "actions", "heading_structure"):
+# empty_slot / misspelling / scope were added to the collapse LATER and this list was not updated
+# with them. The consequence was client-visible and wrong: AH's 169 collapsed `county_for_country`
+# rows vanished from the diff and were reported to the QA team as "171 fixed" when nothing had been
+# fixed at all. GL (4,002 empty_slot) and MHD (1,056 misspelling) would have claimed thousands.
+# Any check the collapses touch MUST be listed here, or its collapsed rows read as resolved.
+for _c in ("phone", "brands", "duplication", "empty_row", "actions", "heading_structure",
+           "empty_slot", "misspelling", "scope"):
     if _c in _CHECK_COMPONENT:
         _CHECK_COMPONENT[_c] = _CHECK_COMPONENT[_c] | {"src:audit.py"}
 # phone output also depends on the canonical VALUES and on nap.py's parse (P1) — both
