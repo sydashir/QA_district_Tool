@@ -598,6 +598,22 @@ async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile:
                     audit_urls.append(u)
                     rest_only_added += 1
 
+        # LAST-RESORT ENUMERATION: a static page list, when the site has no index at all.
+        # This has to live HERE, not only in crawl.enumerate_pages: run_audit does its own
+        # sitemap+REST union and never calls that helper, so a fallback added there passed its
+        # unit tests while DBH still audited 0 pages in production. Same shape as the WP-REST
+        # fallback above — used only when both real sources yielded nothing.
+        urls_file_used = None
+        if not audit_urls and getattr(config, "urls_file", None):
+            listed, method, meta = await C.enumerate_pages(client, config)
+            if method == "urls-file" and listed:
+                audit_urls = listed
+                sitemap_set = set()          # there is no sitemap to be missing from
+                urls_file_used = meta
+                print(f"[enumerate] {config.brand.upper()}: no sitemap and no WP-REST — using the "
+                      f"static page list ({len(listed)} URLs). This list CANNOT discover pages "
+                      f"added since it was written.", flush=True)
+
         sample = select_sample(audit_urls, limit, head=head_sample)
 
         # Resume: skip pages already completed at THIS check-version; a fresh run starts the
@@ -703,7 +719,11 @@ async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile:
                      # union scope: how many live pages the sitemap missed (rest_only_added) and
                      # the true audit denominator (union) vs the sitemap's own advertised total.
                      "audit_scope": {"sitemap": len(sitemap_urls),
-                                     "rest_only_added": rest_only_added, "union": len(audit_urls)},
+                                     "rest_only_added": rest_only_added,
+                                     "union": len(audit_urls)},
+                     # provenance: set when the brand had NO index and was audited from a static
+                     # page list, so a report can never be mistaken for full coverage.
+                     "urls_file": urls_file_used,
                      # completeness signal: a run where many pages failed to fetch (e.g. Cloudflare
                      # started blocking mid-crawl) would persist a thin history. No hard threshold
                      # (the baseline calibrates the healthy rate) — but surface it for eyeballing.
