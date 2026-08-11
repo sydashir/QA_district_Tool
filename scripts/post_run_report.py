@@ -49,8 +49,11 @@ def run_dirs(brand: str) -> list[Path]:
     if not base.is_dir():
         return []
     # `d.is_dir()` alone is not enough — reports/ also holds stray .md/.log files.
-    return sorted(d for d in base.iterdir()
-                  if d.is_dir() and (d / "findings.jsonl").is_file())
+    # Sorted by MTIME, not by name. The 2026-08-10 clock skew (21h behind) produced report dirs
+    # whose timestamp names sort BEFORE older runs, so name-sorting silently picked a stale report.
+    return sorted((d for d in base.iterdir()
+                   if d.is_dir() and (d / "findings.jsonl").is_file()),
+                  key=lambda d: d.stat().st_mtime)
 
 
 def latest_dir(brand: str) -> Path | None:
@@ -117,7 +120,11 @@ def load_dir(d: Path | None) -> list[dict]:
 # this run, so its state is simply unknown. They dominate a small sample (9,796 of 10,147 rows on
 # a 60-page GL run) and are negligible on a full one (23 on RR's 7,962-page run) — so they are
 # counted separately rather than folded into "rows a human triages".
-CARRIED = {"page_unsitemapped", "page_removed"}
+# `rule_changed` belongs here too: those rows are in the diff's VANISHED tail — findings whose
+# identity changed because a rule did (e.g. the shape-collapse replacing 8,953 per-page RR rows
+# with a handful of template rows). They are not open defects, and counting them as open reported
+# RR at 25,904 when the sheet correctly showed 16,951.
+CARRIED = {"page_unsitemapped", "page_removed", "rule_changed"}
 
 
 def triageable(rows: list[dict]) -> list[dict]:
