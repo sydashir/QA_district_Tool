@@ -400,3 +400,61 @@ like an AI wrote it, rewrite it.
 **2. Author is `sydashir <meetashirr@gmail.com>` and nothing else.** No `Co-Authored-By: Claude`
 trailer, no "Generated with Claude Code" footer, no 🤖 line — strip all of it from every commit,
 ever. This is client work under Syed's name.
+
+---
+
+## 13. HANDOVER — state as of 2026-08-12 (read this first if you are new)
+
+**The deterministic tool is COMPLETE. Do not build more checks.** Every row of the client-defect
+coverage table (`docs/plans/2026-08-06-client-reported-defect-coverage.md`) is closed: sections A
+and B shipped, section C declined with written evidence, section D written for the client. The
+remaining work is *operating* it, not extending it.
+
+### What exists
+* 15 checks in `auditor/checks/`, all deterministic. Flagship is `phone.cross_brand_dial`.
+* One command publishes all nine brands to the sheet: see `README.md`. ~7h of actual crawl.
+* Reports land in `reports/<brand>/<stamp>/` (gitignored) and are published to the Google Sheet
+  `1QnKHZBnEoxW2gIcOdDz6Ac2WjUbAa94Te_KR-7r2m-E` — **that sheet only, never anything else in Drive**.
+* `scripts/post_run_report.py` answers "what did this run change" after a full run.
+* Two-minute overview for a human: `docs/WHAT_THIS_TOOL_IS.md`.
+
+### Known-broken / permanent limitations — state these, never paper over them
+1. **Nothing schedules it.** The VM was dropped by decision. If nobody runs the command, nothing is
+   audited. This is the single biggest operational risk.
+2. **MHD is degraded and only ever sampled.** Its origin 503s under concurrent requests; conc 4 once
+   pushed it into 500s that outlasted the run, so **max_concurrency = 2 is a locked ceiling** — the
+   binding constraint is CONCURRENCY, and ~2 pg/min is its consequence. A full 15,635-page census is
+   ~131h, so it is published as a labelled `PARTIAL SAMPLE`. **If enumeration returns blocked + 0
+   URLs, that is evidence the origin is degraded: leave it alone, do not retry into it.**
+3. **DBH is enumerated from a static list** (`config/urls/dbh.txt`) because its 2026-08-08 replatform
+   to headless Next.js removed the sitemap, robots.txt and WP-REST. **A static list cannot discover
+   pages added later** — they are silently never audited. Regenerate by hand when DBH publishes.
+4. **Transient link timeouts cause a small recurring new/fixed wobble** in the Summary row. Cosmetic
+   and self-correcting; the real fix is hysteresis on transient classes only.
+5. **A sampled `-n` run no longer writes the diff baseline** (fixed in code) — but always finish with
+   a full run before anyone reads the sheet.
+
+### Three DOCUMENTED NEGATIVE RESULTS — do not re-litigate without new evidence
+* **D9 (ARCHITECTURE.md) — AI grammar/spelling.** An LLM pass editorialised about word choice.
+  Judgement, not error. Rejected.
+* **D10 (ARCHITECTURE.md) — dictionary spellchecker.** 9% precision by distinct word (7 real of 78,
+  hand-classified). The residue is rare single-brand pharmaceutical vocabulary, and single-brand
+  rarity is exactly where a typo lives — on this corpus those two populations are the same
+  population. Parked behind `SPELLCHECK=1`, not deleted.
+* **D11 — rule-based engines, researched 2026-08-11, NOT BUILT.** Harper rejected outright (no
+  Python binding exists; 56% precision measured; missed 5 of 8 classic confusables). LanguageTool is
+  viable on cost and speed (~1.1h for 31k pages at 8 workers, measured on our real median page;
+  offline; free) **but its spellchecker reproduces D10 exactly** — it flags isotonitazene,
+  solriamfetol, buprenorphine. So the only configuration worth piloting is **grammar-only with
+  `MORFOLOGIK_RULE_EN_US` disabled**, which is the one setup nobody has published numbers for.
+  Published prior is discouraging: Wikimedia measured 0.524 precision on Wikipedia (their stated
+  lower bound); BEA-2019 recall is 5–8%. **Note: `language_tool_python` is GPL-3.0 — call
+  `/v2/check` over httpx instead of importing it into client work.**
+
+### If you pilot the grammar engine
+Gate on VOLUME before precision: measure grammar-only findings-per-page on GL first. Under
+~0.05/page it is too quiet to ship and you stop cheaply. Ground truth is recoverable but not stored
+as a dataset — D10 names the 7 real words of 78; note that 2 of those 7 (`alcoholusedisorderaud`,
+`ency`) are already caught by `empty_slot`. A separate, better-evidenced lever exists: the **UMLS
+SPECIALIST Lexicon** hit PPV 0.90 on 76,786 clinical notes with residual FPs that were *not* drug
+names — that attacks the failure that actually killed D9 and D10.
