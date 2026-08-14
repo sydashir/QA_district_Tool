@@ -770,3 +770,70 @@ discover pages added later.** There is no index on this platform to diff against
 invisible and will silently never be audited. `enumerate_pages` returns
 `cannot_discover_new_pages: True` in its meta so this travels with the data rather than living only
 in someone's memory.
+
+## D11. Rule-based grammar engine — pilot (LanguageTool, grammar-only)
+
+**Written BEFORE the measurement, deliberately, so the result is read against the prior rather than
+rationalised after it.** D9 (AI) and D10 (dictionary) both failed; this is the third and final
+approach we will measure. Whatever the outcome, grammar stops here.
+
+### The hypothesis, corrected by research (2026-08-11)
+
+The premise was that a rule-based engine is a *third* thing: deterministic rules with stable IDs and
+no judgement. Research showed that is only half true. **LanguageTool's spellchecker reproduces D10
+exactly** — run locally, it flags `isotonitazene`, `solriamfetol`, `pitolisant`, `buprenorphine`.
+So the pilot deliberately **disables `MORFOLOGIK_RULE_EN_US`** and measures only the non-spelling
+rules (their/there, a/an, word repetition, agreement, unpaired quotes, spacing). That configuration
+— rule-based grammar without spelling, on clean professional web copy — is the one setup for which
+**no published precision figure exists**, which is the only reason the pilot is worth running.
+
+### Priors, recorded up front
+
+| Source | Figure | What it measures |
+|---|---|---|
+| Wikimedia, English Wikipedia | **precision 0.524**, their stated *lower bound* | LanguageTool on clean, professionally edited, entity-dense prose — the closest published analogue to our corpus |
+| Wikimedia, error-free featured articles | **0.79–0.80 false positives per sentence** (en-US), cut >10× by switching to `en` | names the *misspelling* rule as the main FP driver — the reason we disable it |
+| BEA-2019 detection | precision 0.53 / 0.41 / 0.27 (levels A/B/C), **recall 0.05–0.08** | learner corpus where nearly every sentence has an error, so its precision is an **upper** bound for our error-sparse pages |
+| Human eval of sampled suggestions | 70–90% judged correct, **but only after post-processing filters** | the only published number touching our 80% bar |
+
+**So the expected outcome is a narrow, high-precision, low-recall check** — something that fires
+rarely and is right when it does. **That is a shippable shape, not a disappointment**: it is exactly
+what `misspelling.py` already is (a curated known-list, ~zero false positives, deliberately narrow).
+A rare-but-right check earns its place; a chatty one does not.
+
+### Gate design — volume BEFORE precision
+
+Fail fast on the cheap question. Hand-classification is the expensive part, so it is not spent
+until the check has proven it says anything at all.
+
+1. **Volume gate.** Grammar-only findings per page on real GL pages. **Under ~0.05/page the check
+   is too quiet to ship and the pilot stops there** — that is roughly one finding per twenty pages,
+   below which the sheet gains nothing worth a Java dependency.
+2. **Only if it clears:** precision by hand-classification of every finding, no sampling.
+   **Bar unchanged: 80%, proper nouns clean.**
+
+Constraints carried from the research: run offline via a local server, call **`/v2/check` over
+`httpx`** — **`language_tool_python` is GPL-3.0 and must not be imported into client work**. The
+2,488-term allowlist loads via `spelling_custom.txt` (file + restart), which drove pharma false
+positives to zero in testing; it matters less here since spelling is disabled, but it is the same
+lever if spelling is ever revisited.
+
+### The other lever, recorded whether or not it is used: UMLS SPECIALIST Lexicon
+
+**This is the more interesting thread and it attacks the failure that actually killed D10.** A
+clinical misspelling detector built on the **UMLS SPECIALIST Lexicon** — a real biomedical lexicon,
+not a general English dictionary — achieved **PPV 0.9057 / 0.8979 on 76,786 real clinical notes**,
+above our 80% bar, and critically **its residual false positives were *not* drug names**.
+
+D10 died because rare pharmaceutical vocabulary and genuine typos were the same population on this
+corpus: `isotonitazene` and `lorazapam` are both single-brand rare tokens. A biomedical lexicon
+separates them by *knowing the drugs* rather than by inferring rarity — which is the only mechanism
+proposed so far that could break that tie.
+
+**It is not part of this pilot** (different problem: spelling, not grammar; and it needs a UMLS
+licence and a corpus-loading spike). It is recorded here so that **if the grammar pilot dies, the
+next person finds the one remaining lever on spelling written down instead of rediscovering it.**
+
+### Result
+
+*To be completed by the measurement below.*
