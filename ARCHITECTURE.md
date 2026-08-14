@@ -900,10 +900,23 @@ What ships instead is what already ships: `misspelling.py`, a curated list of co
 misspellings, deliberately narrow, effectively zero false positives — a check that fires rarely and
 is right when it does.
 
-**The one lever not yet pulled is the UMLS SPECIALIST Lexicon** (see above): PPV 0.90 on 76,786
-clinical notes with residual false positives that were *not* drug names. It attacks the D10 failure
-directly — knowing the drugs rather than inferring rarity — and it is a *spelling* lever, not a
-grammar one. If anyone revisits this, start there, not with another grammar engine.
+**CORRECTION (2026-08-14): the UMLS recommendation above was WRONG, and is withdrawn.** Measured
+rather than assumed: the SPECIALIST Lexicon **misses `isotonitazene`, `solriamfetol` and
+`pitolisant`** (three of the four terms that killed D10), and — decisively — it **whitelists 232 of
+4,308 known English misspellings (5.39%)**, including `accidently`, `occured` and `developement`,
+because it is a descriptive lexical resource that records non-preferred variants. Loading it as an
+allowlist would **suppress the very errors the tool exists to find**. The published PPV 0.90 also
+does not transfer: that method excluded rare tokens by construction, which is why drug names were
+not a false-positive source — not because the lexicon covered them.
+
+**The replacement, verified locally on 2026-08-14: the openFDA NDC Directory** — CC0 public domain,
+no licence or account, 136,942 records refreshed daily, **23,687 distinct drug tokens**, covering
+**7 of 12** D10 killers and containing **0 of 13** known misspellings. Its gaps are principled and
+define the residual risk: it lists FDA-registered drugs, so **illicit/novel substances**
+(`mephedrone`, `pentedrone`, `isotonitazene`) and **clinical conditions** (`xerostomia`,
+`methemoglobinemia`) are absent — and both appear in this corpus. Since that residue is exactly what
+sank D10, **the honest prior is that a fourth attempt is more likely to fail than succeed.** Full
+reasoning and sources: `docs/plans/2026-08-14-product-design.md` §13.
 
 **Reproducing this:** `spike/lt_volume_gate.py`, raw output in
 `spike/lt_volume_gate_result.json`. LanguageTool is NOT a repo dependency and nothing in the
