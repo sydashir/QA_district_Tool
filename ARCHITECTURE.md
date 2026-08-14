@@ -834,6 +834,77 @@ proposed so far that could break that tie.
 licence and a corpus-loading spike). It is recorded here so that **if the grammar pilot dies, the
 next person finds the one remaining lever on spelling written down instead of rediscovering it.**
 
-### Result
+### Result — MEASURED 2026-08-14. **REJECTED. Grammar stops here.**
 
-*To be completed by the measurement below.*
+150 GL pages sampled on the audit's own seed; 130 returned body text. LanguageTool 6.6 local
+server, grammar-only exactly as specified above, `/v2/check` over `httpx`.
+
+| | |
+|---|---|
+| pages checked | 130 |
+| body text | 2,233,139 chars (mean 17,177/page) |
+| findings | **1,153** |
+| findings per page | **8.87** |
+| volume gate (0.05/page) | **cleared — inverted** |
+| **precision (generous)** | **99 / 1,153 = 8.6%** · excluding our own artifacts **10.6%** |
+| bar | 80% — **FAILS, and is worse than D10's 9%** |
+
+**The volume gate cleared in the wrong direction.** It was set to catch a check that says nothing;
+this one says 8.87 things per page — ~275,000 findings across the network. The gate was the right
+instrument pointed at the wrong failure mode, and the answer arrived anyway.
+
+Classification is **deliberately generous to LanguageTool**: every rule that could plausibly fire on
+a genuine defect is counted REAL, including borderline comma advice.
+
+**Five rules are 83% of the output, and four of them are wrong:**
+
+| n | % | verdict | rule | what it actually flagged |
+|---|---|---|---|---|
+| 528 | 45.8% | FALSE | `MISSING_COMMA_AFTER_YEAR` | `Updated May 11, 2026 Authored By:` — a correctly formatted byline. Its own message opens *"Some style guides suggest…"* |
+| 195 | 16.9% | FALSE | `YOUR` | *"typically **your** prescribing physician"* → suggests "you're". Flatly wrong |
+| 115 | 10.0% | artifact | `PHRASE_REPETITION` | `Learn About Gratitude Lodge` + heading `Gratitude Lodge Rehab…` joined by OUR block extraction |
+| 68 | 5.9% | artifact | `ENGLISH_WORD_REPEAT_RULE` | topic-list labels concatenated the same way |
+| 49 | 4.2% | FALSE | `EN_MULTITOKEN_SPELLING_TWO` | **`Los Alamitos`** — a California city |
+
+**Two findings matter more than the headline number.**
+
+1. **It fails the D9 way, not the D10 way.** 46% of output is a *style opinion about commas in
+   dates* — the check editorialising about house style on text that is not wrong. That is precisely
+   what made the AI layer unshippable, reproduced by a rule engine. Disabling `STYLE`,
+   `REDUNDANCY`, `COLLOCATIONS`, `TYPOGRAPHY` and `CASING` did not stop it, because
+   `MISSING_COMMA_AFTER_YEAR` lives under punctuation.
+2. **Proper-noun spelling came back through a different door.** `MORFOLOGIK_RULE_EN_US` was
+   disabled and verified silent on `isotonitazene`, `solriamfetol`, `pitolisant` and staff
+   surnames. `EN_MULTITOKEN_SPELLING_TWO` then flagged **`Los Alamitos`** anyway. Killing the
+   spellchecker by ID does not kill spelling — the D10 failure has more than one entrance.
+
+**Runtime independently disqualifies it.** Measured on the running server: **517 ms per 1,000
+characters** steady-state → **13.2 s for our median 25,517-char page** → **113 h single-threaded,
+14.2 h at 8 workers** for 31,000 pages, on top of the existing ~7 h crawl. The pre-pilot research
+claimed ~1.1 h at 8 workers and asserted it had measured our real page size; it was wrong by ~18×.
+Recorded because the lesson generalises: *a claim to have measured something is not a measurement.*
+
+**Read against the priors recorded above**, this is not a surprise — Wikimedia's 0.524 on cleaner
+prose was already far below our bar, and we landed at 8.6%. The hoped-for outcome was *narrow and
+right*; the actual outcome is *broad and wrong*.
+
+**Honest caveat:** 220 findings (19%) are artifacts of our own `body_text` joining adjacent blocks,
+not page defects. Excluding them entirely, precision is 10.6% — still below D10 and nowhere near
+80%. Fixing the extraction would not change the conclusion.
+
+### Where this leaves grammar and spelling — for good
+
+Three approaches, three measurements, one answer: **on this corpus, automated grammar and
+general-purpose spelling do not clear the cry-wolf bar.** D9 (judgement), D10 (rarity), D11 (rules).
+What ships instead is what already ships: `misspelling.py`, a curated list of confirmed
+misspellings, deliberately narrow, effectively zero false positives — a check that fires rarely and
+is right when it does.
+
+**The one lever not yet pulled is the UMLS SPECIALIST Lexicon** (see above): PPV 0.90 on 76,786
+clinical notes with residual false positives that were *not* drug names. It attacks the D10 failure
+directly — knowing the drugs rather than inferring rarity — and it is a *spelling* lever, not a
+grammar one. If anyone revisits this, start there, not with another grammar engine.
+
+**Reproducing this:** `spike/lt_volume_gate.py`, raw output in
+`spike/lt_volume_gate_result.json`. LanguageTool is NOT a repo dependency and nothing in the
+shipping path imports it.

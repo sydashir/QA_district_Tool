@@ -1,0 +1,284 @@
+{
+  "pages": 130,
+  "findings": 1153,
+  "per_page": 8.86923076923077,
+  "by_rule": {
+    "MISSING_COMMA_AFTER_YEAR": 528,
+    "ENGLISH_WORD_REPEAT_RULE": 68,
+    "REPEATED_VERBS": 22,
+    "ENGLISH_WORD_REPEAT_BEGINNING_RULE": 15,
+    "COMMA_COMPOUND_SENTENCE": 11,
+    "HYPHEN_TO_EN": 14,
+    "YOUR": 195,
+    "THIS_MISSING_VERB": 1,
+    "EN_COMPOUNDS_SEMI_SYNTHETIC": 25,
+    "CD_NN": 1,
+    "EN_COMPOUNDS_NON_MEDICAL": 1,
+    "EN_UNPAIRED_BRACKETS": 2,
+    "NON3PRS_VERB": 1,
+    "EN_COMPOUNDS_BINGE_EATING": 5,
+    "PHRASE_REPETITION": 115,
+    "STARS_AND_STEPS": 4,
+    "EN_MULTITOKEN_SPELLING_TWO": 49,
+    "EN_A_VS_AN": 7,
+    "PH_D": 36,
+    "PLURAL_THAT_AGREEMENT": 1,
+    "VERB_NOUN_CONFUSION": 3,
+    "EN_COMPOUNDS_ANTI_ANXIETY": 2,
+    "EN_WORD_COHERENCY": 1,
+    "AFFORD_VBG": 4,
+    "ONE_PLURAL": 5,
+    "COMMA_COMPOUND_SENTENCE_2": 2,
+    "ADVISE_VBG": 2,
+    "PRP_JJ": 1,
+    "APOS_ARE": 1,
+    "LOSE_LIVES": 3,
+    "NO_WHERE": 2,
+    "IS_AND_ARE": 3,
+    "HE_VERB_AGR": 2,
+    "POSSESSIVE_APOSTROPHE": 3,
+    "MD_BASEFORM": 2,
+    "IN_THE_MOMENT": 1,
+    "EN_COMPOUNDS_BINGE_DRINKING": 1,
+    "EN_COMPOUNDS_POST_TRAUMATIC": 6,
+    "ESSENTIAL_ESSENTIALLY": 1,
+    "EN_UNPAIRED_QUOTES": 2,
+    "OVER_TIME": 1,
+    "DO_VBZ": 1,
+    "IF_IS": 1,
+    "THE_QUESTION_WH": 1,
+    "CD_OF_MY_FRIEND": 1
+  },
+  "examples": {
+    "MISSING_COMMA_AFTER_YEAR": [
+      "https://www.gratitudelodge.com/celebrity-recovery/kurt-cobain-addiction/",
+      "Some style guides suggest that commas should set off the year in a month-day-year date.",
+      "..., Struggles, and Legacy Updated May 11, [[2026]] Authored By: Karena Mathis Edited By Am..."
+    ],
+    "ENGLISH_WORD_REPEAT_RULE": [
+      "https://www.gratitudelodge.com/celebrity-recovery/kurt-cobain-addiction/",
+      "Possible typo: you repeated a word.",
+      "...able of Contents Browse Topics ADDERALL [[ADDICTION ADDICTION]] AND HOLIDAYS ADDICTION NEWS ADDICTION R..."
+    ],
+    "REPEATED_VERBS": [
+      "https://www.gratitudelodge.com/celebrity-recovery/kurt-cobain-addiction/",
+      "You\u2019ve repeated a verb. Did you mean to only write one of them?",
+      "...HOL ABUSE ALCOHOL ADDICTION ALCOHOL AND [[DRUGS DRUG]] AND ALCOHOL DETOX DRUG USE FAMILY SUPPO..."
+    ],
+    "ENGLISH_WORD_REPEAT_BEGINNING_RULE": [
+      "https://www.gratitudelodge.com/celebrity-recovery/mac-miller-addiction/",
+      "Three successive sentences begin with the same word. Consider rewording the sentence or use a thesaurus to find a synonym.",
+      "...umentary called Stopped Making Excuses. [[In]] this revealing piece, the artist openly..."
+    ],
+    "COMMA_COMPOUND_SENTENCE": [
+      "https://www.gratitudelodge.com/celebrity-recovery/mac-miller-addiction/",
+      "Use a comma before \u2018and\u2019 if it connects two independent clauses (unless they are closely connected and short).",
+      "...f you have been battling substance abuse[[ and]] you require professional help achieving..."
+    ],
+    "HYPHEN_TO_EN": [
+      "https://www.gratitudelodge.com/drug-info/anti-anxiety-anti-seizure/benzodiazepine/clonazepam/klonopin/tapering-off-klonopin/",
+      "If specifying a range, consider using an en dash instead of a hyphen.",
+      "...imeline Days 1-3: Symptoms begin within [[24-72]] hours. Days 4-10: Peak withdrawal sympt..."
+    ],
+    "YOUR": [
+      "https://www.gratitudelodge.com/drug-info/depressant/anxiolytic-anti-anxiety/benzodiazepine/alprazolam/xanax/tapering-off-xanax/",
+      "Did you mean \u201cyou're\u201d (short for \u2018you are\u2019)?",
+      "...of a healthcare professional, typically [[your]] prescribing physician. First, consult y..."
+    ],
+    "THIS_MISSING_VERB": [
+      "https://www.gratitudelodge.com/drug-info/stimulant-sedative/kratom/hydroxy-7/",
+      "A verb may be missing.",
+      "...n the Southeast Asian plant kratom [1]. [[This]] naturally occurring but often synthetic..."
+    ],
+    "EN_COMPOUNDS_SEMI_SYNTHETIC": [
+      "https://www.gratitudelodge.com/drug-info/stimulant-sedative/kratom/hydroxy-7/",
+      "This word is normally spelled as one.",
+      "... much more concentrated products. These [[semi-synthetic]] processes typically involve purifying m..."
+    ],
+    "CD_NN": [
+      "https://www.gratitudelodge.com/drug-info/stimulant-sedative/kratom/hydroxy-7/",
+      "Possible agreement error. The noun \u2018hour\u2019 seems to be countable.",
+      "...roxymitragynine effects last for 3 to 6 [[hour]] s, with some people reporting lingering..."
+    ],
+    "EN_COMPOUNDS_NON_MEDICAL": [
+      "https://www.gratitudelodge.com/drug-info/stimulant-sedative/kratom/hydroxy-7/",
+      "This word is normally spelled as one.",
+      "... property drives much of the compound\u2019s [[non-medical]] use. Mood elevation manifests as enhanc..."
+    ],
+    "EN_UNPAIRED_BRACKETS": [
+      "https://www.gratitudelodge.com/drug-info/stimulant-sedative/kratom/hydroxy-7/",
+      "Unpaired symbol: \u2018)\u2019 seems to be missing",
+      "...ty, and intense cravings for 7-OH. PAWS [[(]]post-acute withdrawal syndrome \u2013 weeks t..."
+    ],
+    "NON3PRS_VERB": [
+      "https://www.gratitudelodge.com/drug-info/stimulant-sedative/kratom/hydroxy-7/",
+      "The pronoun \u2018I\u2019 must be used with a non-third-person form of a verb.",
+      "...s still under consideration. Schedule I [[drugs]] are deemed to have no medical utility a..."
+    ],
+    "EN_COMPOUNDS_BINGE_EATING": [
+      "https://www.gratitudelodge.com/drug-info/vs/focalin-vs-adderall/",
+      "This word is normally spelled with a hyphen.",
+      "...fetamine. Vyvanse is also used to treat [[binge eating]] disorders in adults. Unlike Focalin, Vy..."
+    ],
+    "PHRASE_REPETITION": [
+      "https://www.gratitudelodge.com/drug-rehab/12-step/california/southern/los-angeles/hawaiian-gardens/",
+      "This phrase is duplicated. You should probably use \u201cGratitude Lodge\u201d only once.",
+      "...ith care and understanding. Learn About [[Gratitude Lodge Gratitude Lodge]] Rehab Admission Process: Step-by-Step S..."
+    ],
+    "STARS_AND_STEPS": [
+      "https://www.gratitudelodge.com/drug-rehab/12-step/california/southern/los-angeles/hawaiian-gardens/",
+      "\u201812 step\u2019 is missing a hyphen.",
+      "...discover value and organization through [[12 step]] rehab find encouragement along this pat..."
+    ],
+    "EN_MULTITOKEN_SPELLING_TWO": [
+      "https://www.gratitudelodge.com/drug-rehab/addiction-therapists-and-counselors/california/northern/orange-county/los-alamitos/",
+      "Possible spelling mistake found.",
+      "... searching for addiction treatment near [[Los Alamitos]] where the people in the room understand..."
+    ],
+    "EN_A_VS_AN": [
+      "https://www.gratitudelodge.com/drug-rehab/benzo/california/southern/orange-county/huntington-beach/",
+      "Use \u201can\u201d instead of \u2018a\u2019 if the following word starts with a vowel sound, e.g.\u00a0\u2018an article\u2019, \u2018an hour\u2019.",
+      "...dative misuse in 2023 . This represents [[a]] 8.5% from 2022 , contributing to overdo..."
+    ],
+    "PH_D": [
+      "https://www.gratitudelodge.com/drug-rehab/california/",
+      "The abbreviation is usually written \u201cPh.D.\u201d.",
+      "...B.S. 1 CADC 1 1 CADC-II 1 LMFT 1 LMHC 1 [[Ph. D]] 1 RADT 3 SUDCC II 1 SUDRC 2 Staff Membe..."
+    ],
+    "PLURAL_THAT_AGREEMENT": [
+      "https://www.gratitudelodge.com/drug-rehab/california/california-sober/",
+      "Possible subject-verb agreement error detected.",
+      "...ensitivity to addictive substances that [[makes]] moderation extremely difficult without ..."
+    ],
+    "VERB_NOUN_CONFUSION": [
+      "https://www.gratitudelodge.com/drug-rehab/cannabis/",
+      "When \u2018step-down\u2019 is used as a noun or modifier, it needs to be hyphenated.",
+      "...Intensive Outpatient Program (IOP) is a [[step down]] from PHP, usually involving 3 hours of ..."
+    ],
+    "EN_COMPOUNDS_ANTI_ANXIETY": [
+      "https://www.gratitudelodge.com/drug-rehab/cannabis/",
+      "This word is normally spelled as one.",
+      "...ions when appropriate (antidepressants, [[anti-anxiety]] medications, sleep aids, ADHD medicatio..."
+    ],
+    "EN_WORD_COHERENCY": [
+      "https://www.gratitudelodge.com/drug-rehab/cannabis/",
+      "Do not mix variants of the same word (\u2018standalone\u2019 and \u2018stand-alone\u2019) within a single text.",
+      "...tment plan that includes therapy, not a [[standalone]] solution. Holistic & Experiential Thera..."
+    ],
+    "AFFORD_VBG": [
+      "https://www.gratitudelodge.com/drug-rehab/emdr-therapy/california/southern/orange-county/santa-ana/",
+      "If \u2018learn\u2019 is used as a verb, it usually requires the infinitive.",
+      "... stabilization first: individuals learn [[grounding]] exercises and healthy coping mechanisms..."
+    ],
+    "ONE_PLURAL": [
+      "https://www.gratitudelodge.com/drug-rehab/emdr-therapy/california/southern/orange-county/santa-ana/",
+      "Please verify that the plural noun \u201cfacilities\u201d is in agreement with the quantifier \u201c1\u201d. Did you mean to use the singular form?",
+      "... full course of EMDR. Notably, at least [[1 facilities]] accept private insurance within 20, hel..."
+    ],
+    "COMMA_COMPOUND_SENTENCE_2": [
+      "https://www.gratitudelodge.com/drug-rehab/first-responders/california/southern/los-angeles/gardena/",
+      "Use a comma before \u201cand\u201d if it connects two independent clauses (unless they are closely connected and short).",
+      "... overwhelming pressures can be addressed[[ and]] a substance-free lifestyle can be recon..."
+    ],
+    "ADVISE_VBG": [
+      "https://www.gratitudelodge.com/drug-rehab/get-someone-inpatient-rehab/",
+      "The verb \u2018Help\u2019 is used with an infinitive.",
+      "...nce or flexible payment plans. Get Help [[Getting]] Someone into Rehab at Gratitude Lodge A..."
+    ],
+    "PRP_JJ": [
+      "https://www.gratitudelodge.com/drug-rehab/inpatient-rehab/",
+      "A verb may be missing after \u201cit\u201d. Please verify.",
+      "...wondering how long is inpatient rehab , [[it important]] to understand that all inpatient rehab ..."
+    ],
+    "APOS_ARE": [
+      "https://www.gratitudelodge.com/drug-rehab/inpatient-rehab/",
+      "Did you mean the plural noun \u201cclients\u201d instead of the possessive?",
+      "... variety of 12-step recovery resources. [[Client\u2019s]] are encouraged to find a sponsor or men..."
+    ],
+    "LOSE_LIVES": [
+      "https://www.gratitudelodge.com/drug-rehab/intervention/california/southern/orange-county/costa-mesa/",
+      "Did you mean \u201clives\u201d?",
+      "...nity When One \"Argument\" Can Save Their [[Life]] Many people hesitate before staging an ..."
+    ],
+    "NO_WHERE": [
+      "https://www.gratitudelodge.com/drug-rehab/iop/california/southern/los-angeles/lakewood/",
+      "Did you mean \u201cnowhere\u201d?",
+      "...slipping up or relapsing happens out of [[no where]]. They don\u2019t realize it builds gradually..."
+    ],
+    "IS_AND_ARE": [
+      "https://www.gratitudelodge.com/drug-rehab/meth/california/southern/los-angeles/redondo-beach/",
+      "Possible subject-verb agreement error.",
+      "...mphetamine dependency drains energy and [[focus]] Psychological health decline heightens ..."
+    ],
+    "HE_VERB_AGR": [
+      "https://www.gratitudelodge.com/drug-rehab/meth/california/southern/orange-county/garden-grove/",
+      "The singular proper name \u2018Lodge\u2019 must be used with a third-person or a past tense verb.",
+      "...abilitation services at Gratitude Lodge [[offer]] a fundamental approach toward achieving..."
+    ],
+    "POSSESSIVE_APOSTROPHE": [
+      "https://www.gratitudelodge.com/drug-rehab/rehab-for-couples/california/southern/los-angeles/lakewood/",
+      "An apostrophe may be missing.",
+      "...her element gets overlooked. Within our [[couples]] substance abuse program near Lakewood, ..."
+    ],
+    "MD_BASEFORM": [
+      "https://www.gratitudelodge.com/drug-rehab/rehab-for-couples/california/southern/los-angeles/long-beach/",
+      "The modal verb \u2018Can\u2019 requires the verb\u2019s base form.",
+      "...avings and withdrawal symptoms. How Can [[Couples]] Rehabilitation in Long Beach Transform ..."
+    ],
+    "IN_THE_MOMENT": [
+      "https://www.gratitudelodge.com/drug-rehab/sober-christmas/",
+      "Did you mean \u201cat the moment\u201d (=currently)?",
+      "...ions during social events. Stay present [[in the moment]], focus on the joy of the festivities, a..."
+    ],
+    "EN_COMPOUNDS_BINGE_DRINKING": [
+      "https://www.gratitudelodge.com/drug-rehab/sober-christmas/",
+      "This word is normally spelled with a hyphen.",
+      "... Lodge Whether you need help addressing [[binge drinking]] or you have relapsed during the holiday..."
+    ],
+    "EN_COMPOUNDS_POST_TRAUMATIC": [
+      "https://www.gratitudelodge.com/drug-rehab/veterans/california/southern/los-angeles/palos-verdes-estates/",
+      "This word is normally spelled with a hyphen.",
+      "...derlying mental health concerns such as [[post traumatic]] stress, depression, anxiety, and adjust..."
+    ],
+    "ESSENTIAL_ESSENTIALLY": [
+      "https://www.gratitudelodge.com/signs-of-drug-use/anti-inflammatory/nsaid/meloxicam/withdrawal/",
+      "Did you mean \u201cessentially\u201d?",
+      "...ch is why proper medical supervision is [[essential]] both during treatment and when disconti..."
+    ],
+    "EN_UNPAIRED_QUOTES": [
+      "https://www.gratitudelodge.com/signs-of-drug-use/depressant/alcohol/alcohol-related-skin-issues/",
+      "Unpaired symbol: \u2018\u201c\u2019 seems to be missing",
+      "... does too much alcohol affect the skin ?[[\u201d]] Sustained or excessive drinking can tri..."
+    ],
+    "OVER_TIME": [
+      "https://www.gratitudelodge.com/signs-of-drug-use/depressant/alcohol/cut-back-on-drinking/",
+      "Did you mean \u201covertime\u201d (=time someone works beyond normal working hours)?",
+      "...een each one. This helps you drink less [[over time]]. Eat before and while drinking : Eating..."
+    ],
+    "DO_VBZ": [
+      "https://www.gratitudelodge.com/signs-of-drug-use/stimulant-euphoric/meth/methamphetamine-eyes/",
+      "After the auxiliary verb \u2018do\u2019, use the base form of the main verb. Did you mean \u201ceye\u201d?",
+      "...ct with the help you need. What Do Meth [[Eyes]] Look Like? Meth eyes may exhibit variou..."
+    ],
+    "IF_IS": [
+      "https://www.gratitudelodge.com/signs-of-drug-use/stimulant-euphoric/methamphetamine/methylenedioxymethamphetamine-mdma/molly-ecstasy/overdose/",
+      "Did you mean \u201cis\u201d?",
+      "... be okay. Provide first aid if needed : [[If]] the person is unconscious but still bre..."
+    ],
+    "THE_QUESTION_WH": [
+      "https://www.gratitudelodge.com/signs-of-drug-use/stimulant/cns/methylphenidate/ritalin/withdrawal/",
+      "This sounds awkward in English. The standard is \u201cthe question of how\u201d.",
+      ".... Ritalin Withdrawal Timeline Regarding [[the question how]] long do Ritalin withdrawals last or how..."
+    ],
+    "CD_OF_MY_FRIEND": [
+      "https://www.gratitudelodge.com/signs-of-drug-use/stimulant/cns/methylphenidate/ritalin/withdrawal/",
+      "It appears that this noun need to be in plural form.",
+      "...at 844-576-0144 to talk with one of our [[caring]] and experienced admissions navigators. ..."
+    ]
+  },
+  "config": {
+    "disabled_rules": "MORFOLOGIK_RULE_EN_US",
+    "disabled_categories": "STYLE,REDUNDANCY,COLLOCATIONS,TYPOGRAPHY,CASING",
+    "noisy_prefix_filtered": "QB_NEW_EN"
+  }
+}
