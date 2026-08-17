@@ -1,0 +1,68 @@
+/* Plain CSS on purpose: one less build dependency to break, and the UI is a dense data table
+   rather than a marketing page. Dark/light both handled by CSS variables. */
+:root {
+  --bg: #f7f8fa; --panel: #ffffff; --ink: #16181d; --muted: #626878; --line: #e3e6ec;
+  --error: #c0362c; --warning: #a4690a; --info: #38618f; --ok: #197a4b;
+  --accent: #2f5fd0; --chip: #eef1f6;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14161a; --panel: #1c1f25; --ink: #e8eaee; --muted: #98a0b0; --line: #2a2f38;
+    --error: #ff6b5e; --warning: #e0a234; --info: #7fb0ee; --ok: #4cc98a;
+    --accent: #7aa2f7; --chip: #262b34;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+  font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+.wrap { max-width: 1500px; margin: 0 auto; padding: 0 20px 60px; }
+header.top { border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 20; }
+header.top .inner { max-width: 1500px; margin: 0 auto; padding: 12px 20px; display: flex; gap: 22px; align-items: center; }
+header.top h1 { font-size: 15px; margin: 0; font-weight: 650; letter-spacing: -0.01em; }
+nav a { color: var(--muted); font-weight: 550; padding: 6px 2px; }
+nav a.active { color: var(--ink); box-shadow: inset 0 -2px 0 var(--accent); }
+h2 { font-size: 18px; margin: 22px 0 12px; font-weight: 650; letter-spacing: -0.01em; }
+h3 { font-size: 14px; margin: 18px 0 8px; color: var(--muted); font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.04em; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+.cards { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(285px, 1fr)); }
+.card { padding: 14px 16px; }
+.card .code { font-weight: 700; font-size: 15px; letter-spacing: -0.01em; }
+.card .sub { color: var(--muted); font-size: 12px; margin-top: 1px; }
+.sevrow { display: flex; gap: 14px; margin-top: 12px; }
+.sevrow div { flex: 1; }
+.sevrow .n { font-size: 20px; font-weight: 680; letter-spacing: -0.02em; }
+.sevrow .l { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.e { color: var(--error); } .w { color: var(--warning); } .i { color: var(--info); }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--muted); padding: 9px 10px; border-bottom: 1px solid var(--line); font-weight: 600; }
+td { padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+.chip { display: inline-block; padding: 1px 7px; border-radius: 20px; background: var(--chip);
+  font-size: 11px; color: var(--muted); white-space: nowrap; }
+.badge { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+.controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 14px 0; }
+select, input[type=text], input[type=search], textarea, button {
+  font: inherit; color: var(--ink); background: var(--panel);
+  border: 1px solid var(--line); border-radius: 7px; padding: 6px 9px; }
+input[type=search] { min-width: 260px; }
+button { cursor: pointer; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+button:disabled { opacity: 0.5; cursor: default; }
+.muted { color: var(--muted); }
+.small { font-size: 12px; }
+.url { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px;
+  word-break: break-all; color: var(--muted); }
+.snippet { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px;
+  background: var(--chip); padding: 8px 10px; border-radius: 6px; white-space: pre-wrap;
+  word-break: break-word; }
+.empty { padding: 40px; text-align: center; color: var(--muted); }
+.pager { display: flex; gap: 8px; align-items: center; justify-content: flex-end; margin-top: 12px; }
+.spark { display: flex; gap: 2px; align-items: flex-end; height: 30px; margin-top: 10px; }
+.spark i { flex: 1; background: var(--accent); opacity: 0.55; border-radius: 1px; min-height: 2px; }
+.banner { padding: 10px 14px; border-radius: 8px; background: var(--chip); margin: 12px 0;
+  border-left: 3px solid var(--warning); }

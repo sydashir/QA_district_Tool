@@ -63,8 +63,13 @@ def _record_findings(session, brand: Brand, run: Run, result: dict) -> int:
 
 
 @app.task(name="audit_brand", queue="audits", pass_context=True)
-def audit_brand(context, brand_code: str) -> dict:
-    """Run one brand's audit. Hours long by design — the worker must not be time-limited."""
+def audit_brand(context, brand_code: str, run_id: int | None = None) -> dict:
+    """Run one brand's audit. Hours long by design — the worker must not be time-limited.
+
+    `run_id` is the row the API already created when it queued this job. The worker ADOPTS it
+    rather than inserting another, so a queued run is visible in the UI the moment it is queued
+    and the API's "already running?" guard has something to see.
+    """
     from auditor.audit import run_audit
     from auditor.config import load_brand
     from auditor.publish import EmptyAuditRefused
@@ -74,9 +79,12 @@ def audit_brand(context, brand_code: str) -> dict:
         if brand is None:
             raise ValueError(f"unknown brand {brand_code!r}")
         # written BEFORE the work starts, so a crash is visible rather than absent
-        run = Run(brand_id=brand.id, status="running",
-                  started_at=datetime.now(timezone.utc))
-        session.add(run)
+        run = session.get(Run, run_id) if run_id else None
+        if run is None:                       # scheduled/CLI trigger with no pre-made row
+            run = Run(brand_id=brand.id)
+            session.add(run)
+        run.status = "running"
+        run.started_at = datetime.now(timezone.utc)
         session.commit()
         run_id = run.id
 

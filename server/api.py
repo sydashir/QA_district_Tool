@@ -330,3 +330,89 @@ def checks(session: Session = Depends(get_session)) -> list[dict]:
         .where(Finding.status.in_(OPEN_STATUSES)).group_by(Finding.check)).all()
     return sorted(({"check": c, "label": CHECK_LABELS.get(c, c), "count": n} for c, n in rows),
                   key=lambda r: -r["count"])
+
+# --------------------------------------------------------------------------- actions
+class RunRequest(BaseModel):
+    reason: str | None = None
+
+
+@app.post("/api/brands/{code}/runs", status_code=202)
+def trigger_run(code: str, _body: RunRequest | None = None,
+                user: CurrentUser = Depends(get_current_user),
+                session: Session = Depends(get_session)) -> dict:
+    """Queue an audit. Returns 202 immediately — the job runs for HOURS, so this never blocks.
+
+    Refuses if the brand already has a run in flight. The queue's per-brand lock enforces this too,
+    but returning 409 here gives the UI something honest to say instead of silently queueing a
+    second job behind a six-hour one.
+    """
+    if user.role != "admin":
+        raise HTTPException(403, "only an admin can start a run")
+    brand = _brand_or_404(session, code)
+    in_flight = session.scalar(
+        select(func.count(Run.id)).where(Run.brand_id == brand.id,
+                                         Run.status.in_(("queued", "running"))))
+    if in_flight:
+        raise HTTPException(409, f"{brand.code} already has a run in progress")
+    # The run row is created HERE, not in the worker. Between deferring a job and a worker picking
+    # it up there is a window of minutes; if the row only appeared on pickup, the in-flight check
+    # above would see nothing and a second click would queue a duplicate audit of the same brand.
+    # Measured: it did exactly that before this change.
+    run = Run(brand_id=brand.id, status="queued")
+    session.add(run)
+    session.commit()
+    try:
+        from .jobs import app as job_app, audit_brand
+        # Procrastinate needs an open pool to defer. Per-request is fine at this volume (a handful
+        # of manual triggers a day) and avoids holding a pool inside the API process.
+        with job_app.open():
+            job_id = audit_brand.defer(brand_code=brand.code, run_id=run.id)
+    except Exception as e:                       # noqa: BLE001 — worker/queue may not be up
+        run.status, run.error_text = "failed", f"could not queue: {type(e).__name__}: {e}"
+        session.commit()
+        raise HTTPException(
+            503, f"could not queue the run — is the worker running? ({type(e).__name__}: {e})")
+    return {"queued": True, "brand": brand.code, "run_id": run.id, "job_id": job_id}
+
+
+@app.post("/api/export/sheet")
+def export_sheet(brand: str, dry_run: bool = True,
+                 user: CurrentUser = Depends(get_current_user),
+                 session: Session = Depends(get_session)) -> dict:
+    """Push the current open set to the Google Sheet.
+
+    The sheet stays as an EXPORT, not the interface — the team already has workflows built on it
+    and there is no reason to force them off. Defaults to dry_run so a mis-click cannot overwrite
+    a client-facing tab.
+    """
+    b = _brand_or_404(session, brand)
+    latest = _latest_run_ids(session).get(b.id)
+    if not latest:
+        raise HTTPException(404, f"{b.code} has no completed run to export")
+    run = session.get(Run, latest)
+    if not run.report_dir:
+        raise HTTPException(
+            409, f"{b.code}'s latest run has no report on disk to publish "
+                 f"(it was recorded via the API, not a file-based run)")
+    try:
+        from auditor.publish import publish_result
+        line = publish_result(b.code.lower(), {"report_dir": run.report_dir}, dry_run=dry_run)
+    except Exception as e:                       # noqa: BLE001 — creds/sheet may be absent locally
+        raise HTTPException(503, f"sheet export failed: {type(e).__name__}: {e}")
+    return {"brand": b.code, "dry_run": dry_run, "result": line}
+
+
+@app.get("/api/pages/new")
+def new_pages(brand: str, session: Session = Depends(get_session)) -> dict:
+    """Pages first seen in the latest run.
+
+    A brand-new page carrying a broken CTA is worse than an old one, so this is a first-class view
+    rather than a filter buried in the findings list.
+    """
+    b = _brand_or_404(session, brand)
+    latest = _latest_run_ids(session).get(b.id)
+    if not latest:
+        return {"brand": b.code, "run_id": None, "pages": []}
+    urls = [p.url for p in session.scalars(
+        select(Page).where(Page.brand_id == b.id, Page.first_seen_run_id == latest).limit(500))]
+    return {"brand": b.code, "run_id": latest, "count": len(urls), "pages": urls}
