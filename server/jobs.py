@@ -26,7 +26,9 @@ from procrastinate import App, PsycopgConnector
 from sqlalchemy import select
 
 from .db import SessionLocal
-from .models import Brand, Finding, Run, fp_hash
+from pathlib import Path
+
+from .models import Brand, Finding, Run
 
 PROCRASTINATE_DSN = os.getenv(
     "PROCRASTINATE_DSN", "postgresql://district:district@127.0.0.1:55432/district")
@@ -36,30 +38,16 @@ app = App(connector=PsycopgConnector(conninfo=PROCRASTINATE_DSN))
 OPEN_STATUSES = ("new", "persisting")
 
 
-def _record_findings(session, brand: Brand, run: Run, result: dict) -> int:
-    """Persist a completed run's findings. Same shape the importer writes, so history is uniform."""
-    rows = []
-    seen: set[str] = set()
-    for f in result.get("findings") or []:
-        fp = getattr(f, "fingerprint", None)
-        if not fp or fp in seen:
-            continue
-        seen.add(fp)
-        det = dict(getattr(f, "details", None) or {})
-        srcs = det.get("sources")
-        rows.append(Finding(
-            brand_id=brand.id, run_id=run.id, fingerprint=fp, fingerprint_hash=fp_hash(fp),
-            url=getattr(f, "url", "") or "", check=getattr(f, "check", "") or "",
-            severity=str(getattr(getattr(f, "severity", None), "value", "info")),
-            issue=getattr(f, "issue", "") or "", location=getattr(f, "location", None),
-            snippet=getattr(f, "snippet", None), suggestion=getattr(f, "suggestion", None),
-            details=det, status=getattr(f, "status", None),
-            first_seen=getattr(f, "first_seen", None), last_seen=getattr(f, "last_seen", None),
-            page_count=int(det.get("page_count") or (len(srcs) if isinstance(srcs, list) and srcs else 1)),
-            sources=srcs if isinstance(srcs, list) else None,
-        ))
-    session.bulk_save_objects(rows)
-    return len(rows)
+def _report_dir(result: dict) -> Path | None:
+    """Where run_audit wrote this run's report.
+
+    Read from `result["run"]["out_dir"]` — verified against auditor/audit.py's actual return value
+    rather than assumed. An earlier version of this file read `result["summary"]`, a key that does
+    not exist, and silently defaulted every piece of run metadata.
+    """
+    run_blob = result.get("run") or {}
+    out = run_blob.get("out_dir")
+    return Path(out) if out else None
 
 
 @app.task(name="audit_brand", queue="audits", pass_context=True)
@@ -107,17 +95,20 @@ def audit_brand(context, brand_code: str, run_id: int | None = None) -> dict:
         raise
 
     with SessionLocal() as session:
+        from .importer import load_report_into_run
         brand = session.scalar(select(Brand).where(Brand.code == brand_code.upper()))
         r = session.get(Run, run_id)
         r.status = "ok"
         r.finished_at = datetime.now(timezone.utc)
-        r.pages_audited = int(result.get("pages_audited") or 0)
-        summary = result.get("summary") or {}
-        r.pages_enumerated = int(summary.get("pages_enumerated") or 0)
-        r.history_written = bool(summary.get("history_written", True))
-        r.enumeration_method = "urls-file" if summary.get("urls_file") else "sitemap"
-        r.partial_sample = bool(summary.get("urls_file"))
-        n = _record_findings(session, brand, r, result)
+        d = _report_dir(result)
+        if d is None or not d.is_dir():
+            r.status, r.error_text = "failed", "the audit finished but wrote no report directory"
+            session.commit()
+            raise RuntimeError(r.error_text)
+        # Load from the REPORT ON DISK via the same function the backfill importer uses, so a run
+        # made through the product is byte-for-byte the same shape as an imported one — including
+        # the resolved tail, which the previous in-memory path silently dropped.
+        n = load_report_into_run(session, brand, r, d)
         session.commit()
 
     digest_for_run.defer(run_id=run_id)

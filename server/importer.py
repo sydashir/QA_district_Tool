@@ -87,34 +87,26 @@ def _run_dirs(code: str) -> list[Path]:
     return sorted(dirs, key=key)
 
 
-def import_run(session: Session, brand: Brand, d: Path) -> tuple[Run | None, int]:
-    """Import one report directory. Returns (run, n_findings) or (None, 0) if already present."""
-    rel = str(d.relative_to(REPO))
-    existing = session.scalar(select(Run).where(Run.brand_id == brand.id, Run.report_dir == rel))
-    if existing is not None:
-        return None, 0
+def load_report_into_run(session: Session, brand: Brand, run: Run, d: Path) -> int:
+    """Populate an EXISTING run row + its findings from a report directory on disk.
 
-    try:
-        summary = json.loads((d / "summary.json").read_text())
-    except (OSError, ValueError):
-        return None, 0
-
-    started = _parse_run_at(summary, d)
+    Shared by the backfill importer AND the worker, deliberately. The worker used to build its own
+    row from `run_audit`'s return value and got three things wrong, because that dict has no
+    `summary` key at all: it dropped the RESOLVED tail (so "fixed since last run" was always empty
+    for runs made through the product), left `report_dir` unset (so sheet export refused), and
+    defaulted enumeration_method/partial_sample — which would have mislabelled DBH's static-list
+    runs as full sitemap runs. One loader means the two paths cannot drift again.
+    """
+    summary = json.loads((d / "summary.json").read_text())
     scope = summary.get("audit_scope") or {}
-    run = Run(
-        brand_id=brand.id,
-        started_at=started,
-        finished_at=started,          # historical reports record one timestamp only
-        status="ok",
-        pages_audited=int(summary.get("pages_audited") or 0),
-        pages_enumerated=int(summary.get("pages_enumerated") or scope.get("union") or 0),
-        changed_components=summary.get("changed_components"),
-        history_written=bool(summary.get("history_written", True)),
-        enumeration_method="urls-file" if summary.get("urls_file") else "sitemap",
-        partial_sample=bool(summary.get("urls_file")) or not summary.get("history_written", True),
-        report_dir=rel,
-    )
-    session.add(run)
+    run.pages_audited = int(summary.get("pages_audited") or 0)
+    run.pages_enumerated = int(summary.get("pages_enumerated") or scope.get("union") or 0)
+    run.changed_components = summary.get("changed_components")
+    run.history_written = bool(summary.get("history_written", True))
+    run.enumeration_method = "urls-file" if summary.get("urls_file") else "sitemap"
+    run.partial_sample = (bool(summary.get("urls_file"))
+                          or not summary.get("history_written", True))
+    run.report_dir = str(d.relative_to(REPO)) if str(d).startswith(str(REPO)) else str(d)
     session.flush()
 
     n = 0
@@ -148,6 +140,23 @@ def import_run(session: Session, brand: Brand, d: Path) -> tuple[Run | None, int
             ))
             n += 1
     session.bulk_save_objects(rows)
+    return n
+
+
+def import_run(session: Session, brand: Brand, d: Path) -> tuple[Run | None, int]:
+    """Backfill one report directory as a NEW run. Skips one already imported."""
+    rel = str(d.relative_to(REPO))
+    if session.scalar(select(Run).where(Run.brand_id == brand.id, Run.report_dir == rel)):
+        return None, 0
+    try:
+        summary = json.loads((d / "summary.json").read_text())
+    except (OSError, ValueError):
+        return None, 0
+    started = _parse_run_at(summary, d)
+    run = Run(brand_id=brand.id, started_at=started, finished_at=started, status="ok")
+    session.add(run)
+    session.flush()
+    n = load_report_into_run(session, brand, run, d)
     return run, n
 
 
