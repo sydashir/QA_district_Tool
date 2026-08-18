@@ -29,6 +29,10 @@ MIN_BYTES="${MIN_BYTES:-1000000}"   # 1 MB; the real dump is ~40-60 MB compresse
 # e.g. BACKUP_DOCKER_SERVICE=db  ->  runs pg_dump inside that container.
 BACKUP_DOCKER_SERVICE="${BACKUP_DOCKER_SERVICE:-}"
 COMPOSE_DIR="${COMPOSE_DIR:-/opt/auditor}"
+# For a plain `docker run` container (what local dev uses): dump inside it by name.
+BACKUP_DOCKER_CONTAINER="${BACKUP_DOCKER_CONTAINER:-}"
+# Inside the container the server is local, whatever host/port the app uses to reach it.
+DSN_IN_CONTAINER="${DSN_IN_CONTAINER:-postgresql://district:district@127.0.0.1:5432/district}"
 
 # Optional off-box copy. Local-only backups do not survive the event most likely to need them.
 BACKUP_RSYNC_TARGET="${BACKUP_RSYNC_TARGET:-}"
@@ -49,8 +53,21 @@ mkdir -p "$BACKUP_DIR"
 
 # Only one backup at a time. Two overlapping pg_dumps would double the I/O for no benefit and could
 # interleave their retention passes.
-exec 9>"${BACKUP_DIR}/.backup.lock"
-flock -n 9 || die "another backup is already running"
+# Locking. `flock` is standard on Linux (the deploy target) but ABSENT on macOS, where a developer
+# will run this by hand. The first version treated a missing `flock` as "lock is held" and printed
+# "another backup is already running" — a lie that sends you hunting a job that does not exist.
+# Distinguish the two, and fall back to an atomic mkdir lock so the guarantee survives either way.
+LOCKDIR="${BACKUP_DIR}/.backup.lock.d"
+if command -v flock >/dev/null 2>&1; then
+  exec 9>"${BACKUP_DIR}/.backup.lock"
+  flock -n 9 || die "another backup is already running (lock held on ${BACKUP_DIR}/.backup.lock)"
+else
+  # mkdir is atomic on every POSIX filesystem, which is the property a lock needs.
+  if ! mkdir "$LOCKDIR" 2>/dev/null; then
+    die "another backup is already running (lock dir ${LOCKDIR} exists — remove it if stale)"
+  fi
+  trap 'rmdir "$LOCKDIR" 2>/dev/null || true' EXIT
+fi
 
 log "dumping to ${OUT}"
 
@@ -59,7 +76,12 @@ log "dumping to ${OUT}"
 # replay whole.
 #
 # pg_dump must be the same major version as the server (16) or newer — an older client refuses.
-if [[ -n "$BACKUP_DOCKER_SERVICE" ]]; then
+if [[ -n "$BACKUP_DOCKER_CONTAINER" ]]; then
+  # A plain `docker run` container (not compose-managed). Dumping INSIDE it guarantees the client
+  # matches the server major version, which pg_dump refuses to work without.
+  docker exec -i "$BACKUP_DOCKER_CONTAINER" \
+      pg_dump --format=custom --compress=6 --no-owner --no-privileges "$DSN_IN_CONTAINER" > "$OUT"
+elif [[ -n "$BACKUP_DOCKER_SERVICE" ]]; then
   # Dump inside the container (guaranteed matching client version), stream to the host.
   ( cd "$COMPOSE_DIR" && docker compose exec -T "$BACKUP_DOCKER_SERVICE" \
       pg_dump --format=custom --compress=6 --no-owner --no-privileges "$DSN" ) > "$OUT"
@@ -78,6 +100,9 @@ size=$(wc -c < "$OUT" | tr -d ' ')
 # is a structurally valid dump rather than a well-sized pile of bytes.
 if command -v pg_restore >/dev/null 2>&1; then
   pg_restore --list "$OUT" >/dev/null || die "dump failed its table-of-contents check — keeping old backups"
+elif [[ -n "$BACKUP_DOCKER_CONTAINER" ]]; then
+  docker exec -i "$BACKUP_DOCKER_CONTAINER" pg_restore --list < "$OUT" >/dev/null \
+    || die "dump failed its table-of-contents check — keeping old backups"
 elif [[ -n "$BACKUP_DOCKER_SERVICE" ]]; then
   ( cd "$COMPOSE_DIR" && docker compose exec -T "$BACKUP_DOCKER_SERVICE" pg_restore --list ) < "$OUT" >/dev/null \
     || die "dump failed its table-of-contents check — keeping old backups"
@@ -99,7 +124,12 @@ fi
 # Age-based, floored by count: anything older than RETENTION_DAYS goes, EXCEPT that the newest
 # MIN_KEEP files are never candidates. That floor is what makes a long run of failed backups
 # survivable.
-mapfile -t all < <(ls -1t "${BACKUP_DIR}"/district-*.dump 2>/dev/null || true)
+# Portable newest-first list. `mapfile` is bash 4+; macOS ships bash 3.2, where it does not exist
+# and retention would abort — leaving dumps to accumulate until the disk fills.
+all=()
+while IFS= read -r line; do
+  [[ -n "$line" ]] && all+=("$line")
+done < <(ls -1t "${BACKUP_DIR}"/district-*.dump 2>/dev/null || true)
 if (( ${#all[@]} > MIN_KEEP )); then
   for f in "${all[@]:MIN_KEEP}"; do
     if [[ -n "$(find "$f" -mtime "+${RETENTION_DAYS}" -print -quit 2>/dev/null)" ]]; then
