@@ -1,0 +1,48 @@
+# Nightly audit trigger.
+#
+# ------------------------------------------------------------------------------------------------
+# WHY A SYSTEMD TIMER AND NOT AN IN-PROCESS SCHEDULER
+#
+# Procrastinate ships @app.periodic, and using it would be one decorator instead of two unit files.
+# It is the wrong tool here for one reason: an in-process periodic task only fires if a worker
+# process was alive at the scheduled moment. If the box was rebooting, or the worker had crashed,
+# or a deploy was mid-restart at 02:00, the 02:00 tick simply never happens — and nothing anywhere
+# records that it did not. The next anyone hears of it is that the dashboard is a day stale.
+#
+# `Persistent=true` on a systemd timer inverts that. systemd stores the last trigger time on disk,
+# and at boot it compares it against the schedule: if a scheduled run was MISSED while the machine
+# was down, it REPLAYS it immediately instead of waiting for tomorrow. A night that was going to
+# vanish silently becomes a night that runs late — the difference between a stale dashboard nobody
+# noticed and an audit that happened.
+#
+# The same property is why the trigger is separate from the work: systemd only has to keep track of
+# a one-second enqueue, not of a seven-hour crawl.
+# ------------------------------------------------------------------------------------------------
+#
+# Install:  sudo systemctl enable --now auditor-nightly.timer
+# Check:    systemctl list-timers auditor-nightly.timer
+
+[Unit]
+Description=Nightly District Site Auditor run (02:00 Pacific)
+Documentation=file:///opt/auditor/deploy/README.md
+
+[Timer]
+# 02:00 PACIFIC, named zone rather than a UTC offset. The client's stated crawl window is 2am–5am
+# PST (CLAUDE.md §7 [f]), and a hardcoded UTC time drifts an hour out of that window twice a year
+# at the DST boundary. The trailing timezone needs systemd >= 252 (Debian 12, Ubuntu 24.04); on
+# anything older, set the BOX's timezone with `timedatectl set-timezone America/Los_Angeles` and
+# drop the suffix. Do not "fix" it by writing 10:00 UTC — that is correct only in winter.
+OnCalendar=*-*-* 02:00:00 America/Los_Angeles
+
+# Replay a run missed while the machine was down. This is the whole reason for using a timer.
+Persistent=true
+
+# Up to 15 minutes of jitter. Nine WordPress sites sit behind Cloudflare on shared hosting, and a
+# crawler that starts on the exact same second every night is both rude and easy to rate-limit.
+# It also stops a fleet-wide 02:00:00 thundering herd if this is ever run on more than one box.
+RandomizedDelaySec=900
+
+Unit=auditor-nightly.service
+
+[Install]
+WantedBy=timers.target

@@ -103,6 +103,47 @@ export interface FindingDetail {
   history: { run_id: number; at: string; status: string | null }[];
 }
 
+export interface StartRunResult {
+  queued: boolean;
+  brand: string;
+  run_id: number;
+  job_id: number;
+}
+
+/**
+ * An HTTP failure that kept the server's own wording.
+ *
+ * `POST /api/brands/{code}/runs` answers 409 when that brand already has a run queued or running.
+ * That is a normal answer, not a bug, and the UI has to be able to tell it apart from a real
+ * failure — so the status code has to survive as far as the screen.
+ */
+export class ApiError extends Error {
+  readonly status: number;
+  readonly detail: string;
+
+  constructor(status: number, detail: string) {
+    super(detail);
+    this.name = "ApiError";
+    this.status = status;
+    this.detail = detail;
+  }
+}
+
+/** FastAPI puts the human-readable reason in `detail`; a non-JSON body means it never reached the app. */
+async function apiError(res: Response, fallback: string): Promise<ApiError> {
+  let detail = fallback;
+  try {
+    const body: unknown = await res.json();
+    if (body !== null && typeof body === "object" && "detail" in body) {
+      const d: unknown = (body as { detail: unknown }).detail;
+      if (typeof d === "string" && d.trim() !== "") detail = d;
+    }
+  } catch {
+    // HTML error page from a proxy, or an empty body — the fallback is all we have.
+  }
+  return new ApiError(res.status, detail);
+}
+
 async function get<T>(path: string, params?: Record<string, string | number | undefined>): Promise<T> {
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(params ?? {})) {
@@ -124,6 +165,20 @@ export const api = {
   finding: (hash: string) => get<FindingDetail>(`/api/findings/${hash}`),
   runs: (p: { brand?: string; limit?: number }) => get<Run[]>("/api/runs", p),
   changes: (brand: string) => get<Changes>("/api/changes", { brand }),
+  /**
+   * Queue an audit. 202 means QUEUED, not finished — the crawl then runs for hours.
+   * 409 means that brand already has one in flight; 503 means the worker is not up to take it.
+   * Both arrive as an ApiError carrying the server's `detail`.
+   */
+  startRun: async (code: string): Promise<StartRunResult> => {
+    const res = await fetch(`/api/brands/${encodeURIComponent(code)}/runs`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    if (!res.ok) throw await apiError(res, `could not start a run for ${code} (${res.status})`);
+    return res.json() as Promise<StartRunResult>;
+  },
   setTriage: async (hash: string, body: { state: TriageState; note?: string | null }) => {
     const res = await fetch(`/api/triage/${hash}`, {
       method: "PATCH",
@@ -142,6 +197,32 @@ export async function fpHash(fingerprint: string): Promise<string> {
 }
 
 export const SEVERITY_ORDER: Severity[] = ["error", "warning", "info"];
+
+/**
+ * A run that has not produced a result yet. Statuses are queued | running | ok | failed | refused
+ * (server/models.py); the first two are in flight, and a brand may only have one of them at a time.
+ *
+ * These runs carry no findings, so nothing may read their counts as results.
+ */
+export function isInFlight(run: { status: string } | null | undefined): boolean {
+  return run != null && (run.status === "queued" || run.status === "running");
+}
+
+export function anyInFlight(runs: readonly Run[] | undefined): boolean {
+  return (runs ?? []).some(isInFlight);
+}
+
+/** Coarse on purpose: a crawl runs for hours, so seconds only carry information in the first minute. */
+export function fmtDuration(ms: number): string {
+  if (!Number.isFinite(ms)) return "—";
+  const total = Math.floor(Math.max(0, ms) / 1000);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
 
 export function fmtDate(s: string | null | undefined): string {
   if (!s) return "—";

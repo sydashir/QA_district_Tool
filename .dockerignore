@@ -1,0 +1,45 @@
+# Build context control. Without this the context is ~1 GB (reports 287 MB, cache 606 MB,
+# node_modules 78 MB — measured) and every `docker build` tars all of it before doing anything.
+#
+# cache/ and reports/ are deliberately excluded from the IMAGE and mounted as volumes instead:
+# they are per-machine runtime state, and baking a dev machine's resume cache into an image that
+# runs on the VM would be actively harmful.
+
+.git
+.gitignore
+
+# runtime state — mounted, never baked in
+cache/
+reports/
+spike/reports/
+*.log
+.run_in_progress
+
+# the frontend is built and served separately (see deploy/README.md) — none of it belongs
+# in the Python image
+web/
+
+# local-only / not runtime
+tests/
+docs/
+.claude/
+.playwright-mcp/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# secrets must never enter an image layer
+.env
+.env.*
+!.env.example
+
+SESSION_STATE.md
+WORKLOG.md
+dashboard.png
+findings-loaded.md
+.DS_Store

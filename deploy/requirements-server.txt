@@ -1,0 +1,33 @@
+# Deployment dependency set: the audit engine's runtime deps plus the product layer's.
+#
+# The engine's list is included rather than copied, so a change there reaches the image. It uses
+# `>=` by design (it is developed locally against current releases); the additions below are pinned
+# with `==` to the versions the 533-test suite and the live 263k-finding database were built
+# against. A full `pip freeze` lockfile is the honest next step and is NOT done here — flagging it
+# rather than pretending the tree is fully reproducible.
+-r ../requirements.txt
+
+# --- deps the ENGINE imports but requirements.txt omits ---------------------------------------
+# Found by grepping the imports, not assumed. Both fail at RUNTIME rather than at import, which is
+# why they survived unnoticed on a dev machine that had them installed for other reasons:
+#   auditor/nap.py:173    `import openpyxl`                        -> reads data/nap_snapshot.xlsx,
+#                                                                     the canonical phone numbers
+#   auditor/sheets.py:62  `from google.oauth2 import service_account` -> the Google Sheet export
+openpyxl==3.1.5
+google-auth==2.49.2
+
+# --- product layer (server/) -------------------------------------------------------------------
+fastapi==0.136.1
+# Plain uvicorn, not uvicorn[standard]: the `standard` extra pulls watchfiles (a reloader, i.e. a
+# dev dependency) and uvloop, and this API is low-traffic enough that the event-loop swap buys
+# nothing measurable.
+uvicorn==0.46.0
+sqlalchemy==2.0.49
+# server/db.py uses the `postgresql+psycopg://` driver (psycopg 3), and Procrastinate's
+# PsycopgConnector needs the connection pool extra. `binary` avoids needing libpq + a compiler in
+# the image.
+psycopg[binary,pool]==3.3.4
+procrastinate==3.9.0
+# Alembic owns the schema (migrations/, alembic.ini). It is a RUNTIME dependency of the deploy, not
+# a dev one: `alembic upgrade head` runs on the box during every release.
+alembic==1.19.1

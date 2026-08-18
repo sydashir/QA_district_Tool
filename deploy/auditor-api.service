@@ -1,0 +1,56 @@
+# District Site Auditor — HTTP API (non-Docker install).
+#
+# Install:  sudo cp deploy/auditor-api.service /etc/systemd/system/
+#           sudo systemctl daemon-reload && sudo systemctl enable --now auditor-api
+#
+# Assumes the layout in deploy/README.md: repo at /opt/auditor, venv at /opt/auditor/.venv,
+# environment in /etc/auditor/auditor.env, service account `auditor`.
+
+[Unit]
+Description=District Site Auditor API
+Documentation=file:///opt/auditor/deploy/README.md
+After=network-online.target postgresql.service
+Wants=network-online.target
+# Wants, not Requires. Requires would stop this unit whenever Postgres stops — including a routine
+# `apt upgrade` restart — and with the worker unit written the same way that would kill a live
+# six-hour crawl. SQLAlchemy's pool_pre_ping reconnects on its own once Postgres is back.
+Wants=postgresql.service
+
+[Service]
+Type=exec
+User=auditor
+Group=auditor
+
+# Required, not cosmetic. Several paths in this codebase are resolved relative to the repo root:
+# `runs.report_dir` stores repo-relative paths, and alembic.ini uses `prepend_sys_path = .`.
+WorkingDirectory=/opt/auditor
+
+EnvironmentFile=/etc/auditor/auditor.env
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+
+# Bound to loopback: public ingress is the Cloudflare tunnel, which is what enforces Access auth.
+# api.get_current_user() is still the local stub, so anything that reaches this port is an admin.
+ExecStart=/opt/auditor/.venv/bin/python -m uvicorn server.api:app --host 127.0.0.1 --port 8099
+
+Restart=always
+RestartSec=5
+
+# The API is stateless and fast to stop; nothing here is mid-flight worth waiting for.
+TimeoutStopSec=30
+
+# --- hardening ---------------------------------------------------------------------------------
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+# ProtectSystem=strict makes everything read-only, so the two directories the app genuinely writes
+# have to be named. reports/ is here because mail.send() parks undeliverable digests in
+# reports/_outbox when no SMTP host is configured.
+ReadWritePaths=/opt/auditor/reports /opt/auditor/cache
+
+[Install]
+WantedBy=multi-user.target

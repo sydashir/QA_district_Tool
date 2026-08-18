@@ -1,0 +1,49 @@
+# The nightly trigger's payload. Fired by auditor-nightly.timer — never enabled on its own.
+#
+# It only ENQUEUES; it returns in about a second. The audits themselves run in auditor-worker,
+# which is why this is Type=oneshot with a short timeout even though the work it starts takes
+# seven hours. Keeping the trigger and the work in separate units is what makes it safe to give
+# this unit a timeout at all.
+#
+# Install:  sudo cp deploy/auditor-nightly.{service,timer} /etc/systemd/system/
+#           sudo systemctl daemon-reload && sudo systemctl enable --now auditor-nightly.timer
+# Test:     sudo systemctl start auditor-nightly.service   # queues immediately, ignores the timer
+
+[Unit]
+Description=Queue the nightly District Site Auditor audits
+Documentation=file:///opt/auditor/deploy/README.md
+After=network-online.target auditor-api.service
+# The script talks to the API. If the API is down there is nothing to queue against, so start it —
+# but Wants, not Requires: a failed API should make this unit fail visibly, not refuse to run and
+# leave no trace in the journal.
+Wants=auditor-api.service
+
+[Service]
+Type=oneshot
+User=auditor
+Group=auditor
+WorkingDirectory=/opt/auditor
+EnvironmentFile=/etc/auditor/auditor.env
+Environment=PYTHONUNBUFFERED=1
+
+# The system python on purpose, not the venv: the script is stdlib-only so that a half-rebuilt or
+# broken venv cannot also break the nightly trigger.
+ExecStart=/usr/bin/python3 /opt/auditor/deploy/nightly_enqueue.py
+
+# Enqueueing eight brands is eight HTTP calls to loopback — normally under a second. The generous
+# window covers the boot-replay case, where the script waits up to ~50s for the API to finish
+# binding. If it has not finished in five minutes something is genuinely wrong, and failing is more
+# useful than hanging until 02:00 tomorrow.
+TimeoutStartSec=300
+
+# No Restart=. A oneshot that failed has already been recorded in the journal and by the
+# healthcheck ping; retrying it blindly at 02:05 would queue a second set of audits behind the
+# first if the failure was partial.
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+
+# No [Install] section. This unit is started BY the timer; enabling it directly would run the
+# audits once at boot and never again, which is the exact failure the timer exists to prevent.

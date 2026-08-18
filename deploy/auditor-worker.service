@@ -1,0 +1,82 @@
+# District Site Auditor — audit worker (non-Docker install).
+#
+# ONE worker, deliberately. Two would crawl the same client origin twice; the per-brand queue lock
+# prevents duplicate work on one brand but nothing stops two workers hammering two brands on the
+# same shared host, and MHD's origin already 503s at concurrency 4.
+#
+# Install:  sudo cp deploy/auditor-worker.service /etc/systemd/system/
+#           sudo systemctl daemon-reload && sudo systemctl enable --now auditor-worker
+
+[Unit]
+Description=District Site Auditor worker (long-running crawls)
+Documentation=file:///opt/auditor/deploy/README.md
+After=network-online.target postgresql.service
+Wants=network-online.target
+# Wants, not Requires — see auditor-api.service. A Postgres restart must not take a six-hour crawl
+# down with it.
+Wants=postgresql.service
+
+[Service]
+Type=exec
+User=auditor
+Group=auditor
+WorkingDirectory=/opt/auditor
+
+EnvironmentFile=/etc/auditor/auditor.env
+# Unbuffered output is what makes `journalctl -fu auditor-worker` show crawl progress live instead
+# of nothing for six hours.
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+
+ExecStart=/opt/auditor/.venv/bin/python -m server.worker
+
+Restart=always
+RestartSec=10
+
+# ------------------------------------------------------------------------------------------------
+# WHAT IS DELIBERATELY ABSENT — a normal job here runs for SIX HOURS.
+#
+#   RuntimeMaxSec   — would guillotine every RR crawl. There is no value that is both long enough
+#                     for RR (~8,000 pages, ~6h) and short enough to be a useful safety net.
+#   WatchdogSec     — the process does not call sd_notify, so any watchdog fires on a healthy run.
+#   TimeoutStartSec — Type=exec is ready the moment it execs; no start gate is wanted.
+#
+# Liveness is NOT systemd's job here. Procrastinate keeps a heartbeat row in
+# `procrastinate_workers`, and server/jobs.py::reconcile_orphaned_runs reads it at startup to mark
+# any run whose worker stopped beating as `failed`. That detects a dead worker without ever needing
+# a rule that mistakes a busy one for a dead one.
+# ------------------------------------------------------------------------------------------------
+
+# SIGTERM tells Procrastinate to stop accepting jobs and finish the current one. A six-hour job
+# will not finish inside any sane window, so this is a bounded compromise: 5 minutes lets the
+# in-flight page reach the resume cache, then systemd SIGKILLs. Survivable — the resume cache means
+# the next run keeps everything already crawled — but always check `GET /api/runs` for a `running`
+# row before restarting this unit.
+KillSignal=SIGTERM
+TimeoutStopSec=300
+
+# Soft cap, not a hard one. The box has 8 GB shared with Postgres, and audit.py holds page
+# projections in memory for the whole run, so a large brand is the one thing that could squeeze the
+# database. MemoryHigh THROTTLES (reclaim pressure) rather than killing; MemoryMax is deliberately
+# unset because an OOM kill at hour five is exactly the outcome to avoid. Raise if a big brand
+# starts thrashing.
+MemoryHigh=4G
+
+# The crawl is I/O-bound and politeness-limited; the API answering a human must win any CPU
+# contention.
+Nice=5
+
+# --- hardening ---------------------------------------------------------------------------------
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+# cache/ holds the resume cache, reports/ holds each run's output (and reports/_outbox holds
+# digests when SMTP is not configured). Everything else stays read-only.
+ReadWritePaths=/opt/auditor/reports /opt/auditor/cache
+
+[Install]
+WantedBy=multi-user.target

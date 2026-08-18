@@ -1,7 +1,9 @@
 import { useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { api, fmtDate, type Brand, type Run } from "../lib/api";
+import { anyInFlight, api, fmtDate, isInFlight, type Brand, type Run } from "../lib/api";
+import RunTrigger, { HOURS_WARNING, RUN_POLL_MS } from "../components/RunTrigger";
+import Elapsed from "../components/Elapsed";
 
 /** Wording for the one status that must never be mistaken for a clean result. */
 const REFUSED_EXPLANATION =
@@ -134,8 +136,18 @@ function RunRow({ run, brandName }: { run: Run; brandName: string | undefined })
           </div>
         ) : null}
 
-        {run.status === "running" || run.status === "queued" ? (
-          <div className="small muted">Not finished — these numbers are not final.</div>
+        {run.status === "running" ? (
+          <div className="small muted">
+            Running for <Elapsed since={run.started_at} />. Not finished — these numbers are not
+            final, and a full crawl takes hours.
+          </div>
+        ) : null}
+
+        {run.status === "queued" ? (
+          <div className="small muted">
+            Waiting <Elapsed since={run.started_at} /> for a free worker. Nothing has been checked
+            yet.
+          </div>
         ) : null}
 
         {run.status === "ok" && run.finished_at ? (
@@ -158,6 +170,20 @@ export default function Runs() {
   const runsQuery = useQuery<Run[]>({
     queryKey: ["runs", brand],
     queryFn: () => api.runs({ brand: brand || undefined, limit: 100 }),
+    // Poll only while something is actually queued or running. A crawl lasts hours, so an idle
+    // screen re-fetching forever buys nothing; the moment a run is in flight, the rows have to
+    // move on their own or the page looks frozen.
+    refetchInterval: (query) => (anyInFlight(query.state.data) ? RUN_POLL_MS : false),
+  });
+
+  // When the table is filtered to one brand it cannot see the other brands' runs — and the queue
+  // warning ("this starts after N others") is only truthful if it counts ALL of them. Unfiltered,
+  // the list above already IS the fleet view, so this second request is not made.
+  const fleetQuery = useQuery<Run[]>({
+    queryKey: ["runs", 200],
+    queryFn: () => api.runs({ limit: 200 }),
+    enabled: brand !== "",
+    refetchInterval: (query) => (anyInFlight(query.state.data) ? RUN_POLL_MS : false),
   });
 
   const brandNames = useMemo(() => {
@@ -177,6 +203,23 @@ export default function Runs() {
 
   const refusedCount = runs.filter((r) => r.status === "refused").length;
   const failedCount = runs.filter((r) => r.status === "failed").length;
+
+  // Newest-first in both sources, so the first in-flight run found for a brand is its current one.
+  const fleetRuns = useMemo(
+    () => (brand !== "" ? (fleetQuery.data ?? []) : runs),
+    [brand, fleetQuery.data, runs],
+  );
+
+  const inFlightByBrand = useMemo(() => {
+    const map = new Map<string, Run>();
+    for (const r of fleetRuns) if (isInFlight(r) && !map.has(r.brand)) map.set(r.brand, r);
+    return map;
+  }, [fleetRuns]);
+
+  const startable = useMemo(() => {
+    const all = brandsQuery.data ?? [];
+    return brand !== "" ? all.filter((b) => b.code === brand) : all;
+  }, [brandsQuery.data, brand]);
 
   function onBrandChange(next: string) {
     const params = new URLSearchParams(searchParams);
@@ -245,6 +288,63 @@ export default function Runs() {
           <span className="small muted">Refreshing…</span>
         ) : null}
       </div>
+
+      <h3>Start an audit</h3>
+
+      <p className="muted small" style={{ maxWidth: 860 }}>
+        {HOURS_WARNING} Nothing schedules these runs, so a brand is only ever audited when someone
+        starts it here.
+        {brand ? " Clear the brand filter above to start a different brand." : null}
+      </p>
+
+      <div className="panel">
+        {brandsQuery.isPending ? (
+          <div className="empty">Loading brands…</div>
+        ) : brandsQuery.isError ? (
+          <div className="empty">
+            The brand list could not be loaded, so there is nothing to start from here.
+          </div>
+        ) : startable.length === 0 ? (
+          <div className="empty">
+            {brand
+              ? `${brand} is not a configured brand, so it cannot be audited.`
+              : "No brands are configured yet."}
+          </div>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Brand</th>
+                <th>Audit</th>
+              </tr>
+            </thead>
+            <tbody>
+              {startable.map((b) => {
+                const mine = inFlightByBrand.get(b.code) ?? null;
+                return (
+                  <tr key={b.code}>
+                    <td style={{ whiteSpace: "nowrap" }}>
+                      <div>
+                        <strong>{b.code}</strong>
+                      </div>
+                      <div className="small muted">{b.name}</div>
+                    </td>
+                    <td>
+                      <RunTrigger
+                        brandCode={b.code}
+                        inFlight={mine}
+                        queueAhead={inFlightByBrand.size - (mine ? 1 : 0)}
+                      />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      <h3>History</h3>
 
       <div className="panel">
         {runsQuery.isPending ? (

@@ -1,0 +1,154 @@
+# One box, three containers: Postgres, the API, and ONE worker.
+#
+# There is deliberately no scheduler service. The nightly trigger is a systemd timer on the HOST
+# (deploy/auditor-nightly.timer) because a persistent timer replays a run that was missed while the
+# machine was down; nothing inside a container can do that. See deploy/README.md.
+#
+# The SPA in web/ is not a service here either — it is built to static files and served by the
+# reverse proxy / Cloudflare. Only Python runs in these containers.
+
+name: district-auditor
+
+# Shared blocks. A 6-hour crawl emits a lot of log lines and the box has an 80 GB disk; the default
+# json-file driver grows without limit, so both Python services cap their logs.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+# Everything the app reads from the environment lives in .env (start from .env.example).
+# `required: false` so `docker compose config` still validates on a machine that has not made one
+# yet, and so a var can also come from the host environment.
+x-app-env: &app-env
+  env_file:
+    - path: .env
+      required: false
+  environment:
+    # Built here rather than taken from .env: inside the compose network the host is the `db`
+    # service, not 127.0.0.1. `environment:` beats `env_file:` in compose, so the loopback values
+    # in .env (which are correct for a systemd install and for running tools on the box) are
+    # deliberately overridden here and nowhere else. SQLAlchemy needs the +psycopg driver;
+    # Procrastinate takes a plain libpq DSN.
+    DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-district}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-district}
+    PROCRASTINATE_DSN: postgresql://${POSTGRES_USER:-district}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-district}
+    # PINNED PATH, AND IT MATTERS. auditor/checks_version.py hashes this string itself as a
+    # component ("geodata_gfv_path"), because repointing the ACF-token ruleset IS a rule change.
+    # If this value ever changes, every brand's resume cache is invalidated and that run's diff
+    # reports `rule_changed` — correct behaviour, but a whole noisy cycle. Set it once, never move
+    # it, and keep it identical to the systemd units in deploy/.
+    GEODATA_SERVICES_DIR: /opt/geodata-services
+
+x-app-volumes: &app-volumes
+  volumes:
+    # cache/ is the resume cache — the single most expensive thing on this box to lose. It is a
+    # bind mount so it survives `docker compose down -v` and can be backed up with plain files.
+    - ./cache:/app/cache
+    # reports/ is the worker's output AND the API's input: `POST /api/export/sheet` reads the
+    # report the worker wrote (runs.report_dir holds a repo-relative path). If these two containers
+    # do not see the SAME directory, every sheet export 409s with "no longer on disk".
+    - ./reports:/app/reports
+    # data/nap_snapshot.xlsx — the canonical phone numbers. Gitignored, so it is not in the image.
+    - ./data:/app/data:ro
+    # The GeoData Fetcher's geo_field_validator.py, which the placeholder check importlib-loads.
+    # Exactly one file is needed; see deploy/README.md. The HOST path varies by machine, the
+    # CONTAINER path never does — that asymmetry is deliberate, because the container path is what
+    # gets hashed into checks_version.
+    #
+    # WARNING: docker creates this host directory if it is missing, so a typo here does not fail
+    # loudly — it produces an empty mount, and checks_version silently records the ruleset as
+    # MISSING. Verify with:  docker compose run --rm api ls /opt/geodata-services
+    - ${GEODATA_HOST_DIR:-/opt/geodata-services}:/opt/geodata-services:ro
+
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-district}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-district}
+    volumes:
+      # NAMED VOLUME. The data must survive `docker compose down` and any image change; a container
+      # filesystem does not. Restoring 263k findings from a dump is a 20-minute outage that should
+      # never be caused by recreating a container.
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      # Loopback only. Nothing on this box should be reachable from the internet except through the
+      # Cloudflare tunnel, and Postgres least of all. Port 55432 matches server/db.py's local
+      # default so the same tooling works on the box and on a laptop.
+      - "127.0.0.1:55432:5432"
+    healthcheck:
+      # A healthcheck IS right here: the API and worker must not start against a database that is
+      # still doing initdb, and Postgres genuinely answers in milliseconds when it is up.
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-district} -d ${POSTGRES_DB:-district}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    # Postgres' default 64 MB /dev/shm is small for parallel query workspace; the findings-count
+    # aggregates on 263k rows are the heaviest thing this database does.
+    shm_size: 256mb
+    logging: *logging
+
+  api:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    <<: [*app-env, *app-volumes]
+    ports:
+      # Loopback only — public ingress is the Cloudflare tunnel, which also carries Access auth.
+      # Binding 0.0.0.0 here would put an unauthenticated admin API on the public internet, since
+      # api.get_current_user() is still the local stub.
+      - "127.0.0.1:8099:8099"
+    healthcheck:
+      # /api/health does a real COUNT against the database, so this proves the whole path, not just
+      # that a socket is open. Uses python rather than curl to avoid installing curl in the image.
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8099/api/health',timeout=5).read()\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    logging: *logging
+
+  worker:
+    build: .
+    command: ["python3", "-m", "server.worker"]
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    <<: [*app-env, *app-volumes]
+
+    # ------------------------------------------------------------------------------------------
+    # NO HEALTHCHECK, ON PURPOSE. This is the one decision in this file that can destroy work.
+    #
+    # A healthy worker spends SIX HOURS inside a single job (RR is ~8,000 pages). It has no port,
+    # no HTTP surface and nothing cheap to probe, so any healthcheck would have to be a liveness
+    # heuristic — and every heuristic available here (process busy, no recent output, elapsed time)
+    # reads a normal RR crawl as a hang. Combined with a restart-on-unhealthy policy that means
+    # docker kills a legitimate run every night, forever, and the failure looks like a flaky site.
+    #
+    # The correct liveness signal already exists and is not a container concept: Procrastinate's
+    # own `procrastinate_workers.last_heartbeat` row. server/jobs.py::reconcile_orphaned_runs reads
+    # exactly that at worker startup and marks any run whose worker stopped beating as `failed`, so
+    # a genuinely dead worker is detected — after a restart, without ever killing a live one.
+    #
+    # `restart: unless-stopped` is the whole policy: restart if the process exits, never because
+    # something decided a busy worker looked unwell.
+    # ------------------------------------------------------------------------------------------
+
+    # SIGTERM makes Procrastinate stop taking new jobs and finish the current one. A 6-hour job
+    # will not finish inside any sane grace period, so this is a bounded compromise rather than a
+    # promise: 5 minutes is enough for the in-flight page to land in the resume cache, after which
+    # docker SIGKILLs. That is survivable — the resume cache means the next run re-uses everything
+    # already crawled, and reconcile_orphaned_runs marks the interrupted run `failed` rather than
+    # leaving it stuck in `running`. Still: check GET /api/runs for a `running` row before you stop
+    # this service, or you throw away hours of live crawling.
+    stop_grace_period: 5m
+    logging: *logging
+
+volumes:
+  pgdata:
