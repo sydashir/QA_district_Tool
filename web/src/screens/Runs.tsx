@@ -4,37 +4,13 @@ import { useQuery } from "@tanstack/react-query";
 import { anyInFlight, api, fmtDate, isInFlight, type Brand, type Run } from "../lib/api";
 import RunTrigger, { HOURS_WARNING, RUN_POLL_MS } from "../components/RunTrigger";
 import Elapsed from "../components/Elapsed";
+import RunStatus, { isNoResult, runStatusMeta } from "../components/RunStatus";
+import DataCaveat, { enumerationMeta } from "../components/DataCaveat";
+import QueryBoundary, { FailureNote } from "../components/QueryBoundary";
+import EmptyState from "../components/EmptyState";
 
-/** Wording for the one status that must never be mistaken for a clean result. */
-const REFUSED_EXPLANATION =
-  "could not be audited — the previous results are unchanged; this is NOT a clean result";
-
-interface StatusLook {
-  label: string;
-  cls: string;
-  title: string;
-}
-
-function statusLook(status: string): StatusLook {
-  switch (status) {
-    case "ok":
-      return { label: "Completed", cls: "badge", title: "The site was audited from end to end." };
-    case "failed":
-      return {
-        label: "Failed",
-        cls: "badge e",
-        title: "The run stopped before it finished. Anything below is incomplete.",
-      };
-    case "refused":
-      return { label: "Refused", cls: "badge e", title: `This brand ${REFUSED_EXPLANATION}.` };
-    case "running":
-      return { label: "Running", cls: "badge muted", title: "Still in progress. Numbers will change." };
-    case "queued":
-      return { label: "Queued", cls: "badge muted", title: "Waiting to start. Nothing checked yet." };
-    default:
-      return { label: status, cls: "badge muted", title: `Status reported as "${status}".` };
-  }
-}
+/** Every status word on this screen comes from RunStatus, so it matches the other screens exactly. */
+const REFUSED = runStatusMeta("refused");
 
 function num(n: number): string {
   return n.toLocaleString();
@@ -50,10 +26,13 @@ function NoResult({ title }: { title: string }) {
 }
 
 function RunRow({ run, brandName }: { run: Run; brandName: string | undefined }) {
-  const look = statusLook(run.status);
-  const refused = run.status === "refused";
-  const noResultTitle =
-    "This run produced no results. The counts you can see elsewhere are from the previous run.";
+  // Only an "ok" run produced numbers. A refused, failed or still-running row has zeros in the
+  // database, and printing "0 errors" against a run that never checked a page is the single most
+  // dangerous thing this table could do — so those cells show a dash and say why on hover.
+  const noResult = isNoResult(run.status);
+  const meta = runStatusMeta(run.status);
+  const noResultTitle = `${meta.explain} The counts you can see elsewhere are from the previous run.`;
+  const found = enumerationMeta(run.enumeration_method);
 
   return (
     <tr>
@@ -67,86 +46,62 @@ function RunRow({ run, brandName }: { run: Run; brandName: string | undefined })
       <td className="small">{fmtDate(run.started_at)}</td>
 
       <td>
-        <span className={look.cls} title={look.title}>
-          {look.label}
-        </span>
+        <RunStatus status={run.status} errorText={run.error_text} />
       </td>
 
       <td>
-        {refused ? (
-          <NoResult title="No pages were reached, so nothing was checked." />
+        {noResult ? (
+          <NoResult title={`${meta.explain} No page count was recorded.`} />
         ) : (
           num(run.pages_audited)
         )}
       </td>
 
-      <td className={refused || run.open_error === 0 ? undefined : "e"}>
-        {refused ? <NoResult title={noResultTitle} /> : num(run.open_error)}
+      <td className={noResult || run.open_error === 0 ? undefined : "e"}>
+        {noResult ? <NoResult title={noResultTitle} /> : num(run.open_error)}
       </td>
 
-      <td>{refused ? <NoResult title={noResultTitle} /> : num(run.new_count)}</td>
+      <td>{noResult ? <NoResult title={noResultTitle} /> : num(run.new_count)}</td>
 
       <td className="small">
-        {run.enumeration_method ? (
-          <span className="chip">{run.enumeration_method}</span>
-        ) : (
-          <span className="muted" title="Not recorded for this run.">
-            —
-          </span>
-        )}
+        <span className={run.enumeration_method ? "chip" : "muted"} title={found.title}>
+          {run.enumeration_method ? found.label : "—"}
+        </span>
       </td>
 
       <td>
-        {refused ? (
-          <div className="e small" title={`This brand ${REFUSED_EXPLANATION}.`}>
-            This brand {REFUSED_EXPLANATION}.
-          </div>
+        {/* The status in full words, with the server's own reason underneath. This is the column
+            somebody reads when a row does not say "Checked". */}
+        {noResult ? (
+          <RunStatus
+            status={run.status}
+            errorText={run.error_text}
+            variant="text"
+            withExplanation
+          />
         ) : null}
 
-        {run.status === "failed" && run.error_text ? (
-          <div className="snippet" style={{ marginTop: refused ? 6 : 0 }}>
-            {run.error_text}
-          </div>
-        ) : null}
+        {/* What this run did NOT cover, in the same words the dashboard and findings screens use. */}
+        <DataCaveat latest={run} kinds={["partial", "fixed_list"]} variant="inline" />
 
-        {refused && run.error_text ? (
-          <div className="snippet" style={{ marginTop: 6 }}>
-            {run.error_text}
-          </div>
-        ) : null}
-
-        {run.partial_sample || !run.history_written ? (
+        {!run.history_written ? (
           <div className="controls" style={{ margin: "6px 0 0" }}>
-            {run.partial_sample ? (
-              <span
-                className="chip w"
-                title="Only part of the site was checked on this run, so this is not a full picture of the brand."
-              >
-                partial sample
-              </span>
-            ) : null}
-            {!run.history_written ? (
-              <span
-                className="chip"
-                title="A sampled run deliberately does not move the comparison baseline, so the next run's new/fixed counts stay meaningful."
-              >
-                baseline not written
-              </span>
-            ) : null}
+            <span
+              className="chip"
+              title="A sampled run deliberately does not move the comparison baseline, so the next run's new/fixed counts stay meaningful."
+            >
+              baseline not written
+            </span>
           </div>
         ) : null}
 
         {run.status === "running" ? (
-          <div className="small muted">
-            Running for <Elapsed since={run.started_at} />. Not finished — these numbers are not
-            final, and a full crawl takes hours.
-          </div>
+          <div className="small muted">Running for <Elapsed since={run.started_at} /> so far.</div>
         ) : null}
 
         {run.status === "queued" ? (
           <div className="small muted">
-            Waiting <Elapsed since={run.started_at} /> for a free worker. Nothing has been checked
-            yet.
+            Waiting <Elapsed since={run.started_at} /> for a free worker.
           </div>
         ) : null}
 
@@ -234,19 +189,25 @@ export default function Runs() {
 
       <p className="muted small" style={{ maxWidth: 860 }}>
         A run is one pass of the auditor over a brand&rsquo;s website: it visits the pages, checks
-        them, and records what it found. Each row below is one of those passes, newest first. A run
-        marked <strong>Refused</strong> means the site {REFUSED_EXPLANATION} — the auditor never got
-        in, so it never looked at a single page.
+        them, and records what it found. Each row below is one of those passes, newest first. Only a
+        run marked <strong>{runStatusMeta("ok").label}</strong> produced numbers; every other row
+        shows a dash rather than a count, because it recorded no result at all.{" "}
+        <strong>{REFUSED.label}</strong> means the auditor never got in — the site was unreachable,
+        or gave no list of its pages — so not one page was looked at.{" "}
+        <strong>{runStatusMeta("failed").label}</strong> means the run stopped part-way. Neither is
+        a clean result: read them as &ldquo;we do not know&rdquo;.
       </p>
 
       {refusedCount > 0 || failedCount > 0 ? (
-        <div className="banner">
+        <div className="banner bad">
           <strong>
             {refusedCount > 0
-              ? `${refusedCount} run${refusedCount === 1 ? "" : "s"} refused`
+              ? `${refusedCount} run${refusedCount === 1 ? "" : "s"} could not be checked`
               : null}
             {refusedCount > 0 && failedCount > 0 ? " and " : null}
-            {failedCount > 0 ? `${failedCount} run${failedCount === 1 ? "" : "s"} failed` : null}
+            {failedCount > 0
+              ? `${failedCount} run${failedCount === 1 ? "" : "s"} did not finish`
+              : null}
           </strong>{" "}
           <span className="small">
             in this list. Those brands were not checked on those runs. Do not read them as
@@ -279,8 +240,8 @@ export default function Runs() {
 
         {brandsQuery.isError ? (
           <span className="small e">
-            Could not load the brand list ({(brandsQuery.error as Error).message}). The runs below
-            are unfiltered.
+            The brand list could not be loaded, so the runs below are unfiltered and show their
+            brand codes only. <FailureNote query={brandsQuery} label="the brand list" />
           </span>
         ) : null}
 
@@ -298,19 +259,29 @@ export default function Runs() {
       </p>
 
       <div className="panel">
-        {brandsQuery.isPending ? (
-          <div className="empty">Loading brands…</div>
-        ) : brandsQuery.isError ? (
-          <div className="empty">
-            The brand list could not be loaded, so there is nothing to start from here.
-          </div>
-        ) : startable.length === 0 ? (
-          <div className="empty">
-            {brand
-              ? `${brand} is not a configured brand, so it cannot be audited.`
-              : "No brands are configured yet."}
-          </div>
-        ) : (
+        <QueryBoundary
+          query={brandsQuery}
+          label="the brand list"
+          skeletonRows={3}
+          isEmpty={() => startable.length === 0}
+          empty={
+            <EmptyState
+              tone="warning"
+              title={
+                brand
+                  ? `${brand} is not a configured brand, so it cannot be audited.`
+                  : "No brands are configured yet."
+              }
+              detail={
+                brand
+                  ? "Clear the brand filter to see the brands that can be started."
+                  : "Nothing is set up to audit, so no site is being checked at all."
+              }
+              action={brand ? <button onClick={() => onBrandChange("")}>Clear filter</button> : undefined}
+            />
+          }
+        >
+          {() => (
           <table>
             <thead>
               <tr>
@@ -341,33 +312,36 @@ export default function Runs() {
               })}
             </tbody>
           </table>
-        )}
+          )}
+        </QueryBoundary>
       </div>
 
       <h3>History</h3>
 
       <div className="panel">
-        {runsQuery.isPending ? (
-          <div className="empty">Loading run history…</div>
-        ) : runsQuery.isError ? (
-          <div className="empty">
-            <div className="e">
-              <strong>Could not load the run history.</strong>
-            </div>
-            <div className="small" style={{ marginTop: 6 }}>
-              {(runsQuery.error as Error).message}
-            </div>
-            <div className="controls" style={{ justifyContent: "center" }}>
-              <button onClick={() => void runsQuery.refetch()}>Try again</button>
-            </div>
-          </div>
-        ) : runs.length === 0 ? (
-          <div className="empty">
-            {brand
-              ? `No runs recorded for ${brandNames.get(brand) ?? brand} yet. Nothing has audited this brand, which is not the same as this brand being clean.`
-              : "No runs recorded yet. Once the auditor has been run against a brand, every pass will be listed here."}
-          </div>
-        ) : (
+        <QueryBoundary
+          query={runsQuery}
+          label="the run history"
+          skeletonRows={5}
+          isEmpty={() => runs.length === 0}
+          empty={
+            <EmptyState
+              tone="warning"
+              title={
+                brand
+                  ? `${brandNames.get(brand) ?? brand} has never been audited.`
+                  : "No brand has ever been audited."
+              }
+              detail={
+                brand
+                  ? "Not one run has ever been recorded for this brand. Nothing on the site has been checked, which is not the same as the site being clean."
+                  : "No run of any kind has been recorded. Nothing schedules these runs, so a brand is only ever audited when somebody starts it above."
+              }
+              action={brand ? <button onClick={() => onBrandChange("")}>Clear filter</button> : undefined}
+            />
+          }
+        >
+          {() => (
           <table>
             <thead>
               <tr>
@@ -387,7 +361,8 @@ export default function Runs() {
               ))}
             </tbody>
           </table>
-        )}
+          )}
+        </QueryBoundary>
       </div>
 
       {runs.length > 0 ? (

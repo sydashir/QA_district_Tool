@@ -37,6 +37,7 @@ h3 { font-size: 14px; margin: 18px 0 8px; color: var(--muted); font-weight: 600;
 .sevrow .n { font-size: 20px; font-weight: 680; letter-spacing: -0.02em; }
 .sevrow .l { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
 .e { color: var(--error); } .w { color: var(--warning); } .i { color: var(--info); }
+.ok { color: var(--ok); }
 table { width: 100%; border-collapse: collapse; }
 th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;
   color: var(--muted); padding: 9px 10px; border-bottom: 1px solid var(--line); font-weight: 600; }
@@ -66,3 +67,115 @@ button:disabled { opacity: 0.5; cursor: default; }
 .spark i { flex: 1; background: var(--accent); opacity: 0.55; border-radius: 1px; min-height: 2px; }
 .banner { padding: 10px 14px; border-radius: 8px; background: var(--chip); margin: 12px 0;
   border-left: 3px solid var(--warning); }
+
+/* Loading / failed / empty states (components/QueryBoundary.tsx, components/EmptyState.tsx).
+   Every one of these says what it means — a blank panel would read as "audited, nothing wrong". */
+.empty strong { display: block; color: var(--ink); }
+.empty strong.e { color: var(--error); }
+.empty .state-detail { margin: 6px auto 0; max-width: 62ch; }
+.empty .controls { justify-content: center; margin: 12px 0 0; }
+/* The "this did not refresh" strip sits directly inside a .panel, so it needs its own inset. */
+.qb-stale { margin: 12px; }
+.skel { padding: 22px 18px; }
+.skel i { display: block; height: 11px; border-radius: 6px; background: var(--chip);
+  margin: 10px 0 0; animation: skel-pulse 1.4s ease-in-out infinite; }
+.skel i:nth-child(3n) { width: 72%; }
+.skel i:nth-child(4n) { width: 88%; }
+@keyframes skel-pulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .skel i { animation: none; } }
+
+/* Any wide element scrolls INSIDE its own box. Never let the page scroll sideways: a horizontal
+   body scrollbar hides the filter bar and the run banners, which are the two things that stop a
+   refused brand being read as a clean one. */
+.tscroll { overflow-x: auto; }
+
+/* ---- affected-page list (SourceList) ------------------------------------------------------ */
+.srclist .srcitems { margin: 10px 0 0; padding-left: 30px; }
+.srclist .srcitems li { margin-bottom: 3px; }
+.srclist .srcitems li::marker { color: var(--muted); font-size: 11px; }
+.srclist .srcitems .chip { margin-left: 6px; }
+/* A long list scrolls in its own box rather than burying the History and Triage sections. */
+.srclist .srcitems.tall { max-height: 60vh; overflow-y: auto; border: 1px solid var(--line);
+  border-radius: 8px; padding: 10px 10px 10px 34px; }
+.srclist .srcfilter { min-width: 0; flex: 1 1 240px; }
+
+/* ---- narrow viewports --------------------------------------------------------------------- */
+/* The findings table has six columns and cannot be read on a phone at any font size, so below
+   900px each row becomes a stacked card with its column name printed above each value. Nothing
+   is dropped — severity, issue, "on N pages" and the triage control all stay reachable. Tables
+   opt in with `.stack-sm`; a `td` without a `data-label` simply renders unlabelled rather than
+   breaking, so this degrades safely if a column is ever added without one. */
+@media (max-width: 900px) {
+  .stack-sm { display: block; }
+  .stack-sm thead { position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip-path: inset(50%); white-space: nowrap; }
+  .stack-sm tbody, .stack-sm tr, .stack-sm td { display: block; width: auto; }
+  .stack-sm tr { padding: 12px 14px; border-bottom: 1px solid var(--line); }
+  .stack-sm tr:last-child { border-bottom: 0; }
+  .stack-sm td { padding: 0; border: 0; }
+  .stack-sm td + td { margin-top: 10px; }
+  .stack-sm td[data-label]::before { content: attr(data-label); display: block; font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); font-weight: 600;
+    margin-bottom: 2px; }
+  /* Column widths are set inline as desktop `<th style>`; stacked cells must ignore them. */
+  .stack-sm td, .stack-sm th { width: auto !important; }
+  .stack-sm select { width: 100%; max-width: 340px; }
+  /* Findings.tsx truncates the URL to one 320px line inline. Stacked, there is room to wrap it,
+     and a wrapped address is far more use than an ellipsis. Inline styles need !important. */
+  .stack-sm td a.url { max-width: none !important; white-space: normal !important;
+    overflow: visible !important; text-overflow: clip !important; }
+}
+
+@media (max-width: 640px) {
+  .wrap { padding: 0 14px 48px; }
+  header.top .inner { padding: 10px 14px; gap: 6px 16px; flex-wrap: wrap; }
+  h2 { font-size: 17px; }
+  /* Full-width filter controls: a 260px min-width search box overflows a 375px phone. */
+  .controls > select, .controls > input[type=search] { width: 100%; min-width: 0; }
+  .cards { grid-template-columns: 1fr; }
+  .pager { justify-content: flex-start; }
+  .pager > select, .pager > button { flex: 0 0 auto; }
+  .empty { padding: 28px 16px; }
+  .srclist .srcitems { padding-left: 22px; }
+}
+/* "these numbers are not a result" — must not read as the same mild note as a partial sample. */
+.banner.bad { border-left-color: var(--error); }
+
+/* Keyboard focus must be visible everywhere. :focus-visible only paints for keyboard/AT users, so
+   this costs mouse users nothing. No border-radius here — changing it on focus makes controls
+   visibly twitch. */
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* A button that reads as a link. Used where the affordance belongs in a sentence but the action is
+   local state, not navigation — an <a> without an href is not focusable and lies about itself. */
+button.linkish { background: none; border: 0; padding: 0; color: var(--accent);
+  font: inherit; text-decoration: underline; cursor: pointer; }
+
+/* The one place in the product that is prose rather than a data table, so it gets a reading
+   measure — a 1500px line is measurably harder to read than a 90-character one. */
+.intro p { max-width: 92ch; }
+
+/* --- Explain: the in-product glossary (see components/Explain.tsx) ------------------------- */
+.explain { position: relative; display: inline-block; }
+.explain-btn { width: 16px; height: 16px; padding: 0; margin-left: 5px; border-radius: 50%;
+  border: 1px solid var(--muted); background: none; color: var(--muted);
+  font: 600 11px/1 ui-serif, Georgia, serif; text-transform: none; letter-spacing: 0;
+  vertical-align: middle; display: inline-flex; align-items: center; justify-content: center; }
+.explain-btn:hover { color: var(--ink); border-color: var(--ink); }
+.explain-btn[aria-expanded="true"] { color: #fff; background: var(--accent); border-color: var(--accent); }
+/* Fixed, so the findings table's overflow container cannot clip it. Every inherited text style a
+   <th> or a .badge would push down is reset here — this text is prose, wherever it is anchored. */
+.explain-pop { position: fixed; z-index: 60; width: 330px; max-width: calc(100vw - 16px);
+  max-height: 60vh; overflow-y: auto; display: block; padding: 12px 14px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 9px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.22);
+  font: 400 12.5px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  color: var(--ink); text-transform: none; letter-spacing: 0; text-align: left;
+  white-space: normal; vertical-align: baseline; }
+.explain-pop[hidden] { display: none; }
+.explain-title { display: block; font-weight: 700; font-size: 13px; margin-bottom: 6px; }
+.explain-row { display: block; margin-top: 6px; }
+/* Class-based, not :first-of-type — every child here is a <span>, so :first-of-type would match
+   the title and never the first row. */
+.explain-title + .explain-row { margin-top: 0; }
+.explain-row .badge { margin-right: 4px; }

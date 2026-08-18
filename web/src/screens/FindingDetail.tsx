@@ -8,6 +8,10 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, fmtDate } from "../lib/api";
 import type { FindingDetail as FindingDetailData, Severity, TriageState } from "../lib/api";
+import Explain from "../components/Explain";
+import SourceList from "../components/SourceList";
+import QueryBoundary, { describeFailure, FailureNote } from "../components/QueryBoundary";
+import EmptyState from "../components/EmptyState";
 
 function sevClass(s: Severity): string {
   return s === "error" ? "e" : s === "warning" ? "w" : "i";
@@ -50,8 +54,6 @@ function DetailValue({ value }: { value: unknown }) {
   if (typeof value === "object") return <pre className="snippet">{JSON.stringify(value, null, 2)}</pre>;
   return <>{String(value)}</>;
 }
-
-const MAX_SOURCES = 20;
 
 export default function FindingDetail() {
   const params = useParams<{ hash: string }>();
@@ -99,31 +101,27 @@ export default function FindingDetail() {
   if (hash === "") {
     return (
       <div className="wrap">
-        <div className="empty">No finding was specified. Open a defect from the findings list to see it here.</div>
+        <div className="panel">
+          <EmptyState
+            title="No defect was specified."
+            detail="Open a defect from the findings list to see it here."
+            action={<button onClick={() => navigate(-1)}>Go back</button>}
+          />
+        </div>
       </div>
     );
   }
 
-  if (findingQ.isLoading) {
+  // Loading, or failed outright. Either way there is no defect to show, and the boundary says
+  // which — a 404 here means the defect is gone, not that it was fixed.
+  if (d === undefined) {
     return (
       <div className="wrap">
-        <div className="empty">Loading this defect…</div>
-      </div>
-    );
-  }
-
-  if (findingQ.isError || !d) {
-    const msg = findingQ.error instanceof Error ? findingQ.error.message : "Unknown error";
-    return (
-      <div className="wrap">
-        <h2>Could not load this defect</h2>
-        <div className="panel card">
-          <div>The dashboard could not fetch this finding, so nothing below is being shown.</div>
-          <pre className="snippet" style={{ marginTop: 10 }}>{msg}</pre>
-          <div className="controls">
-            <button onClick={() => void findingQ.refetch()}>Try again</button>
-            <button onClick={() => navigate(-1)}>Go back</button>
-          </div>
+        <div className="panel">
+          <QueryBoundary query={findingQ} label="this defect" skeletonRows={4} />
+        </div>
+        <div className="controls">
+          <button onClick={() => navigate(-1)}>Go back</button>
         </div>
       </div>
     );
@@ -131,7 +129,6 @@ export default function FindingDetail() {
 
   const history = d.history;
   const sources = d.sources ?? [];
-  const shownSources = sources.slice(0, MAX_SOURCES);
   const detailEntries = Object.entries(d.details ?? {}).filter(([k]) => !SKIP_DETAIL_KEYS.has(k));
 
   // --- history summary -------------------------------------------------------------------
@@ -153,10 +150,18 @@ export default function FindingDetail() {
       </div>
 
       <div className="controls" style={{ margin: "4px 0 0" }}>
-        <span className={`badge ${sevClass(d.severity)}`}>{d.severity}</span>
+        <span>
+          <span className={`badge ${sevClass(d.severity)}`}>{d.severity}</span>
+          <Explain term="severity" />
+        </span>
         <span className="chip">{d.check_label}</span>
         <span className="chip">{d.brand}</span>
-        {d.page_count > 1 && <span className="chip">on {d.page_count.toLocaleString()} pages</span>}
+        {d.page_count > 1 && (
+          <span>
+            <span className="chip">on {d.page_count.toLocaleString()} pages</span>
+            <Explain term="pageCount" />
+          </span>
+        )}
       </div>
 
       <h2>{d.issue}</h2>
@@ -186,30 +191,12 @@ export default function FindingDetail() {
         <div className="small muted" style={{ marginTop: 4 }}>Opens the live page in a new tab.</div>
 
         {d.page_count > 1 && (
-          <>
-            <div style={{ marginTop: 14 }} className="small">
-              {sources.length === 0 ? (
-                <span className="muted">
-                  The full page list was not stored for this finding — only the example page above.
-                </span>
-              ) : (
-                <>
-                  Showing {shownSources.length.toLocaleString()} of {d.page_count.toLocaleString()} affected pages
-                  {sources.length < d.page_count && " — the stored list is truncated"}
-                  {sources.length > MAX_SOURCES && " — only the first 20 are listed here"}.
-                </>
-              )}
-            </div>
-            {shownSources.length > 0 && (
-              <ul style={{ margin: "8px 0 0", paddingLeft: 18 }}>
-                {shownSources.map((s) => (
-                  <li key={s} style={{ marginBottom: 2 }}>
-                    <a href={s} target="_blank" rel="noreferrer" className="url">{s}</a>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </>
+          <SourceList
+            sources={sources}
+            pageCount={d.page_count}
+            check={d.check}
+            exampleUrl={d.url}
+          />
         )}
       </div>
 
@@ -225,7 +212,11 @@ export default function FindingDetail() {
       <h3>History</h3>
       <div className="panel">
         {history.length === 0 ? (
-          <div className="empty">No run history has been recorded for this defect yet.</div>
+          <EmptyState
+            tone="warning"
+            title="No run history has been recorded for this defect yet."
+            detail="It was reported, but no run has been recorded against it — so there is nothing here that shows whether it has ever gone away."
+          />
         ) : (
           <>
             <div className="card" style={{ borderBottom: "1px solid var(--line)" }}>
@@ -237,8 +228,9 @@ export default function FindingDetail() {
               )}
               {runsQ.isError ? (
                 <div className="small muted" style={{ marginTop: 6 }}>
-                  Could not load this brand's run list, so the runs above have not been checked against
-                  every run of {d.brand}.
+                  Could not load this brand's run list, so the runs above have not been checked
+                  against every run of {d.brand} — a run that was refused or never covered this page
+                  would not be called out here. <FailureNote query={runsQ} label="the run list" />
                 </div>
               ) : completedSince.length > 0 && (
                 <div className="small" style={{ marginTop: 6 }}>
@@ -266,29 +258,34 @@ export default function FindingDetail() {
                 </div>
               )}
             </div>
-            <table>
-              <thead>
-                <tr>
-                  <th style={{ width: 90 }}>Run</th>
-                  <th style={{ width: 200 }}>When</th>
-                  <th>What the run recorded</th>
-                </tr>
-              </thead>
-              <tbody>
-                {history.map((h) => (
-                  <tr key={h.run_id}>
-                    <td>#{h.run_id}</td>
-                    <td>{fmtDate(h.at)}</td>
-                    <td>{historyStatusLabel(h.status)}</td>
+            <div className="tscroll">
+              <table className="stack-sm">
+                <thead>
+                  <tr>
+                    <th style={{ width: 90 }}>Run</th>
+                    <th style={{ width: 200 }}>When</th>
+                    <th>What the run recorded</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {history.map((h) => (
+                    <tr key={h.run_id}>
+                      <td data-label="Run">#{h.run_id}</td>
+                      <td data-label="When">{fmtDate(h.at)}</td>
+                      <td data-label="What the run recorded">{historyStatusLabel(h.status)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </>
         )}
       </div>
 
-      <h3>Triage</h3>
+      <h3>
+        Triage
+        <Explain term="triage" />
+      </h3>
       <div className="panel card">
         <div className="controls" style={{ marginTop: 0 }}>
           <label htmlFor="triage-state" className="small muted">Status</label>
@@ -302,10 +299,16 @@ export default function FindingDetail() {
             ))}
           </select>
         </div>
+        {/* A placeholder is not a label: it disappears the moment anyone types, and a screen reader
+            reaching this field with a value in it would announce nothing at all. */}
+        <label htmlFor="triage-note" className="small muted" style={{ display: "block", marginTop: 8 }}>
+          Note for the team
+        </label>
         <textarea
+          id="triage-note"
           value={noteValue}
           rows={4}
-          placeholder="Note for the team — who is fixing it, why it is a won't-fix, ticket number…"
+          placeholder="Who is fixing it, why it is a won't-fix, ticket number…"
           onChange={(e) => setDraft({ state: stateValue, note: e.target.value })}
           style={{ width: "100%", marginTop: 8 }}
         />
@@ -321,7 +324,8 @@ export default function FindingDetail() {
           {save.isSuccess && !dirty && <span className="small muted">Saved.</span>}
           {save.isError && (
             <span className="small e">
-              Not saved: {save.error instanceof Error ? save.error.message : "unknown error"}
+              Not saved — your triage is still only on this screen.{" "}
+              {describeFailure(save.error, "the triage change").detail}
             </span>
           )}
         </div>
@@ -334,24 +338,26 @@ export default function FindingDetail() {
       <h3>Details</h3>
       <div className="panel">
         {detailEntries.length === 0 ? (
-          <div className="empty">This check recorded no extra details beyond what is shown above.</div>
+          <EmptyState title="This check recorded no extra details beyond what is shown above." />
         ) : (
-          <table>
-            <thead>
-              <tr>
-                <th style={{ width: 200 }}>Field</th>
-                <th>Value</th>
-              </tr>
-            </thead>
-            <tbody>
-              {detailEntries.map(([k, v]) => (
-                <tr key={k}>
-                  <td className="muted">{k.replace(/_/g, " ")}</td>
-                  <td><DetailValue value={v} /></td>
+          <div className="tscroll">
+            <table className="stack-sm">
+              <thead>
+                <tr>
+                  <th style={{ width: 200 }}>Field</th>
+                  <th>Value</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {detailEntries.map(([k, v]) => (
+                  <tr key={k}>
+                    <td className="muted" data-label="Field">{k.replace(/_/g, " ")}</td>
+                    <td data-label="Value"><DetailValue value={v} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
         <div className="card small muted">
           Fingerprint <span className="url">{d.fingerprint}</span>

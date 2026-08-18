@@ -3,7 +3,12 @@ import { Link } from "react-router-dom";
 import { anyInFlight, api, fmtDate, isInFlight } from "../lib/api";
 import type { Brand, Run } from "../lib/api";
 import RunTrigger, { RUN_POLL_MS } from "../components/RunTrigger";
-import Elapsed from "../components/Elapsed";
+import RunStatus, { runStatusLabel } from "../components/RunStatus";
+import DataCaveat from "../components/DataCaveat";
+import Explain from "../components/Explain";
+import FirstRunHelp from "../components/FirstRunHelp";
+import QueryBoundary, { FailureNote } from "../components/QueryBoundary";
+import EmptyState from "../components/EmptyState";
 
 /**
  * Landing screen — "is anything on fire?".
@@ -21,28 +26,8 @@ import Elapsed from "../components/Elapsed";
 
 const HISTORY_BARS = 14;
 
-/** Statuses in server/models.py: queued | running | ok | failed | refused. */
-const STATUS_LABEL: Record<string, string> = {
-  ok: "Audited",
-  refused: "Could not be audited",
-  failed: "Run failed",
-  running: "Running now",
-  queued: "Waiting to start",
-};
-
-const STATUS_EXPLAIN: Record<string, string> = {
-  refused: "The site could not be reached, or gave us no list of its pages. Nothing was checked.",
-  failed: "The audit stopped with an error before it finished. Nothing was checked.",
-};
-
-function statusLabel(status: string | null): string {
-  if (!status) return "Never run";
-  return STATUS_LABEL[status] ?? status;
-}
-
-function errMessage(e: unknown): string {
-  return e instanceof Error ? e.message : String(e);
-}
+/* Status wording (queued | running | ok | failed | refused) lives in components/RunStatus, so this
+   screen cannot describe a refusal differently from the Runs table or the Findings header. */
 
 /** The whole card is a link; keep it reading as a card, not as blue link text. */
 const cardLink = { display: "block", color: "var(--ink)", textDecoration: "none" } as const;
@@ -59,6 +44,8 @@ interface BrandView {
   stale: boolean;
   /** No successful audit has ever completed — the zeros are not findings. */
   neverAudited: boolean;
+  /** The run history actually loaded. Without it we know nothing about the newest attempt. */
+  runsKnown: boolean;
 }
 
 function buildViews(brands: Brand[], runs: Run[] | undefined): BrandView[] {
@@ -81,6 +68,7 @@ function buildViews(brands: Brand[], runs: Run[] | undefined): BrandView[] {
       history: settled.slice(0, HISTORY_BARS).reverse(),
       stale: effectiveStatus !== null && effectiveStatus !== "ok" && brand.last_run_at !== null,
       neverAudited: brand.last_run_at === null,
+      runsKnown: runs !== undefined,
     };
   });
   return views.sort(
@@ -108,7 +96,7 @@ function Sparkline({ history }: { history: Run[] }) {
             title={
               ok
                 ? `${fmtDate(run.started_at)} — ${run.open_error} errors`
-                : `${fmtDate(run.started_at)} — ${statusLabel(run.status).toLowerCase()}, no results`
+                : `${fmtDate(run.started_at)} — ${runStatusLabel(run.status).toLowerCase()}, no results`
             }
           />
         );
@@ -118,10 +106,21 @@ function Sparkline({ history }: { history: Run[] }) {
 }
 
 function BrandCard({ view, queueAhead }: { view: BrandView; queueAhead: number }) {
-  const { brand, latest, inFlight, history, stale, neverAudited } = view;
+  const { brand, latest, inFlight, history, stale, neverAudited, runsKnown } = view;
   const status = latest ? latest.status : brand.last_run_status;
-  const explain = status ? STATUS_EXPLAIN[status] : undefined;
-  const blocked = status !== null && status !== "ok";
+
+  // What DataCaveat is allowed to assert about the counts on this card:
+  //   a run      -> that run is what the counts came from;
+  //   null       -> nothing has ever finished here, so the zeros mean "not checked yet";
+  //   undefined  -> we cannot tell (history not loaded, or the brand's last successful run is
+  //                 older than the window we fetched) — say nothing rather than guess.
+  const caveatLatest: Run | null | undefined = !runsKnown
+    ? undefined
+    : latest !== null
+      ? latest
+      : neverAudited
+        ? null
+        : undefined;
 
   return (
     // The card is a div rather than a link so the trigger can be a real <button>: a button nested
@@ -131,42 +130,14 @@ function BrandCard({ view, queueAhead }: { view: BrandView; queueAhead: number }
         <div className="code">{brand.code}</div>
         <div className="sub">{brand.name}</div>
 
-        {/* Warnings go ABOVE the numbers: a brand that could not be audited must never be read
-            as a brand that was audited and came back clean. */}
-        {blocked && (
-          <div className="banner small">
-            <strong className="e">{statusLabel(status)}</strong>
-            {explain ? ` ${explain}` : ""}
-            {stale && " The counts below are from the last successful audit and may be out of date."}
-          </div>
-        )}
-        {!blocked && neverAudited && (
-          <div className="banner small">
-            <strong className="e">Never audited.</strong> This brand has no completed run, so the zeros
-            below mean “not checked yet”, not “nothing wrong”.
-          </div>
-        )}
-
-        {/* An audit in progress changes nothing until it finishes — say so, or the numbers below
-            look like they are already moving. */}
-        {inFlight && (
-          <div className="banner small">
-            {inFlight.status === "running" ? (
-              <>
-                <strong>Audit running now</strong> — <Elapsed since={inFlight.started_at} /> so far.
-                A full crawl takes hours.{" "}
-                {neverAudited
-                  ? "There are no earlier results, so the zeros below still mean “not checked yet”."
-                  : "The counts below are from the last completed audit and do not move until it finishes."}
-              </>
-            ) : (
-              <>
-                <strong>Audit queued</strong> — waiting <Elapsed since={inFlight.started_at} /> for a
-                free worker. Nothing has been checked yet.
-              </>
-            )}
-          </div>
-        )}
+        {/* Caveats go ABOVE the numbers: a brand that could not be checked must never be read as
+            a brand that was checked and came back clean. Same component, same wording, on every
+            screen — see components/DataCaveat. */}
+        <DataCaveat
+          latest={caveatLatest}
+          inFlight={inFlight}
+          enumerationMode={brand.enumeration_mode}
+        />
 
         <div className="sevrow">
           <div>
@@ -195,32 +166,27 @@ function BrandCard({ view, queueAhead }: { view: BrandView; queueAhead: number }
           </span>
         </div>
 
+        {/* The newest attempt of ANY status, so a refusal cannot hide behind the last good run. */}
         <div className="small muted" style={{ marginTop: 8 }}>
-          {stale ? "Last successful audit: " : "Last run: "}
-          {fmtDate(brand.last_run_at)}
+          Latest run: {fmtDate(latest ? latest.started_at : brand.last_run_at)}
           {" · "}
-          <span className={blocked ? "e" : undefined}>{statusLabel(status)}</span>
+          <RunStatus status={status} errorText={latest?.error_text} variant="text" />
         </div>
+        {stale && (
+          <div className="small muted">
+            Last audit that finished: {fmtDate(brand.last_run_at)} — the counts above are from that one.
+          </div>
+        )}
 
         {history.length > 0 && <Sparkline history={history} />}
 
-        {(!brand.scheduled || brand.enumeration_mode === "urls_file" || latest?.partial_sample) && (
+        {/* Coverage caveats are stated above the counts by DataCaveat; the only thing left to say
+            down here is whether anything will ever run this brand on its own. */}
+        {!brand.scheduled && (
           <div style={{ marginTop: 10, display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {!brand.scheduled && (
-              <span className="chip" title="Nothing runs this brand automatically. It is only audited when someone starts a run by hand.">
-                not scheduled
-              </span>
-            )}
-            {brand.enumeration_mode === "urls_file" && (
-              <span className="chip" title="Pages come from a fixed list kept by hand, not from the site itself. Pages added to the site later are never discovered, so they are never audited.">
-                fixed page list
-              </span>
-            )}
-            {latest?.partial_sample && (
-              <span className="chip" title="This run covered only part of the site, so these counts are a sample and not the full picture.">
-                partial sample
-              </span>
-            )}
+            <span className="chip" title="Nothing runs this brand automatically. It is only audited when someone starts a run by hand.">
+              not scheduled
+            </span>
           </div>
         )}
       </Link>
@@ -241,39 +207,27 @@ export default function Dashboard() {
     refetchInterval: (query) => (anyInFlight(query.state.data) ? RUN_POLL_MS : false),
   });
 
-  if (brandsQ.isLoading) {
-    return (
-      <div className="wrap">
-        <h2>Overview</h2>
-        <div className="empty">Loading brands…</div>
-      </div>
-    );
-  }
-
-  if (brandsQ.isError) {
-    return (
-      <div className="wrap">
-        <h2>Overview</h2>
-        <div className="panel card">
-          <div className="badge e">Could not load brands</div>
-          <div className="small muted" style={{ marginTop: 6 }}>{errMessage(brandsQ.error)}</div>
-          <div className="controls">
-            <button onClick={() => void brandsQ.refetch()}>Try again</button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   const brands = brandsQ.data ?? [];
 
+  // No cards to draw yet — still loading, failed outright, or genuinely nothing configured. The
+  // boundary says WHICH, because a dashboard showing no brands in silence is indistinguishable
+  // from nine brands with nothing wrong.
   if (brands.length === 0) {
     return (
       <div className="wrap">
         <h2>Overview</h2>
-        <div className="empty">
-          No brands are set up yet. Once a brand is configured and audited at least once, it will
-          appear here.
+        <div className="panel">
+          <QueryBoundary
+            query={brandsQ}
+            label="the brand list"
+            skeletonRows={4}
+            empty={
+              <EmptyState
+                title="No brands are configured yet."
+                detail="Nothing is set up to be audited, so there is nothing to show here. This is not a clean bill of health for any site — no site has been looked at."
+              />
+            }
+          />
         </div>
       </div>
     );
@@ -294,15 +248,23 @@ export default function Dashboard() {
     <div className="wrap">
       <h2>Overview</h2>
 
+      <FirstRunHelp brands={brands} />
+
       <div className="panel card">
         <div className="sevrow">
           <div>
             <div className="n e">{totalErrors}</div>
-            <div className="l">Open errors, all brands</div>
+            <div className="l">
+              Open errors, all brands
+              <Explain term="openFindings" />
+            </div>
           </div>
           <div>
             <div className={totalUntriaged > 0 ? "n e" : "n"}>{totalUntriaged}</div>
-            <div className="l">Errors not looked at yet</div>
+            <div className="l">
+              Errors not looked at yet
+              <Explain term="triage" />
+            </div>
           </div>
           <div>
             <div className={notOk.length > 0 ? "n e" : "n"}>{notOk.length}</div>
@@ -311,11 +273,21 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* The cards below are drawn from data this browser already has, so a failed refresh must be
+          stated rather than hidden — otherwise stale numbers pass as current ones. */}
+      {brandsQ.isError && (
+        <div className="banner small">
+          <strong>The brand list did not refresh.</strong> Every number below is the copy this
+          browser loaded earlier and may be out of date.{" "}
+          <FailureNote query={brandsQ} label="the brand list" />
+        </div>
+      )}
+
       {runsQ.isError && (
         <div className="banner small">
           Run history could not be loaded, so the per-run charts are hidden and each brand shows its
           last <em>successful</em> audit. A brand that failed or was refused since then will look
-          healthier here than it is. ({errMessage(runsQ.error)})
+          healthier here than it is. <FailureNote query={runsQ} label="the run history" />
         </div>
       )}
 
@@ -335,7 +307,7 @@ export default function Dashboard() {
           {notOk
             .map((v) => {
               const status = v.latest ? v.latest.status : v.brand.last_run_status;
-              return `${v.brand.code} (${statusLabel(status).toLowerCase()})`;
+              return `${v.brand.code} (${runStatusLabel(status).toLowerCase()})`;
             })
             .join(", ")}
           . These sites were not checked, so their numbers below are either old or empty — not a

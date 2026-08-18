@@ -18,7 +18,8 @@ export default function App() {
       <header className="top">
         <div className="inner">
           <h1>District Site Auditor</h1>
-          <nav style={{ display: "flex", gap: 18 }}>
+          {/* Named, because a page can hold several <nav>s and a screen reader lists them by name. */}
+          <nav aria-label="Main" style={{ display: "flex", gap: 18 }}>
             {tabs.map((t) => (
               <NavLink key={t.to} to={t.to} end={t.end}
                 className={({ isActive }) => (isActive ? "active" : "")}>

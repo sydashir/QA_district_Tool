@@ -7,6 +7,9 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import { api, fmtDate, SEVERITY_ORDER } from "../lib/api";
 import type { ChangeRow, Run, Severity } from "../lib/api";
+import Explain from "../components/Explain";
+import QueryBoundary, { FailureNote } from "../components/QueryBoundary";
+import EmptyState from "../components/EmptyState";
 
 /** The API caps each list at 200 rows; say so rather than quietly truncating. */
 const ROW_CAP = 200;
@@ -28,10 +31,16 @@ function ChangeTable({ rows, pagesHeader }: { rows: ChangeRow[]; pagesHeader: st
       <table>
         <thead>
           <tr>
-            <th style={{ width: 90 }}>Severity</th>
+            <th style={{ width: 110 }}>
+              Severity
+              <Explain term="severity" />
+            </th>
             <th style={{ width: 190 }}>Kind of problem</th>
             <th>What it is</th>
-            <th style={{ width: 150 }}>{pagesHeader}</th>
+            <th style={{ width: 170 }}>
+              {pagesHeader}
+              <Explain term="pageCount" />
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -72,12 +81,14 @@ function Section({
   blurb,
   rows,
   emptyText,
+  emptyDetail,
   pagesHeader,
 }: {
   title: string;
   blurb: string;
   rows: ChangeRow[];
   emptyText: string;
+  emptyDetail: string;
   pagesHeader: string;
 }) {
   return (
@@ -88,7 +99,9 @@ function Section({
       <p className="muted small">{blurb}</p>
       {rows.length === 0 ? (
         <div className="panel">
-          <div className="empty">{emptyText}</div>
+          {/* Empty here is real news, not a gap: this run DID complete, and the list it produced
+              was empty. The caveats about incomplete runs are stated above, not here. */}
+          <EmptyState title={emptyText} detail={emptyDetail} />
         </div>
       ) : (
         <>
@@ -157,36 +170,23 @@ export default function Changes() {
     </div>
   );
 
-  if (brandsQ.isPending) {
-    return (
-      <>
-        <h2>What changed</h2>
-        <div className="panel">
-          <div className="empty">Loading brands…</div>
-        </div>
-      </>
-    );
-  }
-
-  if (brandsQ.isError) {
-    return (
-      <>
-        <h2>What changed</h2>
-        <div className="panel">
-          <div className="empty">
-            Could not load the brand list: {(brandsQ.error as Error).message}
-          </div>
-        </div>
-      </>
-    );
-  }
-
+  // Nothing to pick from: still loading, failed, or nothing configured. The boundary says which.
   if (brands.length === 0) {
     return (
       <>
         <h2>What changed</h2>
         <div className="panel">
-          <div className="empty">No brands are set up yet, so there is nothing to compare.</div>
+          <QueryBoundary
+            query={brandsQ}
+            label="the brand list"
+            skeletonRows={3}
+            empty={
+              <EmptyState
+                title="No brands are configured yet."
+                detail="There is nothing to compare, because nothing is set up to be audited."
+              />
+            }
+          />
         </div>
       </>
     );
@@ -207,6 +207,14 @@ export default function Changes() {
 
       {selector}
 
+      {brandsQ.isError && (
+        <div className="banner small">
+          <strong>The brand list did not refresh.</strong> The picker above is the copy this browser
+          loaded earlier, so a newly configured brand may be missing from it.{" "}
+          <FailureNote query={brandsQ} label="the brand list" />
+        </div>
+      )}
+
       {/* A newer attempt that did not complete must never be hidden behind older, cleaner numbers. */}
       {latestAttempt && latestAttempt.status !== "ok" && (
         <div className="banner">
@@ -222,27 +230,35 @@ export default function Changes() {
         </div>
       )}
 
-      {changesQ.isPending && (
+      {/* Loading, failed, or "no completed audit to compare" — all three are the absence of a
+          comparison, and all three must say so out loud rather than leave the page blank. */}
+      {(changesQ.isPending || changesQ.isError || data?.run_id === null) && (
         <div className="panel">
-          <div className="empty">Loading changes for {brand}…</div>
+          <QueryBoundary
+            query={changesQ}
+            label={`the changes for ${brand}`}
+            skeletonRows={4}
+            isEmpty={(d) => d.run_id === null}
+            empty={
+              <EmptyState
+                tone="warning"
+                title={`${brand} has no completed audit yet, so there is nothing to compare.`}
+                detail={`This is not "audited and clean" — the site has not been successfully checked at all.${
+                  latestAttempt
+                    ? ` Last attempt: ${fmtDate(latestAttempt.started_at)} — ${runStatusNote(latestAttempt)}`
+                    : ""
+                }`}
+              />
+            }
+          />
         </div>
       )}
 
-      {changesQ.isError && (
-        <div className="panel">
-          <div className="empty">
-            Could not load changes for {brand}: {(changesQ.error as Error).message}
-          </div>
-        </div>
-      )}
-
-      {data && data.run_id === null && (
-        <div className="panel">
-          <div className="empty">
-            {brand} has no completed audit yet, so there is nothing to compare against. This is not
-            "audited and clean" — the site has not been successfully checked at all.
-            {latestAttempt ? ` Last attempt: ${fmtDate(latestAttempt.started_at)} — ${runStatusNote(latestAttempt)}` : ""}
-          </div>
+      {runsQ.isError && (
+        <div className="banner small">
+          The run list could not be loaded, so this page cannot tell you whether a newer audit
+          failed or was refused since the comparison below.{" "}
+          <FailureNote query={runsQ} label="the run list" />
         </div>
       )}
 
@@ -285,7 +301,8 @@ export default function Changes() {
             title="New problems"
             blurb="These appeared in the latest run and were not there before. Errors first, then whatever affects the most pages — a high page count is usually one shared template fault, so it is one fix, not one per page."
             rows={data.new}
-            emptyText="No new problems in the latest run. Nothing broke since the previous audit."
+            emptyText="No new problems in the latest run."
+            emptyDetail="Nothing broke since the previous audit. Problems already on the list are still on it — this section only ever shows what is new."
             pagesHeader="Pages affected"
           />
 
@@ -293,7 +310,8 @@ export default function Changes() {
             title="Fixed since last run"
             blurb="These were reported before and are gone now — no action needed, this is the work paying off."
             rows={data.resolved}
-            emptyText="Nothing has dropped off the list since the previous run yet."
+            emptyText="Nothing has dropped off the list since the previous run."
+            emptyDetail="No problem reported last time has gone away — everything found before is still being found."
             pagesHeader="Pages it had affected"
           />
 
@@ -305,7 +323,10 @@ export default function Changes() {
           </p>
           {data.new_pages.length === 0 ? (
             <div className="panel">
-              <div className="empty">No new pages appeared in this run.</div>
+              <EmptyState
+                title="No new pages appeared in this run."
+                detail="Every page this run visited had been seen before."
+              />
             </div>
           ) : (
             <>
