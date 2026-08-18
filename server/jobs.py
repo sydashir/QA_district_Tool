@@ -102,7 +102,24 @@ def audit_brand(context, brand_code: str, run_id: int | None = None) -> dict:
         r.finished_at = datetime.now(timezone.utc)
         d = _report_dir(result)
         if d is None or not d.is_dir():
-            r.status, r.error_text = "failed", "the audit finished but wrote no report directory"
+            # No report written means run_audit found NOTHING TO AUDIT — enumeration returned zero
+            # URLs (host down, sitemap blocked, no page index). That is a REFUSAL, not a crash, and
+            # the difference is the whole point of the status: a brand that could not be checked
+            # must never read as a brand that was checked and found clean.
+            #
+            # The CLI gets this via publish's EmptyAuditRefused; the worker never calls publish, so
+            # it has to make the same judgement itself. Found by the acceptance run: MHD's degraded
+            # origin was recorded as `failed`, which reads like our bug rather than their outage.
+            pages = int(result.get("pages_audited") or 0)
+            if pages == 0:
+                r.status = "refused"
+                r.error_text = (
+                    "no pages could be enumerated, so nothing was audited. The website was "
+                    "unreachable or its page index is missing. Previous results are unchanged — "
+                    "this brand has NOT been given a clean bill of health.")
+                session.commit()
+                return {"run_id": run_id, "status": "refused"}
+            r.status, r.error_text = "failed", "the audit ran but wrote no report directory"
             session.commit()
             raise RuntimeError(r.error_text)
         # Load from the REPORT ON DISK via the same function the backfill importer uses, so a run
@@ -138,3 +155,54 @@ def digest_for_run(run_id: int) -> dict:
         subject, body = render_digest(brand, run, new_errors)
         sent = send(subject, body)
         return {"sent": sent, "subject": subject, "new_errors": len(new_errors)}
+
+
+def reconcile_orphaned_runs(stale_after_seconds: int = 60) -> int:
+    """Mark runs abandoned by a dead worker, so nothing sits in `running` forever.
+
+    The signal is the WORKER HEARTBEAT, not elapsed time. RR legitimately crawls for six hours, so
+    duration can never distinguish "still working" from "died" — but a live worker keeps beating in
+    `procrastinate_workers` and a dead one stops. A job still claiming `doing` whose worker has no
+    live heartbeat is abandoned.
+
+    Expressed in SQL rather than via `job_manager.get_stalled_jobs`, which is async-only in
+    procrastinate 3.9 and would mean running an event loop inside sync worker startup.
+
+    Safe with multiple workers: a job whose worker is still beating is left completely alone, so a
+    healthy long crawl is never killed.
+
+    Found by the acceptance run — a worker killed mid-crawl left RR `running` indefinitely, which
+    on the dashboard is indistinguishable from a normal six-hour RR crawl.
+    """
+    from sqlalchemy import text as sql_text
+
+    with SessionLocal() as session:
+        abandoned = session.execute(sql_text("""
+            SELECT j.id, (j.args->>'run_id')::int AS run_id
+            FROM procrastinate_jobs j
+            LEFT JOIN procrastinate_workers w ON w.id = j.worker_id
+            WHERE j.status = 'doing'
+              AND (w.id IS NULL
+                   OR w.last_heartbeat < now() - make_interval(secs => :stale))
+        """), {"stale": stale_after_seconds}).all()
+
+        n = 0
+        for job_id, run_id in abandoned:
+            if run_id:
+                r = session.get(Run, int(run_id))
+                if r is not None and r.status in ("running", "queued"):
+                    r.status = "failed"
+                    r.finished_at = datetime.now(timezone.utc)
+                    r.error_text = (
+                        "the audit was interrupted and did not finish — the worker stopped "
+                        "(restart, deploy or crash). No results were recorded for it, and the "
+                        "previous run's results are unchanged. Start it again when ready.")
+                    n += 1
+            # retire the job: the run is restarted from scratch, never resumed half-done
+            session.execute(sql_text(
+                "UPDATE procrastinate_jobs SET status='failed' WHERE id = :jid"), {"jid": job_id})
+        session.commit()
+
+    if n:
+        print(f"[startup] marked {n} interrupted run(s) as failed", flush=True)
+    return n

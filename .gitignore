@@ -31,3 +31,6 @@ spike/reports/
 .claude/
 data/
 .run_in_progress
+.playwright-mcp/
+dashboard.png
+findings-loaded.md
