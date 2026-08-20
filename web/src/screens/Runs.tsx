@@ -46,7 +46,11 @@ function RunRow({ run, brandName }: { run: Run; brandName: string | undefined })
       <td className="small">{fmtDate(run.started_at)}</td>
 
       <td>
-        <RunStatus status={run.status} errorText={run.error_text} />
+        <RunStatus
+          status={run.status}
+          errorText={run.error_text}
+          cancelRequested={run.cancel_requested}
+        />
       </td>
 
       <td>
@@ -76,6 +80,7 @@ function RunRow({ run, brandName }: { run: Run; brandName: string | undefined })
           <RunStatus
             status={run.status}
             errorText={run.error_text}
+            cancelRequested={run.cancel_requested}
             variant="text"
             withExplanation
           />
@@ -158,6 +163,10 @@ export default function Runs() {
 
   const refusedCount = runs.filter((r) => r.status === "refused").length;
   const failedCount = runs.filter((r) => r.status === "failed").length;
+  // Counted apart from the two above, and shown without the red treatment, because nothing went
+  // wrong here — somebody chose to stop it, usually to get a slow brand out of the single worker's
+  // way. It still has to be called out, though: the brand was left part-checked either way.
+  const stoppedCount = runs.filter((r) => r.status === "cancelled").length;
 
   // Newest-first in both sources, so the first in-flight run found for a brand is its current one.
   const fleetRuns = useMemo(
@@ -194,8 +203,10 @@ export default function Runs() {
         shows a dash rather than a count, because it recorded no result at all.{" "}
         <strong>{REFUSED.label}</strong> means the auditor never got in — the site was unreachable,
         or gave no list of its pages — so not one page was looked at.{" "}
-        <strong>{runStatusMeta("failed").label}</strong> means the run stopped part-way. Neither is
-        a clean result: read them as &ldquo;we do not know&rdquo;.
+        <strong>{runStatusMeta("failed").label}</strong> means the run stopped part-way.{" "}
+        <strong>{runStatusMeta("cancelled").label}</strong> means somebody stopped it on purpose, so
+        the pages it had not reached were never looked at. None of the three is a clean result: read
+        them as &ldquo;we do not know&rdquo;.
       </p>
 
       {refusedCount > 0 || failedCount > 0 ? (
@@ -212,6 +223,22 @@ export default function Runs() {
           <span className="small">
             in this list. Those brands were not checked on those runs. Do not read them as
             &ldquo;nothing wrong&rdquo; — read them as &ldquo;we do not know&rdquo;.
+          </span>
+        </div>
+      ) : null}
+
+      {stoppedCount > 0 ? (
+        <div className="banner">
+          <strong>
+            {stoppedCount === 1
+              ? "1 run was stopped before it finished"
+              : `${stoppedCount} runs were stopped before they finished`}
+          </strong>{" "}
+          <span className="small">
+            in this list. Nothing went wrong — somebody stopped{" "}
+            {stoppedCount === 1 ? "it" : "them"} on purpose — but{" "}
+            {stoppedCount === 1 ? "that site was" : "those sites were"} left only partly checked, so
+            the pages the run never reached were never looked at. Previous findings are unchanged.
           </span>
         </div>
       ) : null}
@@ -301,10 +328,14 @@ export default function Runs() {
                       <div className="small muted">{b.name}</div>
                     </td>
                     <td>
+                      {/* The brand's own page cap comes straight from /api/brands, so the button
+                          can say "sample" before it is pressed rather than after. The server still
+                          resolves the real cap when the run is created — this copy is wording only. */}
                       <RunTrigger
                         brandCode={b.code}
                         inFlight={mine}
                         queueAhead={inFlightByBrand.size - (mine ? 1 : 0)}
+                        defaultSampleSize={b.default_sample_size}
                       />
                     </td>
                   </tr>

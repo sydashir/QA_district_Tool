@@ -26,8 +26,9 @@ import EmptyState from "../components/EmptyState";
 
 const HISTORY_BARS = 14;
 
-/* Status wording (queued | running | ok | failed | refused) lives in components/RunStatus, so this
-   screen cannot describe a refusal differently from the Runs table or the Findings header. */
+/* Status wording (queued | running | ok | failed | refused | cancelled) lives in components/RunStatus,
+   so this screen cannot describe a refusal — or a run somebody stopped — differently from the Runs
+   table or the Findings header. */
 
 /** The whole card is a link; keep it reading as a card, not as blue link text. */
 const cardLink = { display: "block", color: "var(--ink)", textDecoration: "none" } as const;
@@ -191,7 +192,16 @@ function BrandCard({ view, queueAhead }: { view: BrandView; queueAhead: number }
         )}
       </Link>
 
-      <RunTrigger brandCode={brand.code} inFlight={inFlight} queueAhead={queueAhead} compact />
+      {/* `default_sample_size` is passed so the card's own button says "sample" for a brand that is
+          never audited in full. Without it the dashboard would offer "Run audit now" for MHD, which
+          is the one sentence this product must never print about a capped brand. */}
+      <RunTrigger
+        brandCode={brand.code}
+        inFlight={inFlight}
+        queueAhead={queueAhead}
+        defaultSampleSize={brand.default_sample_size}
+        compact
+      />
     </div>
   );
 }

@@ -60,6 +60,9 @@ class BrandOut(BaseModel):
     base_url: str
     enumeration_mode: str
     scheduled: bool
+    # None = this brand's origin can take a full census. A number means it cannot, and every run
+    # caps there unless a human overrides it. Only MHD has one today (see `trigger_run`).
+    default_sample_size: int | None = None
     last_run_at: datetime | None = None
     last_run_status: str | None = None
     open_error: int = 0
@@ -104,6 +107,12 @@ class RunOut(BaseModel):
     enumeration_method: str | None
     partial_sample: bool
     history_written: bool
+    # The cap this run actually started with; None = it went for a full census. Reported so
+    # "1,204 pages audited" can never be read as "the whole site is clean" when it was a sample.
+    max_pages: int | None = None
+    # A human asked for this run to stop. On a `running` run this is the only visible sign, because
+    # a crawl in flight is not abortable — see `cancel_run`.
+    cancel_requested: bool = False
     open_error: int = 0
     new_count: int = 0
     error_text: str | None = None
@@ -149,7 +158,8 @@ def list_brands(session: Session = Depends(get_session)) -> list[BrandOut]:
         run_id = latest.get(brand.id)
         b = BrandOut(code=brand.code, name=brand.name, base_url=brand.base_url,
                      enumeration_mode=brand.enumeration_mode,
-                     scheduled=bool(brand.schedule_cron))
+                     scheduled=bool(brand.schedule_cron),
+                     default_sample_size=brand.default_sample_size)
         if run_id:
             run = session.get(Run, run_id)
             b.last_run_at, b.last_run_status = run.started_at, run.status
@@ -295,7 +305,8 @@ def list_runs(brand: str | None = None, limit: int = Query(50, le=200),
             id=run.id, brand=code, started_at=run.started_at, finished_at=run.finished_at,
             status=run.status, pages_audited=run.pages_audited,
             enumeration_method=run.enumeration_method, partial_sample=run.partial_sample,
-            history_written=run.history_written, open_error=errs,
+            history_written=run.history_written, max_pages=run.max_pages,
+            cancel_requested=bool(run.cancel_requested), open_error=errs,
             new_count=counts.get("new", 0), error_text=run.error_text))
     return out
 
@@ -332,12 +343,18 @@ def checks(session: Session = Depends(get_session)) -> list[dict]:
                   key=lambda r: -r["count"])
 
 # --------------------------------------------------------------------------- actions
+# A run in one of these has already stopped, whatever the reason. Nothing can be cancelled.
+TERMINAL_RUN_STATUSES = ("ok", "failed", "refused", "cancelled")
+
+
 class RunRequest(BaseModel):
     reason: str | None = None
+    # A page cap for THIS run only. Omit it to get the brand's own default (see `trigger_run`).
+    max_pages: int | None = None
 
 
 @app.post("/api/brands/{code}/runs", status_code=202)
-def trigger_run(code: str, _body: RunRequest | None = None,
+def trigger_run(code: str, body: RunRequest | None = None,
                 user: CurrentUser = Depends(get_current_user),
                 session: Session = Depends(get_session)) -> dict:
     """Queue an audit. Returns 202 immediately — the job runs for HOURS, so this never blocks.
@@ -345,10 +362,30 @@ def trigger_run(code: str, _body: RunRequest | None = None,
     Refuses if the brand already has a run in flight. The queue's per-brand lock enforces this too,
     but returning 409 here gives the UI something honest to say instead of silently queueing a
     second job behind a six-hour one.
+
+    **The page cap.** MHD's origin 503s under concurrent load, so its crawl is locked at
+    concurrency 2 and moves at ~2.1 pages/min: a full 11,439-page census is ~54h of wall clock,
+    which is why MHD has only ever been published as a labelled partial sample. The CLI could
+    always bound that (`audit -n 900`); this endpoint could not, so one click on MHD queued all
+    11,439 pages and every other brand sat behind it. The cap resolves in one order:
+
+        explicit body.max_pages  ->  brand.default_sample_size  ->  None (full census)
+
+    A capped run is NOT a lesser full run: `run_audit` refuses to move the diff baseline when it
+    truncates (`audit.py:750`), and the importer reads that back as `partial_sample`. So the cap
+    travels all the way to the UI as "this brand was sampled, not cleared".
     """
     if user.role != "admin":
         raise HTTPException(403, "only an admin can start a run")
     brand = _brand_or_404(session, code)
+    requested = body.max_pages if body else None
+    if requested is not None and requested <= 0:
+        # Validated by hand rather than with Field(gt=0) so the message is a sentence a human can
+        # act on. `max_pages: 0` is the plausible mistake — it reads like "no limit" and would
+        # otherwise mean "audit nothing", which run_audit would report as a brand with no defects.
+        raise HTTPException(
+            422, "max_pages must be at least 1 page. Leave it out entirely to audit every page.")
+    max_pages = requested if requested is not None else brand.default_sample_size
     in_flight = session.scalar(
         select(func.count(Run.id)).where(Run.brand_id == brand.id,
                                          Run.status.in_(("queued", "running"))))
@@ -358,7 +395,7 @@ def trigger_run(code: str, _body: RunRequest | None = None,
     # it up there is a window of minutes; if the row only appeared on pickup, the in-flight check
     # above would see nothing and a second click would queue a duplicate audit of the same brand.
     # Measured: it did exactly that before this change.
-    run = Run(brand_id=brand.id, status="queued")
+    run = Run(brand_id=brand.id, status="queued", max_pages=max_pages)
     session.add(run)
     session.commit()
     try:
@@ -366,13 +403,125 @@ def trigger_run(code: str, _body: RunRequest | None = None,
         # Procrastinate needs an open pool to defer. Per-request is fine at this volume (a handful
         # of manual triggers a day) and avoids holding a pool inside the API process.
         with job_app.open():
-            job_id = audit_brand.defer(brand_code=brand.code, run_id=run.id)
+            job_id = audit_brand.defer(brand_code=brand.code, run_id=run.id, max_pages=max_pages)
     except Exception as e:                       # noqa: BLE001 — worker/queue may not be up
         run.status, run.error_text = "failed", f"could not queue: {type(e).__name__}: {e}"
         session.commit()
         raise HTTPException(
             503, f"could not queue the run — is the worker running? ({type(e).__name__}: {e})")
-    return {"queued": True, "brand": brand.code, "run_id": run.id, "job_id": job_id}
+    return {"queued": True, "brand": brand.code, "run_id": run.id, "job_id": job_id,
+            "max_pages": max_pages}
+
+
+def _dequeue_waiting_job(run_id: int) -> str:
+    """Pull a not-yet-started audit back out of the queue. Returns "" on success, else the reason.
+
+    Best effort on purpose. The run ROW is the product's record of what happened; the queue is an
+    implementation detail that may be down. A queue we cannot reach must never stop a human from
+    cancelling a run, and it must never turn a cancel click into a 500 — so everything that can go
+    wrong here comes back as a sentence we show the user instead.
+    """
+    from .jobs import app as job_app
+
+    # Same per-request pool as `trigger_run`: opening one for a handful of clicks a day is cheaper
+    # than holding a connection pool inside the API process.
+    with job_app.open():
+        manager = job_app.job_manager
+        waiting = [j for j in manager.list_jobs(task="audit_brand", status="todo")
+                   if (j.task_kwargs or {}).get("run_id") == run_id]
+        if not waiting:
+            picked_up = any((j.task_kwargs or {}).get("run_id") == run_id
+                            for j in manager.list_jobs(task="audit_brand", status="doing"))
+            # No waiting job left. Either a worker claimed it in the seconds since we read the run
+            # row, or it was never there. Only the first case can still crawl the site.
+            return "a worker had already claimed it" if picked_up else ""
+        stubborn = [j.id for j in waiting if not manager.cancel_job_by_id(j.id)]
+        return f"the queue would not release job {stubborn}" if stubborn else ""
+
+
+@app.post("/api/runs/{run_id}/cancel")
+def cancel_run(run_id: int, user: CurrentUser = Depends(get_current_user),
+               session: Session = Depends(get_session)) -> dict:
+    """Stop a run a human no longer wants — and say only what is actually true about it.
+
+    The two cases are genuinely different and the API must not blur them:
+
+    * **queued** — nothing has been crawled yet, so cancelling is real. The job comes out of the
+      queue and the run ends as `cancelled`, which is neither a failure nor a clean result.
+    * **running** — the crawl DOES NOT STOP. `run_audit` has no cancellation point; it fetches
+      until it is done or the worker dies. All we can do is record the request, so that when the
+      worker does stop, `reconcile_orphaned_runs` writes `cancelled` ("a human stopped it") rather
+      than `failed` ("our bug"). Claiming the crawl stopped would be the worst kind of lie this
+      product can tell: the client's site keeps getting hit while the UI says it stopped.
+
+    `took_effect` is that distinction in one boolean, so the UI never has to parse prose.
+    """
+    if user.role != "admin":
+        raise HTTPException(403, "only an admin can cancel a run")
+    run = session.get(Run, run_id)
+    if run is None:
+        raise HTTPException(404, f"unknown run {run_id}")
+    brand = session.get(Brand, run.brand_id)
+    code = brand.code if brand else "this brand"
+
+    if run.status in TERMINAL_RUN_STATUSES:
+        raise HTTPException(
+            409, f"run {run_id} has already finished (status: {run.status}), so there is nothing "
+                 f"to cancel")
+
+    problem = ""
+    if run.status == "queued":
+        try:
+            problem = _dequeue_waiting_job(run_id)
+        except Exception as e:                   # noqa: BLE001 — the queue may be down entirely
+            problem = f"the job queue could not be reached ({type(e).__name__}: {e})"
+        # Re-read the row before deciding which of the two answers to give. A worker can claim the
+        # job while we are talking to the queue and flip this row to `running` in its own session;
+        # our read above would then be stale, and writing `cancelled` + finished_at over it would
+        # put "stopped, nothing was crawled" on the screen while the crawl is still fetching the
+        # client's site. That is the one lie this endpoint exists to avoid, so the branch is chosen
+        # on the CURRENT status, not the one we happened to read first.
+        session.refresh(run)
+        if run.status in TERMINAL_RUN_STATUSES:
+            raise HTTPException(
+                409, f"run {run_id} finished while the cancel was being processed (status: "
+                     f"{run.status}), so there is nothing to cancel")
+
+    if run.status == "queued":
+        detail = (f"{code}'s run was still waiting in the queue and never started, so no pages "
+                  f"were crawled and nothing was audited. It is recorded as cancelled.")
+        error_text = ("a human cancelled this run before it started. No pages were crawled, so "
+                      "nothing was audited and the previous run's results are unchanged.")
+        if problem:
+            # Do not paper over this: the job may still be sitting there, and if a worker takes it
+            # the worker ADOPTS this same row and flips it back to `running`. Say so.
+            tail = (f" It could not be taken out of the job queue ({problem}), so a worker may "
+                    f"still start it; if that happens it runs as a normal audit.")
+            detail += tail
+            error_text += tail
+        run.status = "cancelled"
+        run.cancel_requested = True   # a worker that starts it anyway then ends as cancelled, not failed
+        run.finished_at = datetime.now(timezone.utc)
+        run.error_text = error_text
+        session.commit()
+        return {"cancelled": True, "took_effect": True, "run_id": run.id, "brand": code,
+                "status": run.status, "detail": detail}
+
+    # running — either it already was when the request arrived, or a worker claimed it while we
+    # were reaching into the queue above. Both mean the same thing to the person clicking: pages
+    # are being fetched right now and this button does not stop that.
+    run.cancel_requested = True
+    session.commit()
+    return {
+        "cancelled": True, "took_effect": False, "run_id": run.id, "brand": code,
+        "status": run.status,
+        "detail": (f"{code} is already being crawled and this does NOT stop it — an audit in "
+                   f"flight has no mid-crawl abort, so it keeps fetching until it finishes or the "
+                   f"worker is stopped. Your request is recorded: if the worker stops before this "
+                   f"run finishes, the run is recorded as cancelled (a human stopped it, the "
+                   f"brand was not fully audited) instead of failed. If it finishes first, it "
+                   f"finishes normally and its results are recorded."),
+    }
 
 
 @app.post("/api/export/sheet")

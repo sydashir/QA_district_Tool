@@ -52,6 +52,13 @@ class Brand(Base):
     enumeration_mode: Mapped[str] = mapped_column(String(20), default="sitemap")
     # None = not scheduled. MHD stays unscheduled: it is a labelled partial sample by design.
     schedule_cron: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # None = this brand's origin can take a full census. An integer means it CANNOT, and every run
+    # caps here unless a human passes an explicit max_pages. Only MHD sets it today: its origin 503s
+    # under concurrency, so max_concurrency is locked at 2 and throughput is ~2.1 pages/min, making a
+    # full 11,439-page census ~54h of wall clock. The CLI has always been able to say `audit -n 900`;
+    # the product could not, so one MHD run queued all 11,439 pages and blocked every other brand
+    # behind it. This column is what closes that gap.
+    default_sample_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     runs: Mapped[list["Run"]] = relationship(back_populates="brand")
@@ -64,13 +71,22 @@ class Run(Base):
     brand_id: Mapped[int] = mapped_column(ForeignKey("brands.id"), index=True)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    # queued | running | ok | failed | refused
+    # queued | running | ok | failed | refused | cancelled
     # 'refused' is its own state ON PURPOSE: EmptyAuditRefused means the brand could not be audited
     # (host down, no enumeration), and that must never render as "audited, found nothing".
+    # 'cancelled' is separate from 'failed' for the same reason, in the other direction: a human
+    # deliberately stopped the run, so it is not our bug to chase — but the brand was NOT fully
+    # audited either, and it must never read as a clean result.
     status: Mapped[str] = mapped_column(String(16), default="queued", index=True)
 
     pages_audited: Mapped[int] = mapped_column(Integer, default=0)
     pages_enumerated: Mapped[int] = mapped_column(Integer, default=0)
+    # The cap this run actually STARTED with; None = full census. Recorded per-run rather than read
+    # back off the brand because the brand's default can change later, and then a historical run
+    # would silently claim a scope it never had. pages_enumerated stays the honest denominator: a
+    # run with max_pages=900 against 11,439 enumerated pages checked 8% of the site, and the row has
+    # to be able to say so months from now.
+    max_pages: Mapped[int | None] = mapped_column(Integer, nullable=True)
     checks_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
     changed_components: Mapped[dict | None] = mapped_column(JSONType, nullable=True)
     # False when a --limit sample ran: the run wrote a report but deliberately did NOT move the
@@ -78,6 +94,12 @@ class Run(Base):
     history_written: Mapped[bool] = mapped_column(Boolean, default=True)
     enumeration_method: Mapped[str | None] = mapped_column(String(32), nullable=True)
     partial_sample: Mapped[bool] = mapped_column(Boolean, default=False)
+    # A human asked for this run to stop. It is a REQUEST, not the stop itself: the crawl does not
+    # abort mid-flight, so a run stays 'running' with this flag set until the worker next stops and
+    # reconcile_orphaned_runs settles it as 'cancelled' instead of 'failed'. Kept as its own column
+    # so that distinction survives a worker death — the flag is on the row, not in the process.
+    cancel_requested: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False)
     error_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     report_dir: Mapped[str | None] = mapped_column(String(255), nullable=True)
 

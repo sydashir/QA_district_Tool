@@ -9,7 +9,8 @@
  *
  *   1. the latest run did not produce results (refused / did not finish / still running)
  *      -> the numbers below are LEFT OVER from an earlier audit;
- *   2. `partial_sample` -> the run covered part of the site, so the numbers are a sample;
+ *   2. `partial_sample` -> the run covered part of the site, so the numbers are a sample — and when
+ *      `max_pages` is set, that it was capped on purpose and where it stopped;
  *   3. `enumeration_mode === "urls_file"` -> pages are found from a fixed list kept by hand, so
  *      anything published since that list was written has never been visited.
  *
@@ -17,7 +18,7 @@
  * whether it appears as a badge or inside one of these sentences.
  */
 import { fmtDate, type Run } from "../lib/api";
-import { runStatusMeta } from "./RunStatus";
+import { runStatusMeta, STOP_REQUESTED_NOTE } from "./RunStatus";
 
 export type CaveatKind = "never" | "stale" | "in_flight" | "partial" | "fixed_list";
 
@@ -110,18 +111,30 @@ export function dataCaveats(input: CaveatInput): Caveat[] {
       kind: "in_flight",
       headline:
         inFlight.status === "running" ? "An audit is running now." : "An audit is waiting to start.",
-      body: meta.explain,
+      // A stop that has been asked for has NOT happened: the crawl keeps going until the worker
+      // next comes to a stop. Saying "running now" and nothing else would hide a pending stop;
+      // saying "stopped" would be a claim the elapsed timer next to it visibly contradicts.
+      body: inFlight.cancel_requested ? `${meta.explain} ${STOP_REQUESTED_NOTE}` : meta.explain,
     });
   }
 
   // Only a settled run's coverage is a fact about these numbers; an in-flight run has no coverage yet.
   if (latest !== undefined && latest !== null && latest.partial_sample) {
     const n = latest.pages_audited;
+    // `max_pages` set means the run was SHORT ON PURPOSE — it was told to stop at N. Without it,
+    // a short run and a capped run are indistinguishable from the page count alone, and "we chose
+    // to look at 900 pages" is a very different sentence from "we only got through 900 pages".
+    const cap = latest.max_pages;
+    const capped =
+      cap !== null && cap !== undefined
+        ? `It was capped at ${cap.toLocaleString()} pages before it started, because this site cannot be crawled in full, so every page past the cap was never visited. `
+        : "";
     out.push({
       kind: "partial",
       headline: "Part of the site only.",
       body:
         `This run covered ${n.toLocaleString()} page${n === 1 ? "" : "s"}, not the whole site. ` +
+        capped +
         "Whatever is wrong on the pages it did not reach is not counted here.",
     });
   }

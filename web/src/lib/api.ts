@@ -18,6 +18,17 @@ export interface Brand {
   open_warning: number;
   open_info: number;
   untriaged_error: number;
+  /**
+   * Pages this brand's runs stop at, because its origin cannot survive a full census.
+   *
+   * MHD is the one that forced this: its server starts 503ing under concurrent requests, so the
+   * crawler is pinned to two at a time and manages ~2 pages a minute — a full 11,439-page census
+   * is about 54 hours, during which no other brand can be audited at all. Runs of that brand are
+   * therefore capped and published as a labelled partial sample, never as a full audit.
+   *
+   * `null` means no cap: a run of this brand covers the whole site.
+   */
+  default_sample_size: number | null;
 }
 
 export interface Finding {
@@ -59,6 +70,20 @@ export interface Run {
   open_error: number;
   new_count: number;
   error_text: string | null;
+  /**
+   * The cap this run actually started with. `null` means it was a full census of the site.
+   *
+   * `pages_audited` alone cannot tell you whether a short run was short on purpose: a run that
+   * covered 900 pages because it was capped at 900 and a run that covered 900 because it died
+   * look identical. This is the field that separates them.
+   */
+  max_pages: number | null;
+  /**
+   * Somebody pressed stop. The crawl does not abort mid-flight, so this stays true while the run
+   * is still `running` — it is a request, not a state. The worker records the run as `cancelled`
+   * when it next stops.
+   */
+  cancel_requested: boolean;
 }
 
 export interface CheckOption {
@@ -108,6 +133,30 @@ export interface StartRunResult {
   brand: string;
   run_id: number;
   job_id: number;
+  /**
+   * The cap the SERVER resolved for this run — an explicit one if we sent it, otherwise the
+   * brand's own default, otherwise null for a full census. Read this back rather than assuming:
+   * the brand list in this browser may be minutes old, and the cap the run actually started with
+   * is the only one worth telling anybody about.
+   */
+  max_pages: number | null;
+}
+
+/**
+ * The answer to a stop request, which is NOT the same as "it stopped".
+ *
+ * A queued run can be pulled out of the queue before it ever touches the site, so it really is
+ * over: `took_effect` true. A run that is already crawling cannot be torn down mid-request, so the
+ * server only records the request and the worker acts on it when it next stops: `took_effect`
+ * false, and the run is still `running` until then. Saying "stopped" in that second case would be
+ * a lie the user could catch simply by watching the row keep moving.
+ */
+export interface CancelRunResult {
+  cancelled: boolean;
+  took_effect: boolean;
+  detail?: string;
+  run_id?: number;
+  status?: string;
 }
 
 /**
@@ -169,15 +218,37 @@ export const api = {
    * Queue an audit. 202 means QUEUED, not finished — the crawl then runs for hours.
    * 409 means that brand already has one in flight; 503 means the worker is not up to take it.
    * Both arrive as an ApiError carrying the server's `detail`.
+   *
+   * `maxPages` is left OFF for a normal "run this brand" click, even for a brand that has a cap.
+   * The server resolves the cap from the brand row itself, so omitting it means the run always
+   * uses the cap that is true right now rather than whatever this browser cached — and one place
+   * decides it, not two. Pass it only to override the brand's default deliberately; the server
+   * rejects zero and negative values with a 422.
    */
-  startRun: async (code: string): Promise<StartRunResult> => {
+  startRun: async (code: string, maxPages?: number): Promise<StartRunResult> => {
     const res = await fetch(`/api/brands/${encodeURIComponent(code)}/runs`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(maxPages === undefined ? {} : { max_pages: maxPages }),
+    });
+    if (!res.ok) throw await apiError(res, `could not start a run for ${code} (${res.status})`);
+    return res.json() as Promise<StartRunResult>;
+  },
+  /**
+   * Ask for a run to stop. Read `took_effect` before telling anybody it has: false means the crawl
+   * is still going and will only be recorded as cancelled when the worker next stops.
+   *
+   * 404 is an unknown run; 409 means it already finished, one way or another, so there was nothing
+   * left to stop. Both keep the server's own wording via ApiError.
+   */
+  cancelRun: async (runId: number): Promise<CancelRunResult> => {
+    const res = await fetch(`/api/runs/${encodeURIComponent(String(runId))}/cancel`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({}),
     });
-    if (!res.ok) throw await apiError(res, `could not start a run for ${code} (${res.status})`);
-    return res.json() as Promise<StartRunResult>;
+    if (!res.ok) throw await apiError(res, `could not stop run #${runId} (${res.status})`);
+    return res.json() as Promise<CancelRunResult>;
   },
   setTriage: async (hash: string, body: { state: TriageState; note?: string | null }) => {
     const res = await fetch(`/api/triage/${hash}`, {
@@ -199,8 +270,14 @@ export async function fpHash(fingerprint: string): Promise<string> {
 export const SEVERITY_ORDER: Severity[] = ["error", "warning", "info"];
 
 /**
- * A run that has not produced a result yet. Statuses are queued | running | ok | failed | refused
- * (server/models.py); the first two are in flight, and a brand may only have one of them at a time.
+ * A run that has not produced a result yet. Statuses are queued | running | ok | failed | refused |
+ * cancelled (server/models.py); the first two are in flight, and a brand may only have one of them
+ * at a time.
+ *
+ * `cancelled` is deliberately NOT in flight — it is terminal. A run whose stop request has landed
+ * but whose crawl is still going is still `running` with `cancel_requested` set, and it has to keep
+ * counting as in flight or the UI would offer to start a second run of a brand that is still being
+ * crawled.
  *
  * These runs carry no findings, so nothing may read their counts as results.
  */

@@ -34,6 +34,20 @@ def render_digest(brand, run, new_errors: list) -> tuple[str, str]:
                 f"{APP_URL}/runs?brand={brand.code}\n")
         return subject, body
 
+    if run.status == "cancelled":
+        # Completes the branch set. Without this a cancelled run falls through to the "N new
+        # problems found" wording below, which for a run that was stopped part-way would report
+        # whatever it happened to have found as though the audit had finished — the precise
+        # failure the `cancelled` status exists to prevent.
+        subject = f"[{brand.code}] audit stopped before finishing"
+        body = (f"The {brand.name} audit was stopped on purpose before it finished, so nothing\n"
+                f"went wrong and there is nothing to fix.\n\n"
+                f"Reason: {run.error_text or 'a person stopped it'}\n\n"
+                f"IMPORTANT: this brand was only partly checked. Anything the run had not reached\n"
+                f"was never looked at, and the previous results are unchanged.\n"
+                f"{APP_URL}/runs?brand={brand.code}\n")
+        return subject, body
+
     if run.status == "refused":
         subject = f"[{brand.code}] audit could not run"
         body = (f"The {brand.name} audit could not be run and was stopped deliberately.\n\n"

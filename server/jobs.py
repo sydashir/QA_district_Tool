@@ -15,6 +15,13 @@ Two requirements the queue has to satisfy, both learned from operating the CLI:
 means the brand could not be audited (host down, no enumeration), which is a correct refusal by the
 publish guard, not an infrastructure error. Retrying it would hammer an origin that is already
 struggling — exactly what MHD's degraded host must never receive.
+
+**`cancelled`** is the third non-`failed` ending, and it exists for the same reason in the other
+direction: a human deliberately stopped the run. `failed` means chase the bug; there is no bug to
+chase here, so a cancelled run must not page anyone. But it is not a result either — the crawl was
+cut off partway, so the brand was NOT fully audited and the wording says so. A cancel never aborts
+a crawl mid-flight: the API only sets `cancel_requested`, and the run is recorded as `cancelled`
+when the worker next stops (see `reconcile_orphaned_runs`).
 """
 from __future__ import annotations
 
@@ -51,12 +58,24 @@ def _report_dir(result: dict) -> Path | None:
 
 
 @app.task(name="audit_brand", queue="audits", pass_context=True)
-def audit_brand(context, brand_code: str, run_id: int | None = None) -> dict:
+def audit_brand(context, brand_code: str, run_id: int | None = None,
+                max_pages: int | None = None) -> dict:
     """Run one brand's audit. Hours long by design — the worker must not be time-limited.
 
     `run_id` is the row the API already created when it queued this job. The worker ADOPTS it
     rather than inserting another, so a queued run is visible in the UI the moment it is queued
     and the API's "already running?" guard has something to see.
+
+    `max_pages` is the cap the API already resolved (explicit request, else the brand's
+    `default_sample_size`, else None for a full census). None means audit everything. It is handed
+    straight to `run_audit(limit=...)`, the same parameter the CLI's `audit -n N` uses — the
+    capability existed all along and only the product could not reach it, which is how MHD queued
+    all 11,439 of its pages and blocked every other brand behind a ~54h crawl.
+
+    Do NOT infer `partial_sample` here. `run_audit` refuses to move the diff baseline when the cap
+    actually truncated the URL set, records that in summary.json, and `load_report_into_run` reads
+    it back. Setting it by hand would lie in the one case that matters: a cap of 900 on a brand
+    that only has 300 pages is a FULL audit, not a sample.
     """
     from auditor.audit import run_audit
     from auditor.config import load_brand
@@ -73,12 +92,16 @@ def audit_brand(context, brand_code: str, run_id: int | None = None) -> dict:
             session.add(run)
         run.status = "running"
         run.started_at = datetime.now(timezone.utc)
+        # Persist the cap the run ACTUALLY started with, on the adopted row as well as on a
+        # worker-created one. Without it, a 900-page MHD run and a full census are the same row
+        # afterwards, and nobody reading the history can tell which one they are looking at.
+        run.max_pages = max_pages
         session.commit()
         run_id = run.id
 
     try:
         cfg = load_brand(brand_code.lower())
-        result = asyncio.run(run_audit(cfg, resume=True))
+        result = asyncio.run(run_audit(cfg, resume=True, limit=max_pages))
     except EmptyAuditRefused as e:
         with SessionLocal() as session:
             r = session.get(Run, run_id)
@@ -157,6 +180,44 @@ def digest_for_run(run_id: int) -> dict:
         return {"sent": sent, "subject": subject, "new_errors": len(new_errors)}
 
 
+def settle_abandoned_run(run: Run | None) -> str | None:
+    """Decide how a run abandoned by a dead worker ends. Returns the new status, or None.
+
+    Split out from `reconcile_orphaned_runs` because the two halves have nothing to do with each
+    other: finding abandoned jobs is a Postgres-specific query against procrastinate's own tables,
+    while THIS is the judgement a human later reads as fact. Keeping the judgement in a plain
+    function means it can be tested directly on any database — the query is plumbing, this is the
+    product's promise.
+
+    Two endings, and collapsing them is the bug this guards against:
+
+    * `cancel_requested` -> **cancelled**. A person stopped it. There is no bug to chase, and a
+      startup log reading "3 failed" would send someone chasing one anyway.
+    * otherwise -> **failed**. The worker died on its own; something may genuinely be wrong.
+
+    Neither is a result. Both left the brand part-checked and both have to say so, because the one
+    thing this product may never do is let a brand that was not checked read as a brand that was
+    checked and found clean.
+    """
+    if run is None or run.status not in ("running", "queued"):
+        return None
+    run.finished_at = datetime.now(timezone.utc)
+    if run.cancel_requested:
+        run.status = "cancelled"
+        run.error_text = (
+            "this audit was stopped on purpose by a person, so there is nothing to fix — but it "
+            "did not finish, so THIS BRAND WAS NOT FULLY AUDITED. No results were recorded for "
+            "it and the previous run's results are unchanged. Run it again for an up-to-date "
+            "picture.")
+    else:
+        run.status = "failed"
+        run.error_text = (
+            "the audit was interrupted and did not finish — the worker stopped (restart, deploy "
+            "or crash). No results were recorded for it, and the previous run's results are "
+            "unchanged. Start it again when ready.")
+    return run.status
+
+
 def reconcile_orphaned_runs(stale_after_seconds: int = 60) -> int:
     """Mark runs abandoned by a dead worker, so nothing sits in `running` forever.
 
@@ -173,6 +234,11 @@ def reconcile_orphaned_runs(stale_after_seconds: int = 60) -> int:
 
     Found by the acceptance run — a worker killed mid-crawl left RR `running` indefinitely, which
     on the dashboard is indistinguishable from a normal six-hour RR crawl.
+
+    This is also where a cancel lands. A crawl cannot be aborted mid-flight, so `POST /cancel` on a
+    running run only sets `cancel_requested`; the run keeps going until the worker next stops, and
+    the stop is noticed here. So a run carrying `cancel_requested` ends as `cancelled`, not
+    `failed`: nobody needs to go looking for a crash a human caused on purpose.
     """
     from sqlalchemy import text as sql_text
 
@@ -187,16 +253,13 @@ def reconcile_orphaned_runs(stale_after_seconds: int = 60) -> int:
         """), {"stale": stale_after_seconds}).all()
 
         n = 0
+        cancelled = 0
         for job_id, run_id in abandoned:
             if run_id:
                 r = session.get(Run, int(run_id))
-                if r is not None and r.status in ("running", "queued"):
-                    r.status = "failed"
-                    r.finished_at = datetime.now(timezone.utc)
-                    r.error_text = (
-                        "the audit was interrupted and did not finish — the worker stopped "
-                        "(restart, deploy or crash). No results were recorded for it, and the "
-                        "previous run's results are unchanged. Start it again when ready.")
+                settled = settle_abandoned_run(r)
+                if settled:
+                    cancelled += settled == "cancelled"
                     n += 1
             # retire the job: the run is restarted from scratch, never resumed half-done
             session.execute(sql_text(
@@ -204,5 +267,8 @@ def reconcile_orphaned_runs(stale_after_seconds: int = 60) -> int:
         session.commit()
 
     if n:
-        print(f"[startup] marked {n} interrupted run(s) as failed", flush=True)
+        # Counted apart because the startup log is the first thing read after a deploy, and
+        # "3 failed" when two of them were deliberate cancels sends someone hunting a bug.
+        print(f"[startup] marked {n - cancelled} interrupted run(s) as failed, "
+              f"{cancelled} as cancelled", flush=True)
     return n

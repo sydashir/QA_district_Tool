@@ -66,6 +66,13 @@ def ensure_brands(session: Session) -> dict[str, Brand]:
         brand.enumeration_mode = "urls_file" if getattr(cfg, "urls_file", None) else "sitemap"
         # MHD is deliberately unscheduled: a full census is ~131h, so it is a labelled sample.
         brand.schedule_cron = None if cfg.brand.upper() == "MHD" else "0 2 * * *"
+        # ...and for the same reason it caps every run at 900 pages. MHD's origin 503s under
+        # concurrent requests, so max_concurrency is a locked ceiling of 2 and throughput is ~2.1
+        # pages/min; the full 11,439-page census is ~54h of wall clock, which is why MHD has always
+        # been published as a labelled PARTIAL SAMPLE and never as a census. 900 is not a guess: the
+        # only MHD runs ever actually published sampled 901 and 353 pages, so this is the largest
+        # sample the brand has ever survived. Every other brand stays None (full census).
+        brand.default_sample_size = 900 if cfg.brand.upper() == "MHD" else None
         out[cfg.brand.upper()] = brand
     session.flush()
     return out

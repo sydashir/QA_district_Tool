@@ -509,7 +509,9 @@ def test_queueing_a_run_writes_the_row_before_deferring(client, seed, sessions, 
     assert r.status_code == 202, "202: the job runs for hours, so this never blocks"
     body = r.json()
     assert body["queued"] is True and body["brand"] == "RR" and body["job_id"] == 4242
-    assert task.calls == [{"brand_code": "RR", "run_id": body["run_id"]}]
+    # max_pages travels with the job. RR has no `default_sample_size`, so it is None — a FULL
+    # census, which is what every brand except MHD should get when nobody asks for a cap.
+    assert task.calls == [{"brand_code": "RR", "run_id": body["run_id"], "max_pages": None}]
 
     with sessions() as s:
         assert s.get(Run, body["run_id"]).status == "queued"
