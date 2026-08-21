@@ -1,7 +1,7 @@
 # District Site Auditor — what it is, in two minutes
 
 It crawls all nine District brand websites and writes every content problem it finds into one
-Google Sheet, a tab per brand. It runs on a laptop, takes about seven hours, and costs nothing to
+Google Sheet, a tab per brand. It runs on a laptop, takes about twelve hours, and costs nothing to
 run. Nobody has to look at a page for it to be checked.
 
 **Why it exists.** Blue Media kept finding broken content by hand — wrong phone numbers, buttons
@@ -64,7 +64,7 @@ It also does not judge writing. Two attempts at automated grammar/spelling were 
 ## Three things to know before relying on it
 
 1. **Nothing runs it.** There is no schedule. It runs when a person runs it — one command, about
-   seven hours. If nobody runs it, nothing is checked.
+   twelve hours. If nobody runs it, nothing is checked.
 2. **Inpatient Mental Health Finder is only ever sampled.** Its host collapses under normal
    crawling, so a full pass would take ~131 hours. What gets published is labelled `PARTIAL SAMPLE`.
 3. **District Behavioral Health is audited from a fixed page list**, because its new platform

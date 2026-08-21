@@ -38,10 +38,15 @@ STARTUP_WAIT_S = 10
 SIZE_ORDER = ["TDRC", "AH", "AR", "DBH", "CAD", "COC", "GL", "RR"]
 
 # MHD is excluded here as well as by its NULL schedule_cron in the database. Belt and braces,
-# because the cost of getting it wrong is uniquely bad: its origin throttles to ~10 pages/min and a
-# full 11,439-page census is ~131 HOURS. It is meant to run as a labelled partial sample, and
-# `POST /api/brands/{code}/runs` has no sample-size parameter to ask for one. Removing this guard
-# requires giving the API that parameter first.
+# because the cost of getting it wrong is uniquely bad: its origin 503s under load, so concurrency is
+# locked at 2 and throughput is ~2.1 pages/min MEASURED (this comment used to say ~10, which was
+# wrong by 5x). A full 11,439-page census is ~91 HOURS.
+#
+# The old reason for this guard was that `POST /api/brands/{code}/runs` had no sample-size parameter.
+# That was fixed on 2026-08-20 — MHD now carries `default_sample_size = 900` and the API caps it
+# automatically. The guard STAYS anyway, for a different and better reason: even a capped run is
+# ~7 hours of traffic into a host that falls over under load, and nothing should point that at a
+# client's origin unattended, night after night. Trigger MHD by hand, when someone is watching.
 NEVER_SCHEDULE = {"MHD"}
 
 

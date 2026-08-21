@@ -8,8 +8,11 @@ platforms were rejected (Render Cron Jobs stop at 12h, Fly stops machines by def
 Postgres alone costs more than this entire box) — is in
 [`docs/plans/2026-08-14-product-design.md`](../docs/plans/2026-08-14-product-design.md).
 
-**The one number that shapes every decision below: a full audit takes about seven hours**, and RR
-alone is ~8,000 pages / ~6 hours. Nothing here may assume a short-running process.
+**The one number that shapes every decision below: a full audit of the eight healthy brands takes
+about twelve hours** (measured 2026-08-17/20, not estimated), and **RR alone is 8,030 pages / 9.4
+hours** — it is both the biggest site and the slowest per page (14.2 pg/min against 44–70 for the
+others). MHD is on top of that and is never run in full. Nothing here may assume a short-running
+process.
 
 There are two install routes. **Pick one.**
 
@@ -229,10 +232,17 @@ What you are checking, in order:
 > given a clean bill of health. If TDRC refuses, fix the crawl before going further; do not
 > schedule anything.
 
-Never trigger **MHD** from the API. Its origin throttles to ~10 pages/min and a full 11,439-page
-census is ~131 hours; it is meant to run as a labelled partial sample via the CLI's `-n` flag, and
-`POST /api/brands/{code}/runs` has no sampling parameter. `deploy/nightly_enqueue.py` refuses it
-explicitly for this reason.
+**MHD is safe to trigger from the API as of 2026-08-20, and was not before.** It carries
+`default_sample_size = 900`, so `POST /api/brands/MHD/runs` caps automatically — no flag, nothing to
+remember. Passing `{"max_pages": N}` overrides it; passing nothing is the safe path.
+
+That matters because its origin is genuinely fragile: concurrency is locked at 2 and throughput is
+**~2.1 pages/min measured** (the "~10 pages/min" this runbook used to claim was wrong by 5x), so a
+full 11,439-page census is ~91 hours and the 15,635-URL sitemap ~131. A 900-page sample is ~7 hours.
+
+`deploy/nightly_enqueue.py` still refuses MHD, and should keep refusing it — not because the API
+lacks the parameter any more, but because ~7 hours of nightly traffic into a host that 503s under
+load is not something to do unattended. Run it by hand when someone is watching.
 
 ---
 
@@ -326,7 +336,7 @@ today's 244 MB / 263k-finding database.
 
 **What this does not cover.** `cache/` (the resume cache, ~600 MB) and `reports/` (~290 MB) are
 plain files on disk and are not in the dump. Losing `cache/` costs a full re-crawl of everything
-(~7 hours, plus MHD). Losing `reports/` breaks `POST /api/export/sheet` for historical runs, which
+(~12 hours, plus MHD). Losing `reports/` breaks `POST /api/export/sheet` for historical runs, which
 reads the report off disk. Back both up with `rsync` if you care about the hours.
 
 The row that genuinely cannot be regenerated is **`triage`** — a human's judgement about a defect.
