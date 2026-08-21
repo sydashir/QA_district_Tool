@@ -86,6 +86,12 @@ class _StubTask:
     def __init__(self, boom: Exception | None = None):
         self.calls: list[dict] = []
         self.boom = boom
+        self.configured: dict = {}
+
+    def configure(self, **options):
+        """The real `Task.configure` returns a JobDeferrer so `.configure(...).defer(...)` chains."""
+        self.configured = options
+        return self
 
     def defer(self, **kwargs):
         self.calls.append(kwargs)
@@ -242,6 +248,86 @@ def test_the_brand_list_says_which_brands_are_sampled_by_policy(client, brands):
     rows = {b["code"]: b for b in client.get("/api/brands").json()}
     assert rows["MHD"]["default_sample_size"] == MHD_CAP
     assert rows["RR"]["default_sample_size"] is None
+
+
+# =========================================================================== the double-run race
+class _LockingStubTask:
+    """A queue stub that enforces `queueing_lock` the way Postgres does.
+
+    The real guarantee is a partial unique index on procrastinate's own table: a second job with a
+    live queueing_lock raises `AlreadyEnqueued`. A stub that just accepted every defer would be
+    kinder than reality and would let the very bug this test exists for pass — the fake Sheets
+    client already taught this lesson once.
+    """
+
+    def __init__(self):
+        self.calls: list[dict] = []
+        self._held: set[str] = set()
+        self._pending: str | None = None
+
+    def configure(self, lock=None, queueing_lock=None):
+        self._pending = queueing_lock
+        return self
+
+    def defer(self, **kwargs):
+        from procrastinate.exceptions import AlreadyEnqueued
+        key = self._pending
+        if key is not None and key in self._held:
+            raise AlreadyEnqueued(f"already enqueued: {key}")
+        if key is not None:
+            self._held.add(key)
+        self.calls.append(kwargs)
+        return 1000 + len(self.calls)
+
+
+def test_losing_the_queue_race_is_a_409_and_leaves_no_phantom_run(client, brands, sessions,
+                                                                  monkeypatch):
+    """The case the in-flight SELECT cannot catch, and what must happen when it doesn't.
+
+    Measured before the fix: 6 concurrent POSTs produced 2x202, two deferred jobs and two `queued`
+    rows — two audits of one live client origin, racing on a single resume cache. The guard is a
+    read-then-write race and cannot fix itself, so the database has to refuse.
+
+    Driven deterministically (the queue stub already holds the brand's queueing lock) rather than
+    with threads: the race is real, but reproducing it through SQLite's single-writer model is
+    flaky, and a flaky test for a correctness guarantee is worse than none.
+    """
+    from server import jobs
+
+    task = _LockingStubTask()
+    task._held.add("brand:RR")          # a job for RR is already waiting in the queue
+    monkeypatch.setattr(jobs, "app", _StubQueueApp())
+    monkeypatch.setattr(jobs, "audit_brand", task)
+
+    r = client.post("/api/brands/RR/runs", json={})
+    assert r.status_code == 409
+    assert "already has a run in progress" in r.json()["detail"]
+    assert task.calls == [], "nothing was queued"
+
+    with sessions() as s:
+        assert s.scalars(select(Run)).all() == [], (
+            "the losing request must not leave a phantom queued row — it would never become a job "
+            "and would block every future trigger for this brand")
+
+
+def test_the_brand_lock_is_actually_set(client, brands, monkeypatch):
+    """Guards the regression directly: jobs.py's docstring promised a per-brand lock from the
+    start, and for months neither `lock` nor `queueing_lock` was ever passed."""
+    from server import jobs
+
+    seen = {}
+
+    class _Recorder(_StubTask):
+        def configure(self, lock=None, queueing_lock=None):
+            seen["lock"], seen["queueing_lock"] = lock, queueing_lock
+            return self
+
+    task = _Recorder()
+    monkeypatch.setattr(jobs, "app", _StubQueueApp())
+    monkeypatch.setattr(jobs, "audit_brand", task)
+
+    assert client.post("/api/brands/RR/runs", json={}).status_code == 202
+    assert seen == {"lock": "brand:RR", "queueing_lock": "brand:RR"}
 
 
 # =========================================================================== cancellation

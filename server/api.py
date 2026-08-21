@@ -399,11 +399,34 @@ def trigger_run(code: str, body: RunRequest | None = None,
     session.add(run)
     session.commit()
     try:
+        from procrastinate.exceptions import AlreadyEnqueued
+
         from .jobs import app as job_app, audit_brand
         # Procrastinate needs an open pool to defer. Per-request is fine at this volume (a handful
         # of manual triggers a day) and avoids holding a pool inside the API process.
+        #
+        # The two locks are the REAL guard; the in-flight check above is only the fast, friendly
+        # one. That check is a read-then-write race, and it loses: six simultaneous POSTs were
+        # measured producing TWO 202s, two deferred jobs and two `queued` rows — i.e. two concurrent
+        # audits of one live client origin, racing on the same resume cache. On MHD's degraded host
+        # that is the exact thing that must never happen.
+        #   queueing_lock -> the database refuses a second job while one is still WAITING
+        #                    (AlreadyEnqueued), which is what makes the guard atomic.
+        #   lock          -> two jobs for one brand can never RUN at the same time; the second
+        #                    waits. Covers the window after a worker picks the first job up, when
+        #                    the queueing lock has already been released.
+        # jobs.py's docstring promised both of these from the start. Until now neither was set.
         with job_app.open():
-            job_id = audit_brand.defer(brand_code=brand.code, run_id=run.id, max_pages=max_pages)
+            job_id = (audit_brand
+                      .configure(lock=f"brand:{brand.code}",
+                                 queueing_lock=f"brand:{brand.code}")
+                      .defer(brand_code=brand.code, run_id=run.id, max_pages=max_pages))
+    except AlreadyEnqueued:
+        # Lost the race by microseconds. Delete the row we just wrote — leaving it would be a
+        # phantom `queued` run that never becomes a job and blocks every future trigger.
+        session.delete(run)
+        session.commit()
+        raise HTTPException(409, f"{brand.code} already has a run in progress")
     except Exception as e:                       # noqa: BLE001 — worker/queue may not be up
         run.status, run.error_text = "failed", f"could not queue: {type(e).__name__}: {e}"
         session.commit()

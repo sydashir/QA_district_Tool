@@ -454,6 +454,13 @@ class _StubTask:
     def __init__(self, boom: Exception | None = None):
         self.calls: list[dict] = []
         self.boom = boom
+        self.configured: dict = {}
+
+    def configure(self, **options):
+        """The real Task.configure returns a JobDeferrer, so `.configure(...).defer(...)` chains.
+        A stub without this made every trigger 503 the moment the per-brand lock was added."""
+        self.configured = options
+        return self
 
     def defer(self, **kwargs):
         self.calls.append(kwargs)
