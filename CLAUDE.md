@@ -34,14 +34,16 @@ code. One way to do each thing — no parallel implementations "just in case."
   `gh auth switch --user sydashir`. Do this without asking — it is a known, recurring condition,
   not a surprise worth stopping for.
 - **PUBLISH BEFORE YOU CHANGE CHECK CODE.** The resume cache is keyed on the check-version, and
-  `checks_version` hashes every `checks/*.py` plus `parse.py`, `report.py`, `nap.py`, `crawl.py`.
-  Editing any of them invalidates every brand's banked pages instantly. This cost MHD's 1,546
-  banked pages once — a check fix landed before the partial was published, and MHD re-crawls at
-  under 1 page/minute. Land the publish first, then the check change.
+  `checks_version` hashes every `checks/*.py` plus `parse.py`, `report.py`, `nap.py`, `crawl.py`
+  **and `audit.py`** (it mints collapsed fingerprints). Editing any of them invalidates every
+  brand's banked pages instantly. This cost MHD's 1,546 banked pages once — a check fix landed
+  before the partial was published, and MHD re-crawls at ~2 pages/minute. Land the publish first,
+  then the check change. (`server/` and `web/` are NOT hashed — product-layer work is free.)
 
 - **`parse.py` is the highest-blast-radius file in the repo — BATCH every change to it.** It is in
   `_GLOBAL_SRC`, so *any* edit rule-changes **every check on every brand at once** and costs a full
-  re-crawl of all nine (~7 hours without MHD; MHD alone ~29h). A one-line addition costs exactly the
+  re-crawl of all nine — **~12 hours without MHD, of which RR alone is 9.4h**, plus MHD (see §13;
+  a full census is ~131h, which is why it is never run). A one-line addition costs exactly the
   same as ten. So before touching it, work out everything the next few checks will need from it and
   make those changes in **one** commit — never one field at a time as each check comes up. The same
   is true of `report.py`. Compare a check module: editing `checks/phone.py` rule-changes only phone
@@ -181,7 +183,7 @@ Sitemap URLs are **not** in the sheet; derive as WordPress/Rank Math default and
 
 | Brand | Base URL | Canonical phone(s) | Notes |
 |---|---|---|---|
-| RR (Renaissance Recovery) | https://www.renaissancerecovery.com | SEO 866-330-9449 · PPC 866-923-1867 | ~6k pages; largest site |
+| RR (Renaissance Recovery) | https://www.renaissancerecovery.com | SEO 866-330-9449 · PPC 866-923-1867 | **~8k pages** (audit set 8,030 = 7,854 sitemap + 176 REST-only; 7,999 audited 2026-08-20). Largest site by far, and the slowest per page of the healthy brands (14.2 pg/min vs 44–70 elsewhere) — it alone is 9.4h of any full re-crawl. |
 | GL (Gratitude Lodge) | https://www.gratitudelodge.com | SEO 844-576-0144 · PPC 844-972-2859 | best ground-truth fixture (problem_sheet.csv) |
 | AH (Addiction Hotline) | https://addictionhotline.com/ | (844) 575-6602 · (855) 701-0479 | |
 | COC (Connections) | https://connectionsoc.com/ | 844-759-0999 | phone-bug motivating example |
@@ -423,16 +425,26 @@ remaining work is *operating* it, not extending it.
    audited. This is the single biggest operational risk.
 2. **MHD is degraded and only ever sampled.** Its origin 503s under concurrent requests; conc 4 once
    pushed it into 500s that outlasted the run, so **max_concurrency = 2 is a locked ceiling** — the
-   binding constraint is CONCURRENCY, and ~2 pg/min is its consequence. A full 15,635-page census is
-   ~131h, so it is published as a labelled `PARTIAL SAMPLE`. **If enumeration returns blocked + 0
-   URLs, that is evidence the origin is degraded: leave it alone, do not retry into it.**
-3. **DBH is enumerated from a static list** (`config/urls/dbh.txt`) because its 2026-08-08 replatform
-   to headless Next.js removed the sitemap, robots.txt and WP-REST. **A static list cannot discover
-   pages added later** — they are silently never audited. Regenerate by hand when DBH publishes.
+   binding constraint is CONCURRENCY, and ~2 pg/min is its consequence (**measured 2.10 pg/min over
+   4,600 pages, 2026-08-19/20** — not an estimate). A full census is ~131h against the 15,635-URL
+   sitemap, ~91h against the 11,439-page audit set, so it is published as a labelled `PARTIAL
+   SAMPLE`. **Since 2026-08-20 this is enforced by the product, not by remembering:** MHD carries
+   `default_sample_size = 900`, so `POST /runs` caps it automatically with no flag. 900 is the
+   largest sample MHD has ever actually published (901 on 2026-07-30; 353 twice on 08-05).
+   **If enumeration returns blocked + 0 URLs, that is evidence the origin is degraded: leave it
+   alone, do not retry into it.**
+3. **DBH is enumerated from a static list** (`config/urls/dbh.txt`, **576 URLs**) because its
+   2026-08-08 replatform to headless Next.js removed the sitemap, robots.txt and WP-REST. **A static
+   list cannot discover pages added later** — they are silently never audited. Regenerate by hand
+   when DBH publishes.
 4. **Transient link timeouts cause a small recurring new/fixed wobble** in the Summary row. Cosmetic
    and self-correcting; the real fix is hysteresis on transient classes only.
 5. **A sampled `-n` run no longer writes the diff baseline** (fixed in code) — but always finish with
    a full run before anyone reads the sheet.
+6. **A running audit cannot be stopped mid-crawl.** `POST /api/runs/{id}/cancel` cancels a *queued*
+   run for real, but a *running* one keeps fetching until it finishes or the worker stops; the API
+   says so plainly rather than pretending. A true abort would mean polling a flag inside
+   `run_audit` — an `auditor/` edit, so a full cache invalidation. Deliberately not built.
 
 ### Three DOCUMENTED NEGATIVE RESULTS — do not re-litigate without new evidence
 * **D9 (ARCHITECTURE.md) — AI grammar/spelling.** An LLM pass editorialised about word choice.
