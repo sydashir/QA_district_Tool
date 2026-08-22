@@ -42,7 +42,7 @@ import it makes (`services.sheets_service`), so nothing else from that repo is n
 ## 1. Provision the box
 
 ```bash
-# as root, on a fresh Debian 12 / Ubuntu 24.04
+# as root, on a fresh Ubuntu 24.04 (see the box below — Debian 12 does NOT work as written)
 adduser --system --group --home /opt/auditor auditor
 apt-get update && apt-get install -y git rsync
 timedatectl set-timezone UTC          # the timer names its own timezone; keep the box on UTC
@@ -53,6 +53,15 @@ chown -R auditor:auditor /opt/auditor
 
 Everything below assumes the repo is at **`/opt/auditor`**. If you put it elsewhere, edit the
 `WorkingDirectory=`, `ExecStart=` and `ReadWritePaths=` lines in the three unit files.
+
+> **Use Ubuntu 24.04. Debian 12 does not work as written** — measured in clean containers on
+> 2026-08-22, not assumed. §2B installs `python3.12` and `postgresql-16`; Debian 12 (bookworm) has
+> **neither** — it ships Python **3.11.2** and Postgres **15**, and `apt-get install python3.12`
+> fails outright with *"E: Unable to locate package"*. On Ubuntu 24.04 (noble) both resolve
+> (`3.12.3`, `16.15`) and the whole §2B path — apt, venv, `pip install -r
+> deploy/requirements-server.txt`, `import server.api` — completes clean.
+> Debian 12 would need the deadsnakes and PGDG apt repositories added first. That route is
+> **untested here**; do not follow it on the assumption it works.
 
 ### Environment file
 
