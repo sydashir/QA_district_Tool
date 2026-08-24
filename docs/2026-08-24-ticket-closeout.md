@@ -101,6 +101,47 @@ Recommended: unpublish it rather than fix the text, and check how it came to be 
 
 ---
 
+## ⚠️ Separate item: five of the nine sites are written in British English
+
+Not a typo either, and not nine separate content tickets. The audit found British spellings on
+**AR, DBH and RR** as a group, plus single instances on **COC** and **CAD**:
+
+> `behaviour`, `behaviours`, `centre`, `centres`, `counselling`, `personalised`, `prioritise`,
+> `recognise`, `recognises`, `stabilisation`, `characterised`
+
+`behaviour` appears on three of those sites and `personalised` on two. **Five of nine sites sharing
+the same non-US spellings is a shared writer or content source, not five coincidences.** The stated
+standard for these sites is US English.
+
+The practical consequence: fixing the pages does not fix the cause. Unless whatever produces this
+copy is set to US English, new pages will keep arriving the same way. The audit reports it as one
+finding per site rather than one per word, so the size of the editing job is visible without
+burying the genuine typos underneath it.
+
+---
+
+## Why the smallest site has no spelling findings
+
+This is worth stating plainly, because it looks like a gap and is not one.
+
+The spelling check works by comparing rare words against common ones **on the same site**. That
+needs a site with enough writing for words to recur. Measured across the nine:
+
+| The District Recovery Community | Addiction Hotline | Renaissance Recovery |
+|---|---|---|
+| 4,455 words — **0** words used 100+ times | 204,853 words — 209 | 3,596,141 words — 1,612 |
+
+On the smallest site **not one word is used 100 times**, so there is nothing to compare anything
+against and the check reports nothing at all. That is the check declining to guess on a site too
+small to support the method — not a clean bill of health, and not a defect it missed. The other
+checks (broken links, phones, punctuation, template variables) run on that site normally.
+
+The same applies to the one site that is deliberately sampled rather than crawled whole: a sample's
+word counts are not the site's word counts, so the spelling check is switched off there rather than
+run on numbers that would mislead it.
+
+---
+
 ## Where the checks stop
 
 Being told "the audit found nothing" is only useful alongside what it was never looking at.
@@ -118,7 +159,6 @@ Being told "the audit found nothing" is only useful alongside what it was never 
   because its rebuild removed the sitemap, so pages published since that list was written are
   never seen. Another is deliberately sampled rather than crawled whole, because its server
   becomes unreliable under load — its results are labelled a partial sample everywhere they appear.
-- **Sites too small to mine.** The rare-word signal needs a reasonable amount of text before "used
-  twice" means anything. On the smallest site it correctly finds nothing rather than guessing.
+- **Sites too small to mine** — see the section above for the numbers.
 
 A fuller version of this list is in `WHAT_THE_AUDIT_DOES_NOT_CHECK.md`.
