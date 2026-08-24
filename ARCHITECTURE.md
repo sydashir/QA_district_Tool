@@ -1002,3 +1002,104 @@ failed and this did not.
 **Reproducing this:** the corpus builder, prototypes and measurement harness are `build_corpus.py`,
 `detectors.py`, `measure.py` and `measure2.py` — written to a scratchpad, deliberately never added
 to the repo, because nothing in the shipping path may import them.
+
+---
+
+## D12b. Per-brand precision of the mined-typo check — measured on all nine sites
+
+**Pooled reporting would have hidden two brands.** Precision varies with what a site is ABOUT, not
+with the signal, so it is reported per brand and never averaged.
+
+Corpora fetched 2026-08-23/24 from each brand's existing `cache/<brand>/pages.json` (no sitemap
+re-enumerated), parsed with the real `auditor.parse.parse_html`, and scored with the SHIPPED
+`misspelling.from_audit` — with `MINED` lifted out of `KNOWN` so every brand is scored as a site
+nobody has mined yet.
+
+| brand | pages | body words | findings | true | precision |
+|---|---|---|---|---|---|
+| AH | 179 | 204,853 | 3 | 3 | **100%** |
+| GL | 876 | 1,712,396 | 12 | 11 | **92%** |
+| COC | 1,520 | 2,800,847 | 9 | 8 | **89%** |
+| DBH | 400 | 1,290,314 | 9 | 8 | **89%** |
+| AR | 510 | 921,807 | 7 | 6 | **86%** |
+| CAD | 1,239 | 2,107,243 | 35 | 30 | **86%** |
+| RR | 1,192 | 3,596,141 | 11 | 9 | **82%** |
+| MHD | 257 | 578,866 | 2 | 0 | **0%** — suppressed in production, see below |
+| TDRC | 19 | 4,455 | 0 | — | n/a — below the minimum corpus, see below |
+
+Highlights, all live: **`Distric Behavioral Health`** (DBH's own name, 1,535 occurrences),
+**`Renaisance Recovery`** (a sister brand's name), **`Alcohol Rehab Calfornia`** (CAD, in a
+heading), `Lexpro`/`Panax`-adjacent drug errors, `Palm Beach Coutny, FL` (a misspelled address),
+and a large family of shattered-text fragments (`t reatment`, `j ourney`, `b ehavioral`).
+
+### What happens when a brand lands below the bar
+
+1. **MHD — already suppressed, by a gate that exists for another reason.** MHD always runs capped
+   at 900 pages, so `partial_sample=True` and `from_audit` returns nothing. Verified: the same
+   corpus yields 2 findings ungated and **0** gated. Its two candidates were `Ray Mears Boulevard`
+   and `Urbana` — a street and a city — which is exactly what a directory of treatment centres is
+   made of. No new policy was needed; the sampling gate already does the right thing.
+2. **RR — fixed by a veto, not by suppression.** RR carries pop-culture copy (Jim Carrey, Krist
+   Novoselic), and person names are one edit from common words as easily as typos are. It measured
+   75%; adding the plural veto (`percocets` is not a misspelling of `percocet`) took it to 82%. The
+   two residual false positives are both personal names. **A name-adjacency veto was tried and
+   rejected** — vetoing a capitalised token beside another capitalised token would also have
+   discarded `Graditude Lodge` and `Renaisance Recovery`, the two most valuable findings in the
+   whole set.
+
+### The dictionary gap was the real problem, not the signal
+
+AR first measured 67%. Its false positives were `rehydration`, `destress` and `melia` — two of
+them ordinary English absent from pyspellchecker. Two fixes, both measured:
+
+* **Affix veto** — a known prefix or suffix on a known word IS a real word. The stem floor of **6**
+  is measured, not chosen: at 5, `recovey` decomposes to `re`+`covey` and a real typo vanishes; at
+  7, `destress` slips back through.
+* **`/usr/share/dict/words` was tested and REJECTED.** It closes the same gap and wrongly vetoes
+  nothing — but it is not installed by default on Ubuntu 24.04, the deploy target. A check whose
+  vocabulary differs between laptop and server would emit findings in one place and not the other,
+  and this tool reports a DIFF: that variance would surface as phantom new/resolved rows every run.
+  Determinism beat the extra coverage.
+
+### The place-name veto, and what it costs
+
+A token immediately before a US state code is a place name. Silenced per brand: GL 43, AH 25,
+AR 2,795 (AR carries city listings). Of those, the number that would otherwise have been REPORTED
+is small — 2, 1 and 8 — and all but one were genuine places or real words.
+
+**The exception was real and is now handled.** AH ships `Palm Beach Coutny, FL` — a misspelled
+"County" inside an address. Two separate mechanisms were hiding it: the place veto, and the rarity
+test (an address lives in a template, so it repeated 4 times, one past `RARE_MAX`). Address
+STRUCTURE words (county, city, boulevard, suite …) are now exempt from both, because nowhere in the
+United States is a town called County. The obvious alternative — "report it when the correction
+also appears before a state code" — was measured and rejected: it rescues `coutny` but re-admits
+`Centre, AL`, `Taylors, SC` and `Gardena, CA`.
+
+### The minimum corpus is a property, not a gap
+
+The signal needs words that RECUR. Measured, "words occurring 100+ times":
+
+| TDRC | AH | MHD | AR | GL |
+|---|---|---|---|---|
+| 4,455 words -> **0** common words | 204,853 -> 209 | 578,866 -> 628 | 921,807 -> 957 | 1,712,396 -> 1,165 |
+
+At TDRC's size **not one word occurs 100 times**, so no near-match can form and the check produces
+nothing at all. That is the signal declining to guess on a site too small to support it — not a
+missed defect. Anyone asking why the smallest site has no spelling findings should be given this
+number.
+
+### A cross-brand process finding: five sites are written in British English
+
+`british_spelling` collapses several British forms on one site into ONE finding, because it is one
+editorial decision, not N typos. It fired on **AR, DBH and RR**, and single British words also
+appeared on **COC** (`characterised`) and **CAD** (`recognise`) — five of nine brands, with
+`behaviour` shared across AR/DBH/RR and `personalised` across AR/DBH.
+
+**That is a shared writer or content source, not five coincidences,** and it belongs in the rollup
+as a process finding: fix the source, or new pages keep arriving the same way. The client's stated
+standard is US English (jake_doc answer [k]).
+
+Detection is by TRANSFORMATION rule (`our`->`or`, `ise`->`ize`, `lling`->`ling`, `ence`->`ense`,
+`ae`/`oe`->`e`), never a word list, so it needs no maintenance. The rules are anchored to real
+suffixes after a measured miss: a bare `ll`->`l` classified **`vallium` -> `valium`** — a misspelled
+drug — as a British spelling.

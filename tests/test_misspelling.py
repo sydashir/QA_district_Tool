@@ -221,3 +221,24 @@ def test_a_real_town_before_a_state_code_stays_silent():
     for i in range(3):
         led.add_page(_page(f"https://x/c{i}/", "Prairie du Chien, WI (September 9, 2025)"))
     assert from_audit(led, audited_pages=123, partial_sample=False) == []
+
+
+def test_a_plural_is_not_a_typo():
+    """RR writes "Are You Addicted to Percocets?". `percocets` is one edit from `percocet`, which
+    no dictionary carries, so only the site's own vocabulary can tell us it is the singular."""
+    led = TokenLedger()
+    for i in range(120):
+        led.add_page(_page(f"https://x/{i}/", "percocet dependence is treated at our clinic daily"))
+    led.add_page(_page("https://x/p/", "are you addicted to percocets and other opioids today"))
+    assert from_audit(led, audited_pages=121, partial_sample=False) == []
+
+
+def test_a_site_too_small_to_have_common_words_produces_nothing():
+    """TDRC is 19 pages / 4,455 words, and NOT ONE word occurs 100+ times there. With no common
+    vocabulary no near-match can form, so the check is silent by construction rather than by luck.
+    That is a property of the signal, not a gap — someone will otherwise ask why the smallest site
+    has no spelling findings."""
+    led = TokenLedger()
+    for i in range(8):
+        led.add_page(_page(f"https://x/{i}/", "a short page of copy with treatmnet on it somewhere"))
+    assert from_audit(led, audited_pages=8, partial_sample=False) == []

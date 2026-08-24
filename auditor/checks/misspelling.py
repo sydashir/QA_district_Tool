@@ -358,6 +358,11 @@ def from_audit(ledger: TokenLedger, audited_pages: int, partial_sample: bool) ->
                 or token in ledger.placelike or _is_affixed_real_word(token)):
             continue
         near = sorted(_edits1(token) & common)
+        # A plural is not a typo. RR writes "Are You Addicted to Percocets?"; `percocets` is one
+        # edit from `percocet` and was accused of being a misspelling of it. Checked against the
+        # site's OWN common words rather than a dictionary, because the singular here is a drug
+        # brand no dictionary carries.
+        near = [c for c in near if token not in (c + "s", c + "es")]
         if not near:
             continue
         if token not in ledger.ever_lower and not address_typo:
