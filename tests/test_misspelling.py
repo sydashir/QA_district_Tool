@@ -48,3 +48,70 @@ def test_corpus_mined_misspellings_are_caught(text, wrong):
 ])
 def test_correct_spellings_never_fire(text):
     assert misspelling.run(ParsedPage(url=URL, visible_text=text), None) == []
+
+
+# ---------------------------------------------------------------------------------------------
+# SITE-LEVEL mining. The gates below are correctness, not caution: either one ignored invents typos.
+from auditor.checks.misspelling import TokenLedger, from_audit
+from auditor.parse import Block
+
+
+def _page(url: str, *texts: str) -> ParsedPage:
+    return ParsedPage(url=url, visible_text=" ".join(texts),
+                      blocks=[Block(tag="p", text=t, region="body", group=i)
+                              for i, t in enumerate(texts)])
+
+
+def _ledger(n_common: int = 120, rare: str = "treatmnet") -> tuple[TokenLedger, int]:
+    """A site where 'treatment' is common and 'treatmnet' appears once."""
+    led = TokenLedger()
+    for i in range(n_common):
+        led.add_page(_page(f"https://x/{i}/", "our treatment programme helps people every day"))
+    led.add_page(_page("https://x/typo/", f"our {rare} programme helps people every day"))
+    return led, n_common + 1
+
+
+def test_a_rare_token_one_edit_from_a_common_one_is_flagged():
+    led, n = _ledger()
+    found = from_audit(led, audited_pages=n, partial_sample=False)
+    assert [f.details["wrong"] for f in found] == ["treatmnet"]
+    assert found[0].details["correct"] == "treatment"
+
+
+def test_a_sampled_run_emits_nothing():
+    """MHD audits 900 of 11,439 pages. A word appearing 40x site-wide can appear twice in the
+    sample, so sample frequencies are not site frequencies and must not be mined."""
+    led, n = _ledger()
+    assert from_audit(led, audited_pages=n, partial_sample=True) == []
+
+
+def test_a_mostly_resumed_run_emits_nothing():
+    """Resumed pages carry no text, so they never reach the ledger. If most of the audit was
+    resumed, the counts describe a subset and a site-common word can read as rare."""
+    led, n = _ledger()
+    assert from_audit(led, audited_pages=n * 3, partial_sample=False) == []
+
+
+def test_rare_pharmaceutical_vocabulary_is_not_a_typo():
+    """The failure that put the parked spellchecker at 9% precision (ARCHITECTURE.md D10):
+    `isotonitazene` is rare AND far from everything common, so the rarity signal alone would
+    accuse it. Being far from every common word is what saves it."""
+    led, n = _ledger(rare="isotonitazene")
+    assert from_audit(led, audited_pages=n, partial_sample=False) == []
+
+
+def test_latin_placeholder_text_never_enters_the_ledger():
+    """GL's dev page contributed `risus`, `varius`, `potenti` and `mattis` — each one edit from a
+    common English word purely by accident. empty_slot reports the placeholder itself."""
+    led = TokenLedger()
+    for i in range(120):
+        led.add_page(_page(f"https://x/{i}/", "our treatment programme helps people every day"))
+    led.add_page(_page("https://x/lorem/",
+                       "Curabitur feugiat ante vel libero volutpat, id bibendum nibh cursus. "
+                       "Pellentesque malesuada risus a condimentum faucibus."))
+    assert from_audit(led, audited_pages=121, partial_sample=False) == []
+
+
+def test_a_word_already_in_the_known_list_is_not_reported_twice():
+    led, n = _ledger(rare="athough")
+    assert from_audit(led, audited_pages=n, partial_sample=False) == []

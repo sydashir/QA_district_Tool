@@ -84,10 +84,13 @@ def test_stream_fetch_project_isolates_a_failing_page(tmp_path, monkeypatch):
 
     real_project = audit._project
 
-    def boom(parsed, r, config):
+    # Mirrors the real signature INCLUDING `ledger` — a double that is kinder than the thing it
+    # stands in for hides the bug it exists to catch. This test caught the ledger being threaded
+    # through _project, which is exactly what it is for.
+    def boom(parsed, r, config, ledger=None):
         if r.url == "https://x/2/":
             raise RuntimeError("check exploded on odd markup")
-        return real_project(parsed, r, config)
+        return real_project(parsed, r, config, ledger=ledger)
 
     monkeypatch.setattr(audit, "_project", boom)
     urls = ["https://x/1/", "https://x/2/", "https://x/3/"]

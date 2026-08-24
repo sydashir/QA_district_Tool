@@ -81,9 +81,14 @@ class PageProjection:
     intrinsic_findings: list[Finding] = field(default_factory=list)
 
 
-def _project(parsed: ParsedPage, r, config: BrandConfig) -> PageProjection:
+def _project(parsed: ParsedPage, r, config: BrandConfig, ledger=None) -> PageProjection:
     """Run intrinsic checks and collapse a ParsedPage to a projection. The ParsedPage is
     expected to be released by the caller right after."""
+    # The site-level typo ledger is filled HERE because this is the only moment the page's text
+    # exists — the ParsedPage is released as soon as this returns. It stores counts and one short
+    # context per rare token, never text. See misspelling.TokenLedger.
+    if ledger is not None:
+        ledger.add_page(parsed)
     page_findings: list[Finding] = []
     for mod in _PAGE_CHECKS:
         page_findings.extend(mod.run(parsed, config))
@@ -274,7 +279,7 @@ def load_resume(brand: str, check_version: str,
 
 
 async def _stream_fetch_project(client, urls, config, check_version, resume_path, on_done=None,
-                                brand_css=None):
+                                brand_css=None, ledger=None):
     """Fetch -> parse -> project -> APPEND to the resume cache, per page, concurrency-capped.
     Persisting INSIDE the loop (not after a batch gather) is what makes a crawl resumable: a
     crash at page N keeps the N-1 already flushed to disk. Returns (projections, failed).
@@ -322,7 +327,7 @@ async def _stream_fetch_project(client, urls, config, check_version, resume_path
                 parsed = parse_html(r.text, page_url=canonical_url(r.url),
                                     base_url=r.final_url or r.url,
                                     extra_css=brand_css.css, css_status=brand_css.status)
-                proj = _project(parsed, r, config)
+                proj = _project(parsed, r, config, ledger=ledger)
                 async with lock:
                     fh.write(json.dumps(_projection_row(proj, check_version)) + "\n")
                     fh.flush()
@@ -663,8 +668,10 @@ async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile:
 
         # Project-and-discard, streamed: parse -> intrinsic checks -> compact projection, persisted
         # per page. Peak memory is projections (small), not the DOM of every page at once.
+        token_ledger = misspelling.TokenLedger()
         fresh_projections, failed = await _stream_fetch_project(
-            client, to_fetch, config, check_version, resume_path, on_done=_progress("fetch pages"), brand_css=brand_css)
+            client, to_fetch, config, check_version, resume_path, on_done=_progress("fetch pages"),
+            brand_css=brand_css, ledger=token_ledger)
         # cross-page barriers (dup title/desc/H1, link dedup) run over ALL projections, resumed +
         # fresh — never just the fresh ones, or dup-detection silently breaks across a resume.
         # Ordered by SAMPLE position (not resumed-then-fresh, not completion order) so the capped
@@ -684,6 +691,13 @@ async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile:
             projections, client, config, max_links=max_link_probes, on_done=_progress("link probe"))
         findings.extend(link_findings)
         findings.extend(_cross_page_duplicates(projections))
+        # Site-level typo mining. "Appears 1-3 times" is a statement about the SITE, so it
+        # cannot be computed per page. Emits NOTHING when the run was a truncated sample or
+        # when too much of it came from the resume cache (resumed pages carry no text, so the
+        # counts would be of a subset and a common word could read as rare). Both gates live
+        # in misspelling.from_audit.
+        findings.extend(misspelling.from_audit(
+            token_ledger, audited_pages=len(projections), partial_sample=bool(limit_truncated)))
 
         # The 845, now DERIVED from the same union fetch (no second crawl): every live page not in
         # the sitemap, classified by (cruft, noindex) or the rest_404 integrity bucket. Goes into
