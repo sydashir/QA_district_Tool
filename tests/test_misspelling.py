@@ -176,3 +176,48 @@ def test_a_place_name_before_a_state_code_is_never_a_typo():
         led.add_page(_page(f"https://x/{i}/", "our chief medical officer runs the treatment team"))
     led.add_page(_page("https://x/cities/", "Prairie du Chien, WI (September 9, 2025)"))
     assert from_audit(led, audited_pages=121, partial_sample=False) == []
+
+
+# --- the dictionary gap, which is what actually put AR below the bar --------------------------
+
+@pytest.mark.parametrize("word", ["rehydration", "destress", "reassessment", "nonjudgmental"])
+def test_a_prefixed_real_word_is_not_a_typo(word):
+    """Ordinary English absent from pyspellchecker. `rehydration` and `destress` were 2 of AR's 3
+    false positives, and both are a known prefix on a known word."""
+    from auditor.checks.misspelling import _is_affixed_real_word
+    assert _is_affixed_real_word(word)
+
+
+@pytest.mark.parametrize("word", [
+    "recovey", "faciltiy", "athough", "relaspe", "treatmed", "trazadone",
+    "vallium", "clonopin", "atvian", "graditude", "disordera",
+])
+def test_the_affix_veto_never_swallows_a_real_typo(word):
+    """The stem floor of 6 is measured: at 5, `recovey` decomposes to `re`+`covey` and a genuine
+    typo disappears silently."""
+    from auditor.checks.misspelling import _is_affixed_real_word
+    assert not _is_affixed_real_word(word)
+
+
+def test_a_misspelled_address_word_survives_the_place_veto():
+    """AH ships "Palm Beach Coutny, FL". The place veto silences whatever sits before a state code,
+    which is right for town names and wrong here — nowhere is called County. It also repeats 4
+    times (an address lives in a template), so the rarity test would have missed it too."""
+    led = TokenLedger()
+    for i in range(120):
+        led.add_page(_page(f"https://x/{i}/", "we serve every county in the state with treatment"))
+    for i in range(4):
+        led.add_page(_page(f"https://x/a{i}/", "327 W Lantana Rd, Lantana, FL 33462, "
+                                               "United States, Palm Beach Coutny, FL"))
+    found = from_audit(led, audited_pages=124, partial_sample=False)
+    assert [f.details["wrong"] for f in found] == ["coutny"]
+
+
+def test_a_real_town_before_a_state_code_stays_silent():
+    """The same veto, doing its job: Prairie du Chien is a town, not a misspelling of "chief"."""
+    led = TokenLedger()
+    for i in range(120):
+        led.add_page(_page(f"https://x/{i}/", "our chief medical officer runs the treatment team"))
+    for i in range(3):
+        led.add_page(_page(f"https://x/c{i}/", "Prairie du Chien, WI (September 9, 2025)"))
+    assert from_audit(led, audited_pages=123, partial_sample=False) == []

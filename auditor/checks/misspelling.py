@@ -197,7 +197,7 @@ class TokenLedger:
                 self.freq[t] += 1
                 if raw[0].islower():
                     self.ever_lower.add(t)
-                if _PLACE_AFTER.match(clean, m.end()):
+                if _PLACE_AFTER.match(clean, m.end()) and not _misspells_address_word(t):
                     # "Prairie du Chien, WI" / "Taylors, SC" — a US place name, not a typo. AR
                     # carries city-listing content, and this single shape was three of its five
                     # false positives. A token sitting immediately before a state code is a place;
@@ -237,6 +237,24 @@ _BRITISH_RULES = (
 )
 
 
+# Address STRUCTURE words, as opposed to place NAMES. "Palm Beach Coutny, FL" is a misspelled
+# address; "Prairie du Chien, WI" is a town that happens to sit one edit from "chief". The place
+# veto silences both, so this narrow exception rescues the first without re-admitting the second —
+# nowhere in the United States is a town called County, Boulevard or Suite.
+#
+# Measured before choosing this shape: the obvious alternative — "report it when the correction
+# ALSO appears before a state code" — rescues `coutny` but re-admits `centre` (Centre, AL),
+# `taylors` (Taylors, SC) and `gardena` (Gardena, CA). One finding gained, three invented.
+_ADDRESS_WORDS = frozenset({
+    "county", "counties", "city", "township", "borough", "parish", "avenue", "street", "road",
+    "drive", "boulevard", "suite", "highway", "district", "village", "province",
+})
+
+
+def _misspells_address_word(token: str) -> bool:
+    return bool(_edits1(token) & _ADDRESS_WORDS)
+
+
 def _is_british_variant(wrong: str, correct: str) -> bool:
     """True when `wrong` is `correct` spelled the British way.
 
@@ -249,6 +267,42 @@ def _is_british_variant(wrong: str, correct: str) -> bool:
             if wrong.endswith(stem) and wrong[:-len(stem)] + us == correct:
                 return True
         elif uk in wrong and wrong.replace(uk, us, 1) == correct:
+            return True
+    return False
+
+
+# A known prefix or suffix bolted onto a known word IS a real word, whether or not the dictionary
+# happens to list the combination. This closes the gap that put AR at 67%: `rehydration` and
+# `destress` are ordinary English absent from pyspellchecker, and both sat one edit from a common
+# word, so both were accused.
+#
+# Self-contained ON PURPOSE. `/usr/share/dict/words` closes the same gap and wrongly vetoes nothing
+# — measured — but it is not installed by default on Ubuntu 24.04, our deploy target. A check whose
+# vocabulary differs between the dev machine and the server would emit findings in one place and
+# not the other, and this tool reports a DIFF: that variance would surface as phantom new/resolved
+# rows every run. Determinism beats the extra coverage.
+#
+# The remainder floor of 6 is measured, not chosen for neatness. At 5, `recovey` decomposes to
+# `re+covey` ("covey" being a real word) and a genuine typo is silently lost; at 7, `destress` slips
+# back through. At 6 the veto catches both real words and loses none of the 19 confirmed typos found
+# across GL, AR and AH.
+_AFFIX_MIN_STEM = 6
+_PREFIXES = ("re", "de", "un", "non", "pre", "post", "over", "under", "anti", "semi", "multi",
+             "co", "mis", "sub", "inter", "intra", "extra", "micro", "macro", "hyper", "hypo",
+             "dis", "out", "self")
+_SUFFIXES = ("s", "es", "ed", "ing", "ly", "er", "ers", "ion", "ions", "al", "able",
+             "ment", "ments", "ness")
+
+
+def _is_affixed_real_word(token: str) -> bool:
+    d = _dictionary()
+    for p in _PREFIXES:
+        stem = token[len(p):]
+        if token.startswith(p) and len(stem) >= _AFFIX_MIN_STEM and stem in d:
+            return True
+    for s in _SUFFIXES:
+        stem = token[:-len(s)]
+        if token.endswith(s) and len(stem) >= _AFFIX_MIN_STEM and stem in d:
             return True
     return False
 
@@ -293,13 +347,24 @@ def from_audit(ledger: TokenLedger, audited_pages: int, partial_sample: bool) ->
     findings: list[Finding] = []
     british: list[tuple] = []
     for token, n in sorted(ledger.freq.items()):
-        if n > RARE_MAX or token in full or token in KNOWN or token in ledger.placelike:
+        # An address word is exempt from the rarity test. "coutny" is not a word in any context,
+        # so the correction is certain however often it appears — and it WILL appear often, because
+        # an address sits in a template and repeats on every page. That is the general limit of the
+        # rarity signal (a typo repeated by a template is not rare, so it is not found); here the
+        # certainty of the correction lets us step around it. Measured: AH's "Palm Beach Coutny, FL"
+        # occurs 4 times, one past RARE_MAX, and was silently missed before this.
+        address_typo = _misspells_address_word(token) and token not in full
+        if ((n > RARE_MAX and not address_typo) or token in full or token in KNOWN
+                or token in ledger.placelike or _is_affixed_real_word(token)):
             continue
         near = sorted(_edits1(token) & common)
         if not near:
             continue
-        if token not in ledger.ever_lower:
-            # Proper-noun shaped. Keep it only when the correction is ALSO proper-noun shaped —
+        if token not in ledger.ever_lower and not address_typo:
+            # Proper-noun shaped. Address typos are exempt above: "Coutny" is capitalised because
+            # it sits in an address, and its correction "county" is ordinary lowercase English, so
+            # this guard would otherwise discard a certain typo.
+            # Keep it only when the correction is ALSO proper-noun shaped —
             # i.e. a misspelled name (Adderal -> Adderall), not a name that merely resembles a
             # common word (Humana -> human, SoCal -> social, Clarita -> clarity).
             near = [c for c in near if c not in ledger.ever_lower]
