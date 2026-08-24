@@ -173,3 +173,82 @@ def test_real_words_and_domains_are_not_run_together(text):
     first, and skipping anything followed by a dot, removes both."""
     assert [f for f in _run(text) if f.details["class"] == "run_together"] == [], \
         f"false positive: {[f.details.get('matched') for f in _run(text)]}"
+
+
+# ---------------------------------------------------------------------------------------------
+# CORRUPTION, not incorrectness (2026-08-24). Every POSITIVE below is verbatim from a live GL page
+# and was re-fetched to confirm it is in the RENDERED text, not an artifact of our own parser.
+# Measured on 876 pages / 1.7M words; see ARCHITECTURE.md D12 for the families that failed.
+from auditor.parse import Block
+
+
+def _blocks(*texts: str, region: str = "body"):
+    """These families read ONE BLOCK at a time, so fixtures must be built as blocks."""
+    return ParsedPage(
+        url=URL, visible_text="\n".join(texts),
+        blocks=[Block(tag="p", text=t, region=region, group=i) for i, t in enumerate(texts)])
+
+
+def _classes(page) -> list[str]:
+    return [f.details.get("class") for f in empty_slot.run(page, None)]
+
+
+@pytest.mark.parametrize("text,cls", [
+    ("using terms like “IOP near near me” or “IOP programs near me.”", "doubled_word"),
+    ("the right opioid opioid addiction and dependence drug detoxification program", "doubled_word"),
+    ("benefits will vary from from provider to provider and from state to state.", "doubled_word"),
+    ("contributing to overdose-related deaths.These numbers highlight a growing need", "missing_space"),
+    ("aftercare as you move from benzo addiction to ongoing recovery.Call our experts", "missing_space"),
+    ("you will be able to go through medically-asssited detox and be supervised 24/7",
+     "repeated_letters"),
+    ("“ Is Buspirone addictive?. ” This guide addresses these issues", "stacked_punctuation"),
+])
+def test_real_corruption_from_live_pages_is_caught(text, cls):
+    assert cls in _classes(_blocks(text))
+
+
+def test_shattered_paragraph_is_caught():
+    """Live on GL: an entire paragraph with spaces driven into the middle of its words."""
+    text = ("Al ways fo llow t he inst ructions pr ovided by y our do ctor or t he gui delines "
+            "on t he pa ckage. Take the pill with a full glass of water.")
+    assert "shattered_text" in _classes(_blocks(text))
+
+
+def test_lorem_ipsum_on_a_live_page_is_caught():
+    """GL's /local-business-page-dev/ shipped 30 blocks of Latin to the public site."""
+    page = _blocks("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Maecenas convallis "
+                   "enim quis nunc ultricies, a iaculis ex malesuada.")
+    assert "lorem_ipsum" in _classes(page)
+
+
+@pytest.mark.parametrize("text", [
+    # legitimate English doubles — a closed set, named in the check
+    "He had had enough of the waiting list before he called us.",
+    "The thing that that patient needed was a longer stay.",
+    # abbreviations and web addresses: the vetoes that make missing_space safe
+    "Referrals come from Dr.Smith only after an assessment.",
+    "Read more at gratitudelodge.Com for details of the programme.",
+    # uppercase runs are acronyms and Roman numerals, never keystroke damage
+    "The NIAAA and CCC both publish Type III diagnostic criteria for review.",
+    # ordinary prose with short words must never look shattered
+    "We ask if it is ok to go in to see him at the unit on a Tuesday or a Friday.",
+    # an ellipsis is punctuation, not damage
+    "She paused... then agreed to enter the programme the following morning.",
+])
+def test_ordinary_prose_stays_silent(text):
+    assert _classes(_blocks(text)) == []
+
+
+def test_a_seam_between_two_blocks_is_never_a_defect():
+    """The lesson that cost 3,837 false findings: `visible_text` concatenates separate elements, so
+    a heading ending "costs." beside a link reading "Verify" reads as "costs.Verify"."""
+    page = _blocks("Insurance can cover up to 100% of treatment costs.", "Verify Insurance")
+    assert "missing_space" not in _classes(page)
+
+
+def test_pages_without_body_landmarks_stay_silent_rather_than_guess():
+    """No body block means no block-wise read. These families say nothing instead of scanning the
+    concatenated page, which is where the seam artifacts come from."""
+    page = ParsedPage(url=URL, visible_text="deaths.These numbers highlight a growing need",
+                      blocks=[Block(tag="p", text="deaths.These numbers", region="footer", group=0)])
+    assert "missing_space" not in _classes(page)

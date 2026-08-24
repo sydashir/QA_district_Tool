@@ -921,3 +921,84 @@ reasoning and sources: `docs/plans/2026-08-14-product-design.md` §13.
 **Reproducing this:** `spike/lt_volume_gate.py`, raw output in
 `spike/lt_volume_gate_result.json`. LanguageTool is NOT a repo dependency and nothing in the
 shipping path imports it.
+
+---
+
+## D12. Corruption detection — the fourth spelling/grammar attempt, and the one that SHIPPED
+
+**Result: six families shipped, 21 findings on 876 GL pages, 59/60 hand-classified true positives
+(98%). Seven families measured and rejected.** Ticket 86bapv5yn's headline — grammar and spelling —
+is now partially closed by deterministic checks, with no model, no dictionary judgement and no
+review queue.
+
+### Why this attempt differed from D9, D10 and D11
+
+All three predecessors asked **"is this text CORRECT?"** — a judgement. D9 editorialised about word
+choice; D10 hit 9% precision because rare clinical vocabulary is indistinguishable from a typo when
+the only signal is "not in my dictionary"; D11 was researched and abandoned for the same reason.
+
+This attempt asks **"is this text BROKEN?"** — a structural fact. It is the question `empty_slot`
+already answers profitably: that check knows nothing about grammar, it knows `"within  of
+California"` has a hole in it. Corruption is what a broken CMS actually produces, and it is
+detectable without a model.
+
+### Method
+
+876 live GL pages / 1.7M body words, fetched 2026-08-23 (seed 20260823, URLs from the existing
+`cache/gl/pages.json` so the sitemap was never re-hit) and parsed with the REAL
+`auditor.parse.parse_html`. Measuring against home-grown extraction would have measured a corpus
+production never sees. Every surviving hit was then **re-fetched and confirmed present in the
+RENDERED text**, so nothing shipped is an artifact of our own parser.
+
+Note: **nothing in `cache/` retains page text** — `resume.done.jsonl` and `pages.json` store
+projections only (`visible_chars` is a count). Any future text work must fetch its own corpus.
+
+### SHIPPED (all in `checks/empty_slot.py`, one batched commit)
+
+| family | hits | precision | what it catches |
+|---|---|---|---|
+| `missing_space` | 12 | 12/12 | `deaths.These` — a sentence boundary that lost its space |
+| `doubled_word` | 5 | 5/5 | `from from`, `opioid opioid` |
+| `lorem_ipsum` | 1 page | 1/1 | **30 blocks of Latin live on `/local-business-page-dev/`** |
+| `repeated_letters` | 1 | 1/1 | `medically-asssited` |
+| `stacked_punctuation` | 1 | 1/1 | `addictive?.` |
+| `shattered_text` | 1 | 1/1 | `Al ways fo llow t he inst ructions pr ovided by y our do ctor` |
+
+Plus **12 corpus-mined misspellings** in `checks/misspelling.py::MINED`, kept apart from `KNOWN` so
+that list's "the client confirmed this" guarantee still means what it says. Mining rule: a token
+appearing 1-3 times in the corpus that is ONE EDIT from a token appearing 100+ times. Measured
+11/12 = 92%. Among them **`graditude` — the brand's own name, misspelled on a live page.**
+
+**The rarity half is load-bearing and cannot be replaced by dictionary frequency.** Measured:
+substituting "common in the dictionary" for "common in this corpus" drops precision to **42%**,
+because `abilify`, `aleve`, `concerta`, `permanente` and `rogan` are each one edit from a common
+word, and only "appears at most 3 times in the corpus" removes them. This is the precise reason D10
+failed and this did not.
+
+### REJECTED — measured, not guessed. Do not re-propose without new evidence.
+
+| family | hits | precision | why it fails |
+|---|---|---|---|
+| `space_before_punct` | 2,315 | **0%** | **Parser artifact.** Raw HTML reads `insurance</strong>, easing` — no space at all. Our parser inserts a separator when closing an inline element. |
+| `mid_sentence_capital` | 11,640 | ~0% | English capitalises proper nouns mid-sentence constantly (`near Seal Beach`). |
+| `stranded_fragment` | 4,054 | ~0% | Staff names and labels (`Amy Leifeste`, `Licensed Professionals`). |
+| `unterminated_block` | 1,449 | ~12% | Feature-list cards legitimately carry no full stop. |
+| `verbless_sentence` | 130 | ~17% | Headings-as-paragraphs, and it fired on Latin for the wrong reason. Also the only family needing to know what words MEAN — which is the failure mode of D9. |
+| `welded_pair` (2-part) | 22 | **0%** | `undertreated`, `paddleboarding`, `recreationally`. This validates the existing 3-part / 16-char floor on `run_together`. |
+| `mixed_case_midword` | 4 | 0% | `eReaders` (a real word), `drugInfo` (a URL). |
+| `stacked_separator`, `long_dots`, `digit_in_word` | 0 | n/a | Shipped anyway where free; the corpus contains no instances, so precision is unmeasured. |
+
+### The two lessons worth carrying
+
+1. **Detect on BLOCK text, never `visible_text`.** `visible_text` concatenates separate elements. Run
+   against it, `missing_space` fired **3,837** times instead of 12 — a heading ending `costs.`
+   beside a link reading `Verify` is indistinguishable from `costs.Verify`. There is deliberately
+   **no whole-page fallback**: a page exposing no body landmarks is one these families stay silent
+   on. Under-reporting on a few pages is the cheap failure; inventing defects is the expensive one.
+2. **Verify every new text finding against the raw HTML before believing it.** Block-level detection
+   guards against BLOCK seams and does nothing about INLINE ones. That single check is what caught
+   the 2,315-finding `space_before_punct` family before it shipped.
+
+**Reproducing this:** the corpus builder, prototypes and measurement harness are `build_corpus.py`,
+`detectors.py`, `measure.py` and `measure2.py` — written to a scratchpad, deliberately never added
+to the repo, because nothing in the shipping path may import them.

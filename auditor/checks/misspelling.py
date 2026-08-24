@@ -42,6 +42,39 @@ KNOWN_LOWER_ONLY: dict[str, str] = {
     "heath": "health",
 }
 
+# CORPUS-MINED, hand-verified — kept apart from KNOWN so that list's "the client confirmed this"
+# guarantee stays exactly what it says. Provenance: 876 live GL pages / 1.7M words, 2026-08-24.
+#
+# The mining rule is the allowlist's frequency signal INVERTED: a token appearing 1-3 times in the
+# whole corpus that is ONE EDIT from a token appearing 100+ times is a typo, because a word used
+# once that is one letter from a word used a thousand times is not vocabulary. This is precisely
+# what the parked dictionary spellchecker could not do (ARCHITECTURE.md D10, 9% precision): rare
+# pharmaceutical vocabulary is rare AND far from everything common, so `isotonitazene` never fires,
+# while `treatmnet` does. Measured 11/12 = 92% by hand.
+#
+# The rarity half is load-bearing and cannot be swapped for dictionary frequency — measured: doing
+# so drops precision to 42%, because `abilify`, `aleve`, `concerta`, `permanente` and `rogan` are
+# each one edit from a common word and only "appears at most 3 times in the corpus" removes them.
+#
+# Every entry below was re-fetched and confirmed present in the RENDERED text of a live page, so
+# none is an artifact of our own parser. Word-boundary matching keeps them safe: `stres\b` cannot
+# match "stress", `progra\b` cannot match "program".
+MINED: dict[str, str] = {
+    "athough": "although",
+    "faciltiy": "facility",
+    "recovey": "recovery",
+    "relaspe": "relapse",
+    "treatmed": "treated",
+    "trazadone": "trazodone",
+    "percoet": "Percocet",
+    "asssited": "assisted",
+    "graditude": "Gratitude",     # the brand's OWN name, misspelled on a live GL page
+    "txreatment": "treatment",
+    "stres": "stress",
+    "goint": "going",
+}
+KNOWN.update(MINED)
+
 _BODY_RE = re.compile(r"\b(" + "|".join(KNOWN) + r")\b", re.IGNORECASE)
 _BODY_LOWER_RE = re.compile(r"\b(" + "|".join(KNOWN_LOWER_ONLY) + r")\b")
 # In a slug the separator is "-", so word boundaries differ: match between slug delimiters.

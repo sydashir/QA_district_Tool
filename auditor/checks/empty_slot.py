@@ -174,6 +174,148 @@ def _run_together(text: str):
             yield m, parts
 
 
+# --------------------------------------------------------------------------------------------
+# 7-11) CORRUPTION, not incorrectness. Measured on 876 live GL pages / 1.7M body words, 2026-08-24;
+# every family below cleared the project's 80% precision bar by hand-classification, and every
+# surviving hit was re-verified against the RAW HTML so none of them is an artifact of our own
+# parser. The families that FAILED are recorded in ARCHITECTURE.md D12 rather than deleted quietly:
+# mid-sentence capitals (11,640 hits, ~0% — proper nouns), stranded fragments (4,054, ~0% — staff
+# names), unterminated paragraphs (1,449, ~12% — feature cards legitimately have no full stop),
+# verbless sentences (130, ~17%), two-word welds (22, 0% — "undertreated", "paddleboarding").
+#
+# The one that matters most: **space-before-punctuation, 2,315 hits, 0%.** The raw HTML reads
+# `insurance</strong>, easing` — no space at all. Our parser inserts a separator when it closes an
+# inline element, so the whole family was measuring parse.py rather than the page. Detecting on
+# BLOCK text protects against block seams; it does nothing about inline ones. Any future text
+# detector must be checked against raw HTML before it is believed.
+
+# A URL is not prose. Applied to the new families only, so the patterns above keep their existing
+# behaviour exactly. Without it `repeated_char_run` fired 485 times, 484 of them on `www` and
+# `niaaa` inside citation links.
+_URL_IN_TEXT = re.compile(r"https?://\S+|www\.\S+|\S+\.(?:com|org|net|gov|edu|html?)\b\S*")
+
+# 7) "the the", "from from". English does have legitimate doubles, and they are a closed set, so
+#    they are named rather than guessed at.
+_LEGIT_DOUBLE = frozenset({"had", "that", "blah", "no", "very", "so", "ha", "bye", "night",
+                           "new", "york", "walla", "sing", "pago", "baden", "well", "now", "long"})
+_DOUBLED_WORD = re.compile(r"\b([A-Za-z]{2,})(\s+)(\1)\b", re.IGNORECASE)
+
+# 8) "deaths.These numbers" — a sentence boundary that lost its space. The vetoes are what make it
+#    safe: a TLD after the dot is a web address, and a known abbreviation before it is ordinary
+#    prose ("e.g.", "Inc.", "Dr.").
+_TLD = frozenset({"com", "org", "net", "gov", "edu", "io", "co", "uk", "us", "info", "health"})
+_ABBREV = frozenset({"mr", "mrs", "ms", "dr", "prof", "st", "ave", "inc", "ltd", "co", "vs",
+                     "etc", "eg", "ie", "jr", "sr", "ph", "approx", "dept", "est", "fig",
+                     "no", "vol"})
+_MISSING_SPACE = re.compile(r"\b([A-Za-z]{2,})\.([A-Z][a-z]{2,})\b")
+
+# 9) "medically-asssited" — the same letter three times over. No English word does this, so it is
+#    keystroke or pipeline damage. LOWERCASE ONLY: every false positive in the measurement was an
+#    acronym or a Roman numeral (`NIAAA`, `CCC`, `III`), all uppercase.
+_CHAR_RUN = re.compile(r"\b[a-z]*([a-z])\1{2,}[a-z]*\b")
+
+# 10) "addictive?." — two terminal marks stacked, or a separator doubled.
+_STACKED_PUNCT = re.compile(r"[?!]\s*\.|[,;:]\s*[,;:]|\.{4,}")
+
+# 11) Lorem ipsum. Found live on GL's /local-business-page-dev/ — an unfinished development page,
+#     publicly reachable, 30 blocks of Latin. Placeholder copy shipped to a customer-facing page is
+#     a defect in its own right and is trivially detectable, so it gets its own class instead of
+#     surfacing sideways as a doubled word ("Pellentesque pellentesque") the way it first did.
+#     Deliberately excludes Latin that is also English ("sit", "in", "at", "do", "sed"), and needs
+#     several DISTINCT markers in one block, so a page quoting a Latin phrase cannot trip it.
+_LOREM = frozenset("""
+lorem ipsum dolor consectetur adipiscing eiusmod incididunt labore aliqua pellentesque curabitur
+praesent nullam phasellus suspendisse vestibulum malesuada condimentum tincidunt sagittis ultricies
+bibendum dapibus volutpat feugiat facilisis sodales venenatis tristique imperdiet scelerisque
+euismod lacinia ornare porttitor egestas molestie rhoncus vulputate hendrerit tortor ligula risus
+lectus faucibus luctus nisl purus augue justo felis arcu mattis varius potenti cursus nibh erat
+urna metus parturient montes nascetur ridiculus aenean fermentum sollicitudin pharetra gravida
+""".split())
+_LOREM_MIN_MARKERS = 3
+_WORD = re.compile(r"[A-Za-z][A-Za-z'’-]*")
+
+
+def _lorem_markers(text: str) -> set[str]:
+    return {t.lower() for t in _WORD.findall(text)} & _LOREM
+
+
+# 12) "Al ways fo llow t he inst ructions pr ovided by y our do ctor" — a whole paragraph with
+#     spaces driven into the middle of its words. Live on GL. Nothing about this is a spelling
+#     question: the damage is measurable as an abnormal density of one- and two-letter fragments.
+#     Tokenising contractions and alphanumerics as SINGLE tokens is what makes it safe — splitting
+#     them turned "I've" into "ve" and "CB1" into "CB" and produced the only two false positives
+#     the family had.
+_SHATTER_TOKEN = re.compile(r"[A-Za-z0-9][A-Za-z0-9'’-]*")
+_CSS_LEAK = re.compile(r"[{};]|\w+-\w+:")
+_SHORT_OK = frozenset(
+    "a i an at be by do go he if in is it me my no of on or so to up us we am as ok oh hi id tv "
+    "pm ad rx er iv mg ml dr mr st co re ii".split())
+_SHATTER_MIN_TOKENS = 12
+_SHATTER_MIN_ODD = 5
+_SHATTER_RATIO = 0.10
+
+
+def _shattered_blocks(parsed: ParsedPage):
+    """Body blocks whose words have been broken apart by stray spaces."""
+    for b in parsed.blocks:
+        if b.region != "body" or not b.text:
+            continue
+        text = _URL_IN_TEXT.sub(" ", b.text)
+        if len(_CSS_LEAK.findall(text)) >= 3:
+            continue                      # a stylesheet leaking into text is a different bug
+        toks = [t.lower() for t in _SHATTER_TOKEN.findall(text)]
+        if len(toks) < _SHATTER_MIN_TOKENS:
+            continue
+        odd = [t for t in toks if len(t) <= 2 and t.isalpha() and t not in _SHORT_OK]
+        if len(odd) >= _SHATTER_MIN_ODD and len(odd) / len(toks) >= _SHATTER_RATIO:
+            yield b, len(odd), len(toks)
+
+
+def _body_blocks(parsed: ParsedPage) -> list[str]:
+    """Body blocks, one at a time — and NO whole-page fallback.
+
+    The corruption families must read a single block. `visible_text` concatenates separate
+    elements, and reading across that seam invents defects no reader sees: against `visible_text`
+    the missing-space family fired 3,837 times instead of 12, because a heading ending "costs."
+    followed by a link reading "Verify" is indistinguishable from "costs.Verify".
+
+    Falling back to the whole page when a page exposes no body landmarks would quietly reintroduce
+    that (74 hits, still mostly seams). A page we cannot read block-wise is one these families stay
+    silent on. Under-reporting on a handful of pages is the cheap failure; inventing defects on
+    them is the expensive one, and this project's whole standard is not crying wolf.
+    """
+    return [b.text for b in parsed.blocks if b.region == "body" and b.text]
+
+
+def _corruption(text: str):
+    """The four corruption families, over URL-stripped text. Yields (class, match)."""
+    clean = _URL_IN_TEXT.sub(" ", text)
+    for m in _DOUBLED_WORD.finditer(clean):
+        if m.group(1).lower() not in _LEGIT_DOUBLE and "\n" not in m.group(2):
+            yield "doubled_word", m
+    for m in _MISSING_SPACE.finditer(clean):
+        if m.group(1).lower() not in _ABBREV and m.group(2).lower() not in _TLD:
+            yield "missing_space", m
+    for m in _CHAR_RUN.finditer(clean):
+        yield "repeated_letters", m
+    for m in _STACKED_PUNCT.finditer(clean):
+        yield "stacked_punctuation", m
+
+
+_CORRUPTION_WHY = {
+    "doubled_word": "the same word appears twice in a row",
+    "missing_space": "two sentences are joined with no space after the full stop",
+    "repeated_letters": "a letter is repeated three or more times inside a word",
+    "stacked_punctuation": "two punctuation marks are stacked together",
+}
+_CORRUPTION_FIX = {
+    "doubled_word": "Delete the duplicate. This is usually a merge or an edit that was half-undone.",
+    "missing_space": "Add the missing space after the full stop.",
+    "repeated_letters": "Correct the spelling — no English word repeats a letter three times.",
+    "stacked_punctuation": "Remove the extra mark.",
+}
+
+
 _PATTERNS = (
     ("orphan_comma", _ORPHAN_COMMA, Severity.ERROR,
      "A variable rendered empty and left a dangling comma (e.g. \"In , the …\")."),
@@ -216,6 +358,49 @@ def run(parsed: ParsedPage, config) -> list[Finding]:
                        f"({' + '.join(parts)}). A template joined fields that should have been "
                        f"separate, or a web address leaked into the wording. Put the spaces back.",
             details={"class": "run_together", "matched": tok, "parts": list(parts)}))
+
+    # --- lorem ipsum: reported ONCE per page, not once per Latin block ---
+    markers = _lorem_markers(text)
+    if len(markers) >= _LOREM_MIN_MARKERS:
+        findings.append(Finding(
+            url=parsed.url, check=CHECK, severity=Severity.ERROR,
+            fingerprint=make_fingerprint(CHECK, "lorem_ipsum", parsed.url, "lorem"),
+            issue="placeholder Latin text (lorem ipsum) is live on this page",
+            location="page body", snippet=_context(text, 0, 160, pad=0),
+            suggestion="This page still carries the dummy text a template ships with, so it was "
+                       "published before anyone wrote the real copy. Replace it or unpublish the "
+                       "page — it is publicly reachable as it stands.",
+            details={"class": "lorem_ipsum", "markers": sorted(markers)[:8]}))
+
+    for b, n_odd, n_tok in _shattered_blocks(parsed):
+        key = ("shattered_text", b.text[:60].lower())
+        occ = seen[key]
+        seen[key] += 1
+        slot = "shattered_text" if occ == 0 else f"shattered_text#{occ}"
+        findings.append(Finding(
+            url=parsed.url, check=CHECK, severity=Severity.ERROR,
+            fingerprint=make_fingerprint(CHECK, slot, parsed.url, b.text[:60].lower()),
+            issue="a paragraph has spaces broken into the middle of its words",
+            location="page body", snippet=b.text[:180],
+            suggestion=f"{n_odd} of {n_tok} words in this paragraph are stray one- or two-letter "
+                       f"fragments (\"Al ways fo llow t he inst ructions\"). The text was damaged "
+                       f"on its way onto the page, not mistyped — re-paste it from the source.",
+            details={"class": "shattered_text", "odd_tokens": n_odd, "tokens": n_tok}))
+
+    for block_text in _body_blocks(parsed):
+        for cls, m in _corruption(block_text):
+            matched = m.group(0)
+            key = (cls, matched.lower())
+            occ = seen[key]
+            seen[key] += 1
+            slot = cls if occ == 0 else f"{cls}#{occ}"
+            findings.append(Finding(
+                url=parsed.url, check=CHECK, severity=Severity.WARNING,
+                fingerprint=make_fingerprint(CHECK, slot, parsed.url, matched.lower()),
+                issue=f"broken text: {_CORRUPTION_WHY[cls]}",
+                location="page body", snippet=_context(block_text, m.start(), m.end()),
+                suggestion=f"{_CORRUPTION_FIX[cls]} Found as {matched.strip()!r}.",
+                details={"class": cls, "matched": matched}))
 
     for cls, pattern, severity, why in _PATTERNS:
         for m in pattern.finditer(text):
