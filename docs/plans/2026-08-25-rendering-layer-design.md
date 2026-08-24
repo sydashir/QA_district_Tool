@@ -1,6 +1,7 @@
 # Rendering layer — design
 
 **Design only. No code written. 2026-08-25.**
+**Decisions returned 2026-08-25 and folded in — see §10 for what was decided and what changed.**
 
 Everything in `docs/WHAT_THE_AUDIT_DOES_NOT_CHECK.md` is invisible because the auditor reads the
 HTML a server sends and stops. A real browser renders it. This document designs that layer, answers
@@ -314,3 +315,110 @@ Stop after any step and the layer is still coherent and useful.
 4. **Does the client know** we would be rendering their pages? Even with trackers blocked, this is a
    change in how their infrastructure is being used, and it seems worth their agreement rather than
    ours.
+
+---
+
+## 10. Decisions (returned 2026-08-25) — these supersede the open questions in §9
+
+### 10.1 Tap targets — 24 is the error, 44 is a recommendation
+
+**24×24 (WCAG 2.5.8 AA) ships as ERROR. 44×44 ships as optional INFO, off by default, and
+labelled a design recommendation rather than a failure.** 44 is never an error: *we do not get to
+assert a standard the client has not adopted.* This is the same line the tool already holds
+elsewhere — it reports what is broken, not what it would have preferred.
+
+### 10.2 The deny-list — necessary, not sufficient, and the highest-risk thing here
+
+Four requirements, all of which are build-blocking:
+
+1. **Refuse to start** if the deny-list is not active.
+2. **Assert it worked, per run** — count blocked requests and fail loudly on zero. Configured is not
+   the same as working; a silently-broken deny-list looks exactly like a page with no trackers, and
+   the failure mode is invisible pollution of the client's data. This is a *runtime assertion*, not
+   a setting.
+3. **Default-deny on known trackers, and log every third-party domain that was NOT blocked**, so new
+   trackers are discovered rather than silently leaked to. The allow-list will drift as the client's
+   marketing stack changes; the log is how we find out.
+4. **CTM specifically** — researched, and the answer is worse than assumed.
+
+#### CTM: the pool number is consumed on page LOAD
+
+Vendor documentation is explicit: the tracking snippet runs on every page load, reads UTM
+parameters, referrer and `gclid`, then pulls a number from the managed pool and swaps it into the
+page. It does **not** wait for interaction, and the assignment persists for that visitor's session
+so the callback can be attributed.
+
+So an unblocked render pass does not merely register a visit — **it consumes pool numbers and
+creates attribution sessions bound to a visitor who does not exist.** At ~2,900 renders a night
+that is a standing distortion of the client's call attribution, and potentially of their CTM
+billing. Blocking CTM is mandatory, not preferable.
+
+#### And blocking it has a side effect that must not become a false finding
+
+With CTM blocked, the DNI swap never happens and the page renders its **hardcoded default number** —
+which is exactly the number the HTML-only auditor already checks, so the two layers stay consistent.
+That is the good case. The bad case: if any brand's markup leaves the number element **empty** until
+CTM fills it, blocking leaves a visibly empty slot. Two consequences for the design:
+
+* The render layer **must not run phone checks at all.** The HTML layer owns phones; duplicating
+  them against a deliberately-crippled page would produce findings that are artifacts of our own
+  blocking. (Same lesson as `space_before_punct`: never report a defect your own tooling created.)
+* Empty-looking number slots must be **excluded from the overflow / blank / clipped-text checks**,
+  for the same reason.
+
+This must be verified per brand on the first run, not assumed.
+
+### 10.3 Visual regression — designed, parked, not in v1
+
+Cut. The reasoning that killed it is the reasoning in §4: nobody will hand-verify ~1,450 baselines,
+so the baseline would bake today's defects in as canonical, and even then it can only ever claim
+"changed", never "wrong". The axe checks produce real findings on day one; visual regression
+produces nothing until run two and then only ambiguity. The design stays in §4 for whenever it is
+asked for.
+
+### 10.4 The client is told before this runs — not after
+
+This is not a technical decision and is not ours to make. We would be loading their production
+pages in a real browser, nightly, ~2,900 times. Even with every tracker blocked, it is their
+infrastructure and their analytics.
+
+**The render layer does not run against production until Syed has told them.** Draft notice below —
+it is Syed's to send, and this repo does not send anything.
+
+> **Draft — for Syed to send. Not sent by the tool, not sent by me.**
+>
+> Before we switch anything on, I want to flag a change in how the audit works, because it affects
+> your sites rather than just our tooling.
+>
+> The audit currently reads the raw HTML of each page. That covers text, links, phone numbers and
+> template fields, but it is blind to anything that only exists once a page is drawn on a screen —
+> colour contrast, mobile layout, images that fail to load, buttons wired up in JavaScript. Several
+> of the issues reported over the summer were exactly that kind, so we would like to add a second
+> pass that opens each page in a real browser.
+>
+> What that means in practice:
+>
+> - It renders roughly 2,900 pages — one per page template across the nine sites, not every page —
+>   at desktop and mobile sizes. A full pass takes about three hours and would run outside your
+>   busy hours.
+> - **It blocks all analytics and tracking before the page loads.** Google Analytics, Google Tag
+>   Manager, Meta pixels and CallTrackingMetrics are all prevented from firing, so these visits do
+>   not appear in your reporting and do not consume call-tracking numbers. We verify that blocking
+>   actually worked on every run, and the pass refuses to start if it is not active.
+> - **It does not submit any forms.** It checks that a Submit button is wired up and where it would
+>   post, then cancels the request before it leaves our machine. No test enquiries reach your intake
+>   team or your CRM. If you ever want form submission tested end to end, that should be done on a
+>   staging site, and only with your agreement.
+> - It does not log in, and it never clicks anything that deletes or cancels.
+>
+> The only thing we need from you is a yes, and a note of any hours you would rather we avoided.
+
+### 10.5 Build order (confirmed)
+
+1. Render harness + safety layer, with the runtime deny-list assertion. **Proven before any check.**
+2. axe-core: contrast + `target-size` (24 ERROR, 44 optional INFO), plus broken images.
+3. Dead JS buttons.
+4. Form wiring capture — client half only, intercept and abort.
+
+Precision reported **per brand**, hand-classified, same standard as the text checks: nothing ships
+as ERROR below 80%.
