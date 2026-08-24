@@ -40,6 +40,15 @@ code. One way to do each thing — no parallel implementations "just in case."
   before the partial was published, and MHD re-crawls at ~2 pages/minute. Land the publish first,
   then the check change. (`server/` and `web/` are NOT hashed — product-layer work is free.)
 
+- **NEW CODE THAT IS NOT A TEXT CHECK GOES OUTSIDE `auditor/checks/`.** `checks_version` hashes
+  *every* file in that directory, so a module dropped there invalidates all nine brands' resume
+  caches on every edit — even when it has nothing to do with the text audit. The **rendering layer
+  belongs in its own top-level `render/` package** for exactly this reason: it will be iterated on
+  constantly, and each iteration would otherwise cost a full re-crawl. It emits the same `Finding`
+  shape and flows into the same report/diff/publish pipeline; only its *source* stays out of the
+  text checks' version. Same rule for anything else product-shaped — `server/` and `web/` are
+  already outside, and that is why product work is free.
+
 - **`parse.py` is the highest-blast-radius file in the repo — BATCH every change to it.** It is in
   `_GLOBAL_SRC`, so *any* edit rule-changes **every check on every brand at once** and costs a full
   re-crawl of all nine — **~12 hours without MHD, of which RR alone is 9.4h**, plus MHD (see §13;
