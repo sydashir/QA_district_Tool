@@ -147,11 +147,15 @@ def run(parsed: ParsedPage, config) -> list[Finding]:
 #     can appear twice in the sample. Sample frequencies are not site frequencies.
 # When either gate fails the check emits NOTHING and says so, rather than guessing.
 MIN_COVERAGE = 0.90
+_BRITISH_MIN = 2          # one is a typo; two or more is an editorial decision
 RARE_MAX = 3
 COMMON_MIN = 100
 _LETTERS = "abcdefghijklmnopqrstuvwxyz"
 _URL_IN_TEXT = re.compile(r"https?://\S+|www\.\S+|\S+\.(?:com|org|net|gov|edu|html?)\b\S*")
 _TOKEN = re.compile(r"[A-Za-z][A-Za-z'’-]*")
+# ", WI" / ", SC" — a US state code immediately after a word marks that word as a place name.
+_PLACE_AFTER = re.compile(r"\s*,\s*(?:A[KLRZ]|C[AOT]|D[CE]|FL|GA|HI|I[ADLN]|K[SY]|LA|M[ADEINOST]"
+                          r"|N[CDEHJMVY]|O[HKR]|P[AR]|RI|S[CD]|T[NX]|UT|V[AT]|W[AIVY])\b")
 
 
 def _is_lorem(text: str) -> bool:
@@ -170,6 +174,7 @@ class TokenLedger:
         self.freq: Counter = Counter()
         self.ever_lower: set[str] = set()
         self.example: dict[str, tuple[str, str]] = {}
+        self.placelike: set[str] = set()
         self.pages = 0
 
     def add_page(self, parsed) -> None:
@@ -192,9 +197,60 @@ class TokenLedger:
                 self.freq[t] += 1
                 if raw[0].islower():
                     self.ever_lower.add(t)
+                if _PLACE_AFTER.match(clean, m.end()):
+                    # "Prairie du Chien, WI" / "Taylors, SC" — a US place name, not a typo. AR
+                    # carries city-listing content, and this single shape was three of its five
+                    # false positives. A token sitting immediately before a state code is a place;
+                    # it is never counted, so it can neither be accused nor inflate a count.
+                    self.placelike.add(t)
+                    continue
                 if t not in self.example:
                     i = m.start()
                     self.example[t] = (parsed.url, clean[max(0, i - 60):i + len(raw) + 60].strip())
+
+
+# British vs US spelling. The client mandated US English (jake_doc answer [k]), so `behavioural`
+# on a US brand's site is a defect — but five of them on one site is ONE editorial decision, not
+# five typos, and reporting it five times both buries the real typos and misdescribes the fix.
+# Same collapse principle as the template-wide defects: one row per cause.
+#
+# Detected by TRANSFORMATION rather than a word list, so it needs no maintenance and cannot go
+# stale. Each rule is only accepted when applying it to the flagged word yields exactly the common
+# form already in use on that same site, so a coincidence cannot pass.
+# Anchored where the real rule is anchored. A bare ("ll", "l") looked right and was WRONG: it
+# classified `vallium` -> `valium`, a misspelled drug name, as a British spelling. British doubling
+# happens in specific SUFFIXES (-lling, -lled, -llor), not anywhere an "ll" occurs.
+_BRITISH_RULES = (
+    ("our", "or"),          # behaviour -> behavior, colour -> color
+    ("re$", "er"),          # centre -> center, metre -> meter
+    ("res$", "ers"),        # centres -> centers
+    ("ise", "ize"),         # realise -> realize
+    ("isation", "ization"),
+    ("yse", "yze"),         # analyse -> analyze
+    ("lling", "ling"),      # counselling -> counseling
+    ("lled", "led"),        # travelled -> traveled
+    ("llor", "lor"),        # counsellor -> counselor
+    ("ence$", "ense"),      # defence -> defense, licence -> license
+    ("ogue$", "og"),        # catalogue -> catalog
+    ("ae", "e"),            # paediatric -> pediatric
+    ("oe", "e"),            # oestrogen -> estrogen
+)
+
+
+def _is_british_variant(wrong: str, correct: str) -> bool:
+    """True when `wrong` is `correct` spelled the British way.
+
+    Verified, never assumed: a rule counts only when applying it to the flagged word yields exactly
+    the common form already in use on that same site.
+    """
+    for uk, us in _BRITISH_RULES:
+        if uk.endswith("$"):
+            stem = uk[:-1]
+            if wrong.endswith(stem) and wrong[:-len(stem)] + us == correct:
+                return True
+        elif uk in wrong and wrong.replace(uk, us, 1) == correct:
+            return True
+    return False
 
 
 def _edits1(w: str) -> set[str]:
@@ -235,8 +291,9 @@ def from_audit(ledger: TokenLedger, audited_pages: int, partial_sample: bool) ->
     common = {t for t, n in ledger.freq.items() if n >= COMMON_MIN}
     full = _dictionary()
     findings: list[Finding] = []
+    british: list[tuple] = []
     for token, n in sorted(ledger.freq.items()):
-        if n > RARE_MAX or token in full or token in KNOWN:
+        if n > RARE_MAX or token in full or token in KNOWN or token in ledger.placelike:
             continue
         near = sorted(_edits1(token) & common)
         if not near:
@@ -249,6 +306,9 @@ def from_audit(ledger: TokenLedger, audited_pages: int, partial_sample: bool) ->
             if not near:
                 continue
         url, snippet = ledger.example[token]
+        if _is_british_variant(token, near[0]):
+            british.append((token, near[0], n, url, snippet))
+            continue
         findings.append(Finding(
             url=url, check=CHECK, severity=Severity.WARNING,
             fingerprint=make_fingerprint(CHECK, "mined", url, token),
@@ -261,4 +321,33 @@ def from_audit(ledger: TokenLedger, audited_pages: int, partial_sample: bool) ->
                        f"Check it and correct if wrong.",
             details={"class": "mined", "wrong": token, "correct": near[0],
                      "count": n, "candidates": near[:4]}))
+
+    # A single British spelling is a typo; several is an editorial decision, and the fix is one
+    # decision too ("this site should be written in US English"), not N separate content tickets.
+    if len(british) >= _BRITISH_MIN:
+        words = ", ".join(f"{w} -> {c}" for w, c, _, _, _ in british)
+        url, snippet = british[0][3], british[0][4]
+        findings.append(Finding(
+            url=url, check=CHECK, severity=Severity.WARNING,
+            fingerprint=make_fingerprint(CHECK, "british_spelling", "site", ""),
+            issue=f"this site is written with British spellings, not US ({len(british)} words)",
+            location="site-wide", snippet=snippet,
+            suggestion=f"The client's standard is US English, and these use the British forms: "
+                       f"{words}. That is one editorial decision rather than {len(british)} "
+                       f"separate typos — it usually means a writer or a content source is set to "
+                       f"British English, so new pages will keep arriving the same way. Fix the "
+                       f"source, then the pages.",
+            details={"class": "british_spelling",
+                     "words": [{"wrong": w, "correct": c, "count": n} for w, c, n, _, _ in british]}))
+    else:
+        for token, correct, n, url, snippet in british:
+            findings.append(Finding(
+                url=url, check=CHECK, severity=Severity.WARNING,
+                fingerprint=make_fingerprint(CHECK, "mined", url, token),
+                issue=f"probable typo: {token!r} appears {n}x on this site and is one letter from "
+                      f"{correct!r}",
+                location="page body", snippet=snippet,
+                suggestion=f"{token!r} is the British spelling of {correct!r}; the client's "
+                           f"standard is US English.",
+                details={"class": "mined", "wrong": token, "correct": correct, "count": n}))
     return findings

@@ -115,3 +115,64 @@ def test_latin_placeholder_text_never_enters_the_ledger():
 def test_a_word_already_in_the_known_list_is_not_reported_twice():
     led, n = _ledger(rare="athough")
     assert from_audit(led, audited_pages=n, partial_sample=False) == []
+
+
+# --- British spellings: one editorial decision, not N typos -----------------------------------
+
+def _uk_ledger(*pairs: str) -> tuple[TokenLedger, int]:
+    """A site where the US forms are common and the British forms appear a few times."""
+    led = TokenLedger()
+    common = "behavioral behaviors centers counseling personalized treatment"
+    for i in range(120):
+        led.add_page(_page(f"https://x/{i}/", f"our {common} programme helps people every day"))
+    for j, w in enumerate(pairs):
+        led.add_page(_page(f"https://x/uk{j}/", f"our {w} programme helps people every day"))
+    return led, 120 + len(pairs)
+
+
+def test_several_british_spellings_collapse_to_one_finding():
+    """Five British words on one site is ONE editorial decision. Reported five times it both
+    buries the real typos and misdescribes the fix."""
+    led, n = _uk_ledger("behavioural", "behaviours", "centres", "counselling", "personalised")
+    found = from_audit(led, audited_pages=n, partial_sample=False)
+    assert len(found) == 1
+    f = found[0]
+    assert f.details["class"] == "british_spelling"
+    assert {w["wrong"] for w in f.details["words"]} == {
+        "behavioural", "behaviours", "centres", "counselling", "personalised"}
+    assert "US English" in f.suggestion
+
+
+def test_a_single_british_spelling_is_just_a_typo():
+    led, n = _uk_ledger("behavioural")
+    found = from_audit(led, audited_pages=n, partial_sample=False)
+    assert len(found) == 1 and found[0].details["class"] == "mined"
+
+
+@pytest.mark.parametrize("wrong,correct", [
+    ("vallium", "valium"),        # a misspelled drug, NOT a British spelling — the `ll` trap
+    ("trazadone", "trazodone"),
+    ("clonopin", "klonopin"),
+    ("faciltiy", "facility"),
+])
+def test_a_misspelled_word_is_not_mistaken_for_a_british_one(wrong, correct):
+    from auditor.checks.misspelling import _is_british_variant
+    assert not _is_british_variant(wrong, correct)
+
+
+@pytest.mark.parametrize("wrong,correct", [
+    ("behavioural", "behavioral"), ("centres", "centers"), ("counselling", "counseling"),
+    ("personalised", "personalized"), ("defence", "defense"), ("oestrogen", "estrogen"),
+])
+def test_british_forms_are_recognised(wrong, correct):
+    from auditor.checks.misspelling import _is_british_variant
+    assert _is_british_variant(wrong, correct)
+
+
+def test_a_place_name_before_a_state_code_is_never_a_typo():
+    """AR lists cities: "Prairie du Chien, WI" and "Taylors, SC" were 2 of its 5 false positives."""
+    led = TokenLedger()
+    for i in range(120):
+        led.add_page(_page(f"https://x/{i}/", "our chief medical officer runs the treatment team"))
+    led.add_page(_page("https://x/cities/", "Prairie du Chien, WI (September 9, 2025)"))
+    assert from_audit(led, audited_pages=121, partial_sample=False) == []
