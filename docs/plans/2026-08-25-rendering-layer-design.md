@@ -49,8 +49,11 @@ read and a partial sitemap read: when the tool cannot know, it says nothing rath
 2. It is **off by default** — it ships behind the WCAG 2.2 tag and must be explicitly enabled.
 
 It also does more than measure a box: a small control **passes** if it has enough clear space
-around it, which is the correct reading of the criterion and kills a whole class of false positive
-we would otherwise have generated on tight icon rows.
+around it. **Verified against a fixture, and it corrects the assumption above** — an *isolated*
+12x12 target PASSES, and only a *crowded* row of them fails, because 2.5.8's exception is about
+spacing rather than size. So a naive "smaller than 24px" check would have reported every isolated
+small icon on every site. Using axe rather than measuring boxes ourselves removes that whole false-
+positive class for free.
 
 > **Decision needed from you:** 24×24 (AA, defensible against a published standard, fewer findings)
 > or 44×44 (AAA/Apple, stricter, many more findings on any normal site)? My recommendation is
@@ -398,13 +401,23 @@ it is Syed's to send, and this repo does not send anything.
 >
 > What that means in practice:
 >
-> - It renders roughly 2,900 pages — one per page template across the nine sites, not every page —
->   at desktop and mobile sizes. A full pass takes about three hours and would run outside your
->   busy hours.
-> - **It blocks all analytics and tracking before the page loads.** Google Analytics, Google Tag
->   Manager, Meta pixels and CallTrackingMetrics are all prevented from firing, so these visits do
->   not appear in your reporting and do not consume call-tracking numbers. We verify that blocking
->   actually worked on every run, and the pass refuses to start if it is not active.
+> - **It renders about 2,900 pages per run, once a night.** That is one page per template across
+>   the nine sites, not every page — the visual problems we are looking for come from templates, so
+>   rendering all ~31,000 pages would take about 34 hours to find the same things. A full pass takes
+>   roughly three hours and would run outside your busy hours. I am stating the number and the
+>   cadence plainly so nobody comes across it in a server log and wonders what it is.
+> - **It blocks all analytics and tracking before the page loads.** Google Tag Manager, Meta's
+>   pixel, Microsoft Clarity and CallTrackingMetrics are prevented from firing, so these visits do
+>   not appear in your reporting and do not consume call-tracking numbers. (CallTrackingMetrics
+>   assigns a number from your pool the moment a page loads, not when someone interacts, so this
+>   one matters more than it looks.)
+> - **We also block your A/B testing tool, Visual Website Optimizer**, so our rendering cannot
+>   enrol fake visitors into live experiments. Analytics noise can be filtered out afterwards; a
+>   skewed experiment quietly changes a decision you then act on, so it is worth calling out
+>   separately.
+> - We verify the blocking actually worked on every run — we count what was blocked and abort the
+>   whole pass if the answer is zero, because a guard that silently detached would look exactly
+>   like a clean set of pages. The pass also refuses to start if it is not active.
 > - **It does not submit any forms.** It checks that a Submit button is wired up and where it would
 >   post, then cancels the request before it leaves our machine. No test enquiries reach your intake
 >   team or your CRM. If you ever want form submission tested end to end, that should be done on a

@@ -1,0 +1,33 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>a11y fixture</title>
+<style>
+  body { background:#fff; font-family: Arial, sans-serif; }
+  /* FAIL: ~1.9:1 — the "unreadable button" Connor reported */
+  .bad-contrast { background:#7a7a7a; color:#9a9a9a; padding:14px 20px; display:inline-block; }
+  /* PASS: black on white */
+  .good-contrast { background:#ffffff; color:#111111; padding:14px 20px; display:inline-block; }
+  /* UNDECIDABLE: text over a background image — axe must return `incomplete`, never a violation */
+  .on-image { background-image:url('data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==');
+              color:#8f8f8f; padding:14px 20px; display:inline-block; }
+  /* FAIL target-size: 12x12, isolated */
+  .tiny { display:inline-block; width:12px; height:12px; background:#004080; }
+  /* PASS 24 but FAIL the 44 recommendation: 30x30 */
+  .medium { display:inline-block; width:30px; height:30px; background:#004080; margin:40px; }
+  /* PASS both: 48x48 */
+  .large { display:inline-block; width:48px; height:48px; background:#004080; margin:40px; }
+</style></head><body>
+  <p class="good-contrast">Readable body copy that passes contrast.</p>
+  <a href="/x" class="bad-contrast">Verify Insurance</a>
+  <p class="on-image">Text sitting on a background image.</p>
+  <!-- ISOLATED small target: axe PASSES this, correctly. WCAG 2.5.8 exempts a small target with
+       enough clear space around it, so "under 24px" alone is not a failure. -->
+  <div style="margin:60px 0">
+    <a href="/a" class="tiny" aria-label="isolated tiny target"></a>
+  </div>
+  <!-- CROWDED small targets: this IS the failure — a tight icon row where the 24px zones collide. -->
+  <div style="margin:60px 0" id="crowded">
+    <a href="/s1" class="tiny" aria-label="s1"></a><a href="/s2" class="tiny" aria-label="s2"></a><a
+       href="/s3" class="tiny" aria-label="s3"></a><a href="/s4" class="tiny" aria-label="s4"></a>
+  </div>
+  <a href="/b" class="medium" aria-label="medium target"></a>
+  <a href="/c" class="large" aria-label="large target"></a>
+</body></html>
