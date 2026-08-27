@@ -31,6 +31,7 @@ CHECK_LABELS = {
     "duplication": "Repeated content",
     "empty_row": "Blank slots",
     "spelling": "Spelling",
+    "schema": "Search engine data",
 }
 
 # (check, issue-prefix) -> (plain issue, suggestion). First match wins, so put specific before

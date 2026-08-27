@@ -28,6 +28,7 @@ from urllib.parse import urlparse
 
 from . import checks_version, crawl as C, diff, writers
 from .checks import (actions, blank, brands, duplication, empty_row, empty_slot,
+                     schema,
                      enumeration, links, meta, misspelling, phone, placeholder, scope,
                      spelling, structure)
 from .config import BrandConfig
@@ -38,7 +39,7 @@ from .report import (AuditReport, Finding, PageAudit, Severity, canonical_url,
 
 # Per-page checks that operate purely on a ParsedPage.
 _PAGE_CHECKS = (structure, placeholder, empty_slot, misspelling, scope, spelling, phone,
-                blank, meta, actions, brands, duplication, empty_row)
+                blank, meta, actions, brands, duplication, empty_row, schema)
 # Checks whose findings are derived from ``visible_text`` and are therefore only as trustworthy as
 # our knowledge of what the page HIDES (see ParsedPage.css_status).
 _VISIBLE_TEXT_CHECKS = frozenset({"blank", "placeholder", "empty_slot", "misspelling",

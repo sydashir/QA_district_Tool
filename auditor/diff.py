@@ -25,7 +25,7 @@ import os
 from pathlib import Path
 
 from .checks import (actions, blank, brands, duplication, empty_row, empty_slot,
-                     enumeration, links, meta, misspelling, phone, placeholder, scope,
+                     enumeration, links, meta, misspelling, phone, placeholder, schema, scope,
                      spelling, structure)
 from .checks_version import changed_components
 from .report import Finding, Severity
@@ -38,7 +38,7 @@ _GLOBAL_SRC = {"src:parse.py", "src:report.py"}
 _CHECK_COMPONENT: dict[str, set[str]] = {
     m.CHECK: {f"src:{Path(m.__file__).name}"}
     for m in (actions, blank, brands, duplication, empty_row, empty_slot, enumeration,
-              links, meta, misspelling, phone, placeholder, scope, spelling, structure)
+              links, meta, misspelling, phone, placeholder, schema, scope, spelling, structure)
 }
 # enumeration output depends on crawl.py's enumerate logic (what's in the sitemap/REST sets) —
 # enumeration-scoped, so a crawl enumerate change rule-changes ONLY the 845 findings.
