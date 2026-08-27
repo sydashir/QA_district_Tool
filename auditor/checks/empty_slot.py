@@ -316,6 +316,47 @@ _CORRUPTION_FIX = {
 }
 
 
+# --------------------------------------------------------------------------------------------
+# 13-14) PIPELINE SENTINEL RESIDUE. Found by reading the content tool's own source
+# (docs/plans/2026-08-26-sheet-pipeline-investigation.md): when a geo statistic is missing, the
+# generator does NOT leave the cell blank. It substitutes, and the substitute reaches the page
+# looking like a real value.
+#
+# Two of the four substitutions are detectable with certainty. Two are NOT, and are deliberately
+# not built — see the note below, because "we measured it and it does not work" is worth keeping.
+
+# 13) The literal string the generator writes when it has no data at all. Renders straight into
+#     prose: "a total population of Not found as of 2023" (live on CAD),
+#     "substances such as Not found" (live on RR).
+#     Case-sensitive on purpose: the sentinel is exactly "Not found". A 404 page says
+#     "Not Found" (capital F), and "not found" in ordinary prose is lowercase.
+_NOT_FOUND_SENTINEL = re.compile(r"\bNot found\b")
+
+# 14) "There are 1 facilities offering medication-assisted treatment" — a count of 1 against a
+#     plural noun. This is a real grammatical defect a reader can see, INDEPENDENT of where the 1
+#     came from, which is why it is safe to report: we flag the broken sentence, never the claim
+#     that the number was fabricated.
+#     The noun list is closed rather than a generic "word ending in s", because a generic pattern
+#     matched verbs ("1 includes") and, measured on live pages, every false positive came from
+#     hyphenated drug names — GLP-1 pathways/receptors/medications. The lookbehind kills that whole
+#     class: a "1" preceded by a hyphen, letter or decimal point is part of a token, not a count.
+#     PLURAL FORMS ONLY. The first version used `programs?` and matched "more than 1 rehab" on GL —
+#     which is correct English. "1 program" is fine; "1 programs" is not. The whole check is the
+#     disagreement, so a singular noun must never match.
+_COUNT_NOUNS = (r"programs|facilities|centers|centres|clinics|rehabs|providers"
+                r"|options|services|beds|reviews|results|locations|hospitals|sites")
+_COUNT_DISAGREEMENT = re.compile(
+    rf"(?<![\w.\-])1\s+(?:{_COUNT_NOUNS})\b", re.IGNORECASE)
+
+# MEASURED AND REJECTED — do not re-propose without new evidence:
+#   * A hardcoded year. The generator defaults a missing year to 2024 (`current_year = 2024`,
+#     geo_data_service.py:1774). Undetectable: "2024" appears 177 times across 38 GL pages as
+#     ordinary citations and statistics. There is no way to tell a defaulted year from a real one.
+#   * A fabricated facility count. The generator writes random.randint(1, 2) for a missing count.
+#     Undetectable as such: a small town genuinely has one or two treatment centres, and a check
+#     that cannot tell the difference would accuse correct pages. Only its GRAMMATICAL residue is
+#     reportable, which is check 14 above.
+
 _PATTERNS = (
     ("orphan_comma", _ORPHAN_COMMA, Severity.ERROR,
      "A variable rendered empty and left a dangling comma (e.g. \"In , the …\")."),
@@ -326,6 +367,12 @@ _PATTERNS = (
     ("missing_unit", _MISSING_UNIT, Severity.ERROR,
      "A distance/duration variable kept its number but lost its unit "
      "(e.g. \"within 15 of Costa Mesa\" — miles is missing)."),
+    ("not_found_sentinel", _NOT_FOUND_SENTINEL, Severity.ERROR,
+     "The content pipeline writes the literal text \"Not found\" when a statistic is missing, and "
+     "it has reached the page as if it were a value (e.g. \"a total population of Not found\")."),
+    ("count_disagreement", _COUNT_DISAGREEMENT, Severity.ERROR,
+     "A count of 1 is written against a plural noun (e.g. \"there are 1 facilities\"), so either "
+     "the number or the wording is wrong."),
     ("truncated_word", _TRUNCATED_WORD, Severity.WARNING,
      "A stranded single letter — usually the surviving fragment of an empty merge field "
      "(e.g. \"outcomes d compared to\")."),

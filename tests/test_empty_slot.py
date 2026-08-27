@@ -252,3 +252,43 @@ def test_pages_without_body_landmarks_stay_silent_rather_than_guess():
     page = ParsedPage(url=URL, visible_text="deaths.These numbers highlight a growing need",
                       blocks=[Block(tag="p", text="deaths.These numbers", region="footer", group=0)])
     assert "missing_space" not in _classes(page)
+
+
+# ---------------------------------------------------------------------------------------------
+# PIPELINE SENTINEL RESIDUE (2026-08-27). Found by reading the content tool's own source: when a
+# geo statistic is missing it substitutes rather than leaving a blank, and the substitute reaches
+# the page looking like a value. Every POSITIVE below is verbatim from a live page.
+
+@pytest.mark.parametrize("text,cls", [
+    # CAD, live
+    ("In communities with a total population of Not found as of 2023, there are approximately 68 "
+     "treatment centers", "not_found_sentinel"),
+    # RR, live
+    ("news reports involving substances such as Not found, reflecting how stimulant use continues",
+     "not_found_sentinel"),
+    # COC / RR / GL, live
+    ("Of these, there are 1 programs that maintain ratings of at least 4 stars", "count_disagreement"),
+    ("No fewer than 1 programs within 20 of Oak Hill accept private insurance", "count_disagreement"),
+    ("Around 1 programs accept private insurance near Rancho Santa Margarita", "count_disagreement"),
+])
+def test_pipeline_sentinels_that_reached_a_live_page(text, cls):
+    assert cls in [f.details.get("class") for f in _run(text)]
+
+
+@pytest.mark.parametrize("text", [
+    # a singular noun after 1 is CORRECT — the first version of this check flagged "more than 1
+    # rehab" on GL, which is perfectly good English
+    "There are more than 1 rehab and treatment program available within 15 miles.",
+    "We found 1 program that accepts this insurance plan in the area.",
+    "Only 1 facility in the county offers medically supervised detox.",
+    # hyphenated drug names ending in -1 were every false positive measured on live pages
+    "GLP-1 medications may reduce cravings, and GLP-1 receptors are found in the brain.",
+    "How GLP-1 Is Changing Medication-Assisted Treatment for Addiction",
+    # a 404-style capital F, and ordinary lowercase prose, are not the sentinel
+    "The page you requested returned a 404 Not Found error from the server.",
+    "If the medication is not found at your pharmacy, ask them to order it.",
+])
+def test_correct_prose_is_not_flagged_as_sentinel_residue(text):
+    classes = [f.details.get("class") for f in _run(text)]
+    assert "count_disagreement" not in classes
+    assert "not_found_sentinel" not in classes
