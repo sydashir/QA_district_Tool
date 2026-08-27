@@ -51,6 +51,44 @@ SECTIONS: list[tuple[str, str, list[str]]] = [
 ]
 TOP_N = 8          # examples shown per category; the rest are counted, never silently dropped
 
+# Classes that are a LIST OF URLS rather than distinct defects. Each row differs only by which page
+# it names, so grouping on the message alone leaves dozens of near-identical lines — and it left the
+# LEAST important section as the longest thing in the report. These collapse to one row per class.
+URL_LIST_CLASSES = {
+    "enumeration:sitemap_dead", "enumeration:indexable_unsitemapped",
+    "enumeration:noindex_unsitemapped", "enumeration:rest_404",
+    "broken_links:unverified_external",
+}
+
+# The phone check still stamps every finding with a caveat that is no longer true: the NAP sheet was
+# verified live on 2026-08-03 (CLAUDE.md), so "sheet ID unverified" is wrong — and it sits on the
+# most important finding the client will read, undermining it. The source of the string is in the
+# check module, which cannot be edited mid-crawl, so it is corrected here at render time.
+STALE_CAVEATS = [
+    ("(NAP 2026-07-02 snapshot; sheet ID unverified)", "(from your NAP sheet)"),
+    ("NAP 2026-07-02 snapshot; sheet ID unverified", "from your NAP sheet"),
+]
+
+
+def _clean(text: str) -> str:
+    for old, new in STALE_CAVEATS:
+        text = text.replace(old, new)
+    return text
+
+
+def _trim(text: str, limit: int = 400) -> str:
+    """Trim at a sentence end, never mid-word. The first version cut at a fixed 300 characters and
+    produced findings ending 'Menus, footers, pages that list se'."""
+    text = _clean((text or "").strip())
+    if len(text) <= limit:
+        return text
+    cut = text[:limit]
+    for stop in (". ", "! ", "? "):
+        i = cut.rfind(stop)
+        if i > limit * 0.5:
+            return cut[:i + 1]
+    return cut.rsplit(" ", 1)[0] + "\u2026"
+
 
 def _matches(check: str, cls: str | None, keys: list[str]) -> bool:
     for k in keys:
@@ -95,7 +133,10 @@ def render(brand_code: str, run, findings) -> str:
         # findings, but a per-page finding repeated across pages still arrives as many rows.
         grouped: dict[tuple, list] = {}
         for f in rows:
-            grouped.setdefault((f[0], f[1], f[3], f[5]), []).append(f)
+            key = (f[0], f[1], f[3], f[5])
+            if f"{f[0]}:{f[1]}" in URL_LIST_CLASSES:
+                key = (f[0], f[1], "", "")      # one row for the whole class
+            grouped.setdefault(key, []).append(f)
         merged = []
         for (_c, _cls, _issue, _snip), g in grouped.items():
             first = g[0]
@@ -107,18 +148,19 @@ def render(brand_code: str, run, findings) -> str:
         items = []
         for f in rows[:TOP_N]:
             pages_txt = (f"<span class='pages'>on {f[7]:,} pages</span>" if f[7] > 1 else "")
-            snippet = html.escape((f[5] or "")[:220])
+            snippet = html.escape(_trim(f[5] or "", 220))
             items.append(
                 f"<li class='{html.escape(f[2])}'>"
-                f"<div class='issue'>{html.escape(f[3])} {pages_txt}</div>"
+                f"<div class='issue'>{html.escape(_clean(f[3]))} {pages_txt}</div>"
                 + (f"<div class='snippet'>{snippet}</div>" if snippet else "")
                 + f"<div class='where'><a href='{html.escape(f[4])}'>{html.escape(f[4][:96])}</a></div>"
-                + (f"<div class='fix'>{html.escape((f[6] or '')[:300])}</div>" if f[6] else "")
+                + (f"<div class='fix'>{html.escape(_trim(f[6] or ''))}</div>" if f[6] else "")
                 + "</li>")
         more = ""
         if len(rows) > TOP_N:
-            more = (f"<p class='more'>and {len(rows) - TOP_N:,} more of this kind — "
-                    f"the full list is in the shared sheet.</p>")
+            more = (f"<p class='more'>and {len(rows) - TOP_N:,} more of this kind. "
+                    f"The complete list for every category is in the audit spreadsheet — ask "
+                    f"Syed Ashir for access if you do not already have it.</p>")
         errs = sum(1 for f in rows if f[2] == "error")
         out.append(
             f"<section><h2>{html.escape(heading)}</h2>"
@@ -157,7 +199,7 @@ li.error{{border-left-color:var(--err)}} li.warning{{border-left-color:var(--war
 .more{{color:var(--mut);font-size:14px}}
 .caveat{{background:#fff8e6;border:1px solid #f0d999;border-radius:8px;padding:12px 14px}}
 footer{{margin-top:44px;color:var(--mut);font-size:13px;border-top:1px solid var(--line);padding-top:16px}}
-@media(prefers-color-scheme:dark){{:root{{--ink:#e8eaf0;--mut:#9aa2b1;--line:#2a2f3a;--bg:#14161a}}
+@media(prefers-color-scheme:dark){{:root{{--ink:#e8eaf0;--mut:#9aa2b1;--line:#2a2f3a;--bg:#14161a}}\n section.limits{{background:#1a1d23}}
  .snippet{{background:#1c1f26}} .caveat{{background:#2a2313;border-color:#5a4a1e}}}}
 </style></head><body><div class="wrap">
 <h1>{html.escape(name)}</h1>
@@ -172,9 +214,32 @@ footer{{margin-top:44px;color:var(--mut);font-size:13px;border-top:1px solid var
 <p>Ordered by how much each problem matters, not by how many there are. Every item links to the
 page it was found on.</p>
 {''.join(out)}
+<section class="limits"><h2>What this audit cannot see</h2>
+<p class="why">Being told a category is empty is only useful alongside what was never looked at.
+The audit reads the HTML each page sends to a browser. It does not draw the page, so anything that
+only exists once the page is on a screen is invisible to it — and silence below does
+<strong>not</strong> mean these are fine.</p>
+<ul class="limits">
+  <li><strong>Colour and contrast.</strong> Whether text is readable against its background.
+      Nothing here checks it.</li>
+  <li><strong>Mobile layout.</strong> Anything that breaks only at phone width — a widget that
+      collapses, a button that disappears, a form that is cut off.</li>
+  <li><strong>Images that fail to load.</strong> A missing image looks identical in the HTML to one
+      that loads perfectly.</li>
+  <li><strong>Whether a button actually works.</strong> A link carries its destination in the HTML,
+      so a broken one is reported above. A <em>button</em> is wired up in JavaScript, which this
+      audit does not run — a genuinely dead button would not appear in this report.</li>
+  <li><strong>Forms.</strong> Whether a form submits, and whether the enquiry reaches anyone.
+      Deliberately not tested: we will not send test enquiries into a live intake system.</li>
+  <li><strong>Page speed.</strong> How fast a page paints requires actually painting it.</li>
+  <li><strong>Call-tracking numbers.</strong> The number hard-coded in each element is checked; what
+      your call-tracking script swaps it to for a live visitor is not.</li>
+</ul>
+<p class="why">Most of the above are best caught by opening one page of each template on a phone and
+a desktop — an hour or two of human checking covers what no amount of re-running this can.</p>
+</section>
 <footer>Generated {datetime.now(timezone.utc).strftime('%d %B %Y')} from the automated audit.
-Findings marked <em>certain</em> were verified deterministically; the rest are worth a look.
-Anything the audit cannot see is listed in "What the audit does not check".</footer>
+Findings marked <em>certain</em> were verified deterministically; the rest are worth a look.</footer>
 </div></body></html>"""
 
 
