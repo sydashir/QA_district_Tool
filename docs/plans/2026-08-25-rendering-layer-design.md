@@ -426,6 +426,42 @@ it is Syed's to send, and this repo does not send anything.
 >
 > The only thing we need from you is a yes, and a note of any hours you would rather we avoided.
 
+### 10.4b Markup-only analysis is NOT rendering — the distinction, on record
+
+Some accessibility rules are decidable from the HTML alone: a link with no readable name, a form
+field with no label, a list role containing the wrong children, a page that disables zooming. Those
+ship now, ahead of the notice. Contrast and tap-target sizing do NOT, because they need the page
+actually drawn. The line between them is worth writing down, because it is the kind of thing
+somebody will one day be asked to justify.
+
+**What the notice covers, and what this is not:**
+
+| | Rendering (held until the client agrees) | Markup-only analysis (shipping now) |
+|---|---|---|
+| Where the HTML comes from | the browser navigates to the live page | `httpx` fetched it, exactly as the text audit already does on every run |
+| Whose server sees what | the client's server serves a full page load to a browser: assets, scripts, fonts | the client's server serves one HTML document to the same crawler it has served for months |
+| What executes | the client's JavaScript runs | nothing of the client's runs; every request is blocked |
+| What fires | Google Tag Manager, Meta, Clarity, VWO, CallTrackingMetrics | nothing can fire — there is no network |
+| Extra load on the client | ~2,900 full page loads per run | **zero additional requests** |
+
+The HTML is analysed inside a local browser, because that is what the accessibility engine needs to
+build a DOM. **The browser is pointed at a string we already hold, never at their site**, and every
+outbound request from it is aborted.
+
+**This is asserted on every run, not assumed.** The pass fires a deliberate canary request at a
+domain that does not exist and confirms it was blocked before analysing anything; if the canary
+gets through, the pass refuses to run and reports nothing.
+
+A canary is used rather than counting real blocked traffic — which is what the render guard does —
+because the two situations differ. Every rendered page demonstrably loads trackers, so zero blocks
+there means a broken guard. Here, a page can legitimately have nothing to fetch: DBH's headless
+rebuild references no external assets at all and blocks zero on a perfectly healthy run. Counting
+would have called that a failure. The canary separates "the guard is off" from "this page had
+nothing to fetch".
+
+**In short: if a member of the client's team asks whether we are loading their pages, the honest
+answer for this pass is no. We are reading a copy of the HTML they already sent us.**
+
 ### 10.5 Build order (confirmed)
 
 1. Render harness + safety layer, with the runtime deny-list assertion. **Proven before any check.**
