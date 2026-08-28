@@ -94,6 +94,22 @@ element**; otherwise omit the image and keep the quoted snippet. Never for word-
 "shows *Call Now! 844-759-0999* but dials 888-707-6073" is far more damning as a picture of the
 actual button.
 
+### The gate must count its own misses (Syed, 2026-08-29)
+
+The exactly-one-match gate silently omitting an image looks identical to a class that has no images
+to show. **So the gate keeps a tally per class: attempted, matched-exactly-one, matched-none,
+matched-many** — reported at the end of a screenshot pass and stored on the run.
+
+This is the difference between a feature and a feature that fires. If `dead_cta` resolves cleanly 90%
+of the time and `empty_state` 30%, then `empty_state` screenshots are not a capability, they are an
+occasional accident, and we either fix the locator or drop the class. Without the tally the two are
+indistinguishable from the outside — the same trap as a silent sampling cap, which this project
+already rules must always be reported.
+
+The tally is also the acceptance test: **a class whose locator resolves below ~70% does not ship**,
+on the same principle as the 80% precision bar. Measure first, then decide — do not assume the
+attribute-anchored classes will behave alike just because they all have attributes.
+
 ## 6. What could go wrong
 
 - **A screenshot of the wrong element.** Mitigated by the exactly-one-match gate above.
@@ -110,4 +126,10 @@ actual button.
 2. Wire into the existing render pass (no new page loads) for contrast and tap targets.
 3. `scripts/client_report.py` — render `<img src="data:image/png;base64,…">` under the finding,
    with the cap and the omission notice.
-4. Only then consider `display_dial_mismatch`, behind the exactly-one-match gate.
+4. The locator tally (§5) — built WITH the first text class, never bolted on afterwards, because
+   its whole purpose is to decide whether that class ships.
+5. Only then consider `display_dial_mismatch`, behind the exactly-one-match gate.
+
+**Sequencing: none of this starts until the merge queue is clear** — merge `buildlist`, re-run the
+NAP backfill, regenerate all nine client reports, then screenshots. Building mid-MHD is what the
+worktree exists to avoid.
