@@ -10,7 +10,8 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field, field_validator
 
-from .nap import CanonicalNumbers, brand_number_owners, canon_for, load_third_party
+from .nap import (CanonicalNumbers, NapLocation, brand_number_owners, canon_for,
+                  load_nap_locations, load_third_party)
 
 # The browser-like User-Agent the session-1 spike proved works against GL's
 # Cloudflare without being challenged. Reused verbatim (see spike/gl_spike.py).
@@ -90,6 +91,10 @@ class BrandConfig(BaseModel):
     # Global map: live number -> owning brand(s). Splits benign call-tracking (dials own number)
     # from cross-brand leaks (dials another brand's number).
     brand_numbers: dict[str, list[str]] = Field(default_factory=dict)
+    # Physical locations (business NAME + street ADDRESS) from the TRANSPOSED NAP tab. A SECOND
+    # source, not a replacement for `canon` above: that tab is a strict subset on phones and would
+    # silently drop 10 per-location call-centre numbers. See the union note in `auditor/nap.py`.
+    nap_locations: list[NapLocation] = Field(default_factory=list)
 
     @field_validator("base_url", "sitemap_url")
     @classmethod
@@ -115,4 +120,5 @@ def load_brand(brand: str) -> BrandConfig:
     cfg.canon = canon_for(cfg.brand)
     cfg.third_party = load_third_party()
     cfg.brand_numbers = brand_number_owners()
+    cfg.nap_locations = load_nap_locations().get(cfg.brand.lower(), [])
     return cfg

@@ -69,6 +69,10 @@ _CHECK_COMPONENT["phone"] = _CHECK_COMPONENT["phone"] | {"canonical_phones", "sr
 # meta output depends on the per-brand title bounds (P4) — config-scoped to meta, so a
 # per-brand threshold tune rule-changes only that brand's meta findings.
 _CHECK_COMPONENT["meta"] = _CHECK_COMPONENT["meta"] | {"title_bounds"}
+# schema's business-name and address findings are judged against the NAP tab that nap.py parses, so
+# a change to that parse (or to the tab) must rule-change them — schema-scoped, never global. Same
+# reasoning as phone's dependency on nap.py directly above.
+_CHECK_COMPONENT["schema"] = _CHECK_COMPONENT["schema"] | {"src:nap.py", "nap_locations"}
 # placeholder output depends on the ACF-token ruleset imported from the GeoData Fetcher's
 # geo_field_validator (out-of-repo, path via $GEODATA_SERVICES_DIR) — placeholder-scoped, so
 # updating/repointing it rule-changes ONLY the [acf field] findings, never another check's.

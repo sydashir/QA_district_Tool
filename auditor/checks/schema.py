@@ -99,6 +99,67 @@ def off_brand(page_url: str, base_url: str) -> bool:
     return registrable(urlparse(page_url).netloc) != registrable(urlparse(base_url).netloc)
 
 
+
+# --- NAP name/address matching ------------------------------------------------------------------
+# Street-type words the client writes both ways across their own sheet and their own pages
+# ("3849 Chatwin Ave" vs "3849 Chatwin Avenue", "suite 442" vs "Ste 442"). Normalising them is what
+# lets a real match survive; without it GL's two published addresses — which DO match the NAP —
+# would both report as wrong.
+_STREET_WORDS = {
+    "ave": "avenue", "av": "avenue", "st": "street", "str": "street", "rd": "road",
+    "dr": "drive", "blvd": "boulevard", "hwy": "highway", "ln": "lane", "ct": "court",
+    "pkwy": "parkway", "ste": "suite", "fl": "floor", "n": "north", "s": "south",
+    "e": "east", "w": "west", "ca": "california", "fl.": "floor", "tn": "tennessee",
+}
+_ADDR_SPLIT = re.compile(r"[^a-z0-9]+")
+
+
+def _norm_address(text: str) -> str:
+    """Comparable form of a street address. Lowercased, punctuation dropped, abbreviations expanded."""
+    toks = [t for t in _ADDR_SPLIT.split((text or "").lower()) if t]
+    return " ".join(_STREET_WORDS.get(t, t) for t in toks)
+
+
+def _address_key(text: str) -> tuple[str, str] | None:
+    """(house number, ZIP) — the two parts of an address that do not get rewritten.
+
+    Full-string equality is too strict even after normalisation: a page may add "Suite 200", drop
+    the state, or spell the city differently, and none of that makes it a different place. The
+    house number and the ZIP together identify the location, so they are the fallback match.
+    """
+    norm = _norm_address(text)
+    toks = norm.split()
+    if not toks:
+        return None
+    number = next((t for t in toks if t.isdigit() and len(t) <= 6), None)
+    zipc = next((t for t in reversed(toks) if t.isdigit() and len(t) == 5), None)
+    return (number, zipc) if number and zipc else None
+
+
+def _address_strings(node: dict) -> list[str]:
+    """Every address on a business node, whether written as a string or a PostalAddress object."""
+    a = node.get("address")
+    out: list[str] = []
+    for item in (a if isinstance(a, list) else [a]):
+        if isinstance(item, str):
+            out.append(item)
+        elif isinstance(item, dict):
+            parts = [item.get(k) for k in ("streetAddress", "addressLocality",
+                                           "addressRegion", "postalCode")]
+            joined = ", ".join(str(p) for p in parts if p)
+            if joined:
+                out.append(joined)
+    return out
+
+
+def _brand_own_names(brand: str) -> tuple[str, ...]:
+    """What this brand may legitimately call itself. Reuses the table `brands.py` already owns
+    rather than starting a second one — TDRC naming its parent DBH is settled there."""
+    from .brands import BRAND_NAMES, SELF_ALIASES
+    code = (brand or "").upper()
+    return tuple(BRAND_NAMES.get(code, ())) + tuple(SELF_ALIASES.get(code, ()))
+
+
 def run(parsed: ParsedPage, config) -> list[Finding]:
     # A page that finally landed on someone else's domain is not ours to judge. Two ways that
     # happens here, both real: TDRC's /review-us/ URLs are deliberate 301s onto GL/RR/CAD, and AH's
@@ -153,6 +214,9 @@ def run(parsed: ParsedPage, config) -> list[Finding]:
                                  for c in (getattr(config, "canonical_phones", None) or ())) if e}
     brand_numbers = getattr(config, "brand_numbers", None) or {}   # E.164 -> owning brand(s)
     brand = getattr(config, "brand", "this brand")
+    # Physical locations from the TRANSPOSED NAP tab (name + address). Deliberately a different
+    # source from `canon` above, which supplies phones — see the union note in `auditor/nap.py`.
+    nap_locs = getattr(config, "nap_locations", None) or ()
     for node in business:
         types = _types(node)
         name = str(node.get("name") or "")[:60]
@@ -169,6 +233,62 @@ def run(parsed: ParsedPage, config) -> list[Finding]:
                                f"so it can show contact details in search results. This is a "
                                f"recommendation rather than a rule — the markup is valid without it.",
                     details={"class": "incomplete", "missing": missing, "types": sorted(types)}))
+
+        # --- 5) the business NAME is an internal CMS label, not the business ---
+        # 37 of 38 GL pages carry a second business node named e.g.
+        # "[NoIndexed] Kratom (Plant) (DrugInfo Blog)" — the CMS's own row label, published as the
+        # name of the company. SCHEMA-ONLY: <title>, og:title and og:site_name are all correct, so
+        # no human sees it and only a machine reading the page is misinformed. RR is clean on all
+        # 40 pages sampled, which is the control that says this is a real defect and not our rule.
+        #
+        # The trigger is deliberately "the brand does not appear in its own name", not "the name
+        # differs from the NAP". The NAP names are long and varied ("Gratitude Lodge-Drug & Alcohol
+        # Addiction Rehab Center Long Beach, CA"), so demanding a NAP match would flag the client's
+        # own official names — the same over-reach that made the dictionary spellchecker unusable.
+        full_name = str(node.get("name") or "").strip()
+        own = _brand_own_names(brand)
+        if full_name and own and not any(o.lower() in full_name.lower() for o in own):
+            findings.append(Finding(
+                url=parsed.url, check=CHECK, severity=Severity.WARNING,
+                fingerprint=make_fingerprint(CHECK, "business_name_internal", parsed.url, full_name),
+                issue="the business name in the page's machine-readable block is not the business",
+                location="head", snippet=full_name[:120],
+                suggestion=(f"Search engines read this page's hidden business card and are told the "
+                            f"company is called \u201c{full_name[:80]}\u201d, which does not "
+                            f"contain {own[0]}. It looks like an internal content-management label "
+                            f"published by mistake. Everything a visitor sees is correct — the page "
+                            f"title and social preview both say {own[0]} — so this is invisible on "
+                            f"the site itself and only affects what search engines record."),
+                details={"class": "business_name_internal", "name": full_name[:120],
+                         "expected_contains": own[0], "types": sorted(types)}))
+
+        # --- 6) an address that is in none of the brand's NAP entries ---
+        # Skipped entirely when the brand has no locations in the tab (DBH has none): checking
+        # against an empty set would report every address on the site as unknown — a check that
+        # fires everywhere precisely because it knows nothing.
+        if nap_locs:
+            for addr in _address_strings(node):
+                norm = _norm_address(addr)
+                key = _address_key(addr)
+                if not norm:
+                    continue
+                if any(norm == _norm_address(l.address) for l in nap_locs):
+                    continue
+                if key and any(key == _address_key(l.address) for l in nap_locs):
+                    continue                      # same house number + ZIP: the same place
+                findings.append(Finding(
+                    url=parsed.url, check=CHECK, severity=Severity.WARNING,
+                    fingerprint=make_fingerprint(CHECK, "address_not_in_nap", parsed.url, norm),
+                    issue="the address in the machine-readable block is not one of your NAP addresses",
+                    location="head", snippet=addr[:120],
+                    suggestion=(f"This page tells search engines the business is at \u201c{addr[:90]}"
+                                f"\u201d, which is not one of the {len(nap_locs)} address(es) on your "
+                                f"NAP sheet for this brand. Either the page is wrong or the NAP sheet "
+                                f"is out of date — a mismatch between them splits your local search "
+                                f"listings. Compared ignoring punctuation and abbreviations, so "
+                                f"\u201cAve\u201d vs \u201cAvenue\u201d is not what triggered it."),
+                    details={"class": "address_not_in_nap", "found": addr[:120],
+                             "nap_count": len(nap_locs)}))
 
         # --- 4) a phone in the machine-readable block that is not this brand's ---
         # Severity mirrors phone.py, which already settled this distinction: ANOTHER BRAND's number

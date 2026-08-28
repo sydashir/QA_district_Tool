@@ -42,6 +42,109 @@ NOT_LIVE_BRANDS = frozenset({"SLN"})
 # Refresh = drop a new export at this path. Durable fix is the live gspread read (D2 backlog):
 # grid_from_xlsx -> grid_from_sheet, parse unchanged.
 NAP_SNAPSHOT = Path(__file__).resolve().parent.parent / "data" / "nap_snapshot.xlsx"
+
+# The SECOND NAP source, and a deliberately SEPARATE one. Syed supplied a newer tab that is
+# TRANSPOSED relative to the one above — brands run across the COLUMNS, fields down the rows — and
+# it carries two things "NAP (Current)" does not: the per-location BUSINESS NAME and STREET ADDRESS.
+#
+# UNION, NOT REPLACEMENT. Ruled by Syed after checking both, and the reason must survive anyone
+# later "simplifying" the loader to one source: **on phones the new tab is a strict SUBSET.** It is
+# missing 10 per-location call-centre numbers (AH/CAD/MHD: San Jose, Sacramento, Santa Cruz, Palm
+# Desert) that the old tab has — searched the whole file, absent everywhere. Drop the old tab and
+# those ten numbers leave the canonical set, so every page that carries one starts reporting as an
+# unknown number: a fresh wave of false findings, caused by a tidy-up. There are ZERO conflicts
+# between the two on the numbers they share.
+#
+#   phones          -> "NAP (Current)" snapshot   (load_canonical_from_snapshot, above)
+#   name + address  -> this tab                   (load_nap_locations, below)
+#
+# `tests/test_nap_locations.py` pins the subset relationship, so if it ever stops being true the
+# suite says so and the decision gets revisited deliberately.
+NAP_LOCATIONS_CSV = Path(__file__).resolve().parent.parent / "data" / "nap_locations.csv"
+
+# A cell in the NAP-Name row holding exactly one of these OPENS that brand's block of columns.
+_BRAND_CODES = {"RR", "GL", "CAD", "COC", "AR", "DBH", "TDRC", "AH", "MHD"}
+
+# Row labels, matched on a normalised prefix of column 0. Rows are located BY LABEL, never by
+# index: these sheets are re-exported by hand and positions drift — the Fetcher's own newer modules
+# resolve every column by header name for exactly this reason, after one brand renamed a column.
+_ROW_LABELS = {
+    "name": "nap name",
+    "address": "nap address",
+    "nickname": "nickname",
+    "phone": "nap phone",
+}
+
+
+@dataclass(frozen=True)
+class NapLocation:
+    """One physical place: what the business is CALLED and WHERE it is, per the client's own NAP."""
+    brand: str
+    name: str
+    address: str
+    nickname: str | None = None
+    phone: str | None = None      # E.164, or None when unparseable
+
+
+def _find_row(rows: list[list[str]], key: str) -> list[str] | None:
+    want = _ROW_LABELS[key]
+    for r in rows:
+        if r and r[0] and r[0].strip().lower().replace("\n", " ").startswith(want):
+            return r
+    return None
+
+
+def locations_from_grid(rows: list[list[str]]) -> dict[str, list[NapLocation]]:
+    """Parse the transposed tab into {brand_code: [NapLocation]}. Empty dict if it isn't that tab.
+
+    A column becomes a location only when it has a real ADDRESS. The two columns that open each
+    brand block are the SEO and PPC routing numbers — a phone with no place attached — and treating
+    them as locations would invent addressless businesses to match pages against.
+    """
+    name_row = _find_row(rows, "name")
+    addr_row = _find_row(rows, "address")
+    if not name_row or not addr_row:
+        return {}
+    nick_row = _find_row(rows, "nickname") or []
+    phone_row = _find_row(rows, "phone") or []
+
+    def cell(row: list[str], i: int) -> str:
+        return row[i].strip() if i < len(row) and row[i] else ""
+
+    out: dict[str, list[NapLocation]] = {}
+    current: str | None = None
+    for i in range(1, max(len(name_row), len(addr_row))):
+        nm = cell(name_row, i)
+        if nm.upper() in _BRAND_CODES:      # a bare brand code opens that brand's block
+            current = nm.lower()
+            out.setdefault(current, [])
+            continue
+        if current is None:
+            continue
+        address = cell(addr_row, i)
+        if not address or not nm:
+            continue                        # routing-number column, or a spacer
+        out[current].append(NapLocation(
+            brand=current, name=nm, address=address,
+            nickname=cell(nick_row, i) or None,
+            phone=normalize(cell(phone_row, i)) or None))
+    return out
+
+
+def grid_from_csv(path: Path = None) -> list[list[str]]:
+    import csv
+    with open(path or NAP_LOCATIONS_CSV, newline="", encoding="utf-8-sig") as fh:
+        return [row for row in csv.reader(fh)]
+
+
+def load_nap_locations(path: Path = None) -> dict[str, list[NapLocation]]:
+    """Per-brand physical locations from the transposed tab. Empty on any failure — the checks that
+    use it must DEGRADE (skip), never crash a nine-brand run over a missing local file."""
+    try:
+        return locations_from_grid(grid_from_csv(path))
+    except (FileNotFoundError, OSError, ValueError) as e:
+        _log.warning("NAP locations tab unavailable (%s); name/address checks will not run", e)
+        return {}
 NAP_TAB = "NAP (Current)"
 # VERIFIED 2026-08-03 as the live canonical sheet: reading it with the service account returns
 # title "NAP Phone numbers / UTM Codes / DBAs" with a "NAP (Current)" tab — exactly the tab this

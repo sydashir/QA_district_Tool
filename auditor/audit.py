@@ -105,15 +105,18 @@ def _off_brand_projection(parsed: ParsedPage, r, config: BrandConfig) -> PagePro
         url=parsed.url, final_url=r.final_url, status=r.status,
         content_hash=C.page_hash(parsed.raw_html), last_modified=r.last_modified,
         intrinsic_findings=[Finding(
-            url=parsed.url, check="enumeration", severity=Severity.WARNING,
+            url=parsed.url, check="enumeration", severity=Severity.INFO,
             fingerprint=make_fingerprint("enumeration", "redirects_off_brand", parsed.url),
-            issue="a page in this brand's sitemap redirects to a different brand's website",
+            issue="this page was not audited: it redirects to a different website",
             location=parsed.url, snippet=f"{parsed.url} -> {landed}",
-            suggestion=(f"This URL is listed as one of {getattr(config, 'brand', 'this brand')}'s "
-                        f"own pages, but visiting it sends the visitor to {landed} — a different "
-                        f"brand's website. Either the redirect is wrong, or the URL should be "
-                        f"removed from this brand's sitemap. Nothing else on this page was "
-                        f"audited, because the page that came back belongs to the other brand."),
+            suggestion=(f"This URL is listed among {getattr(config, 'brand', 'this brand')}'s own "
+                        f"pages, but opening it sends the visitor to {landed}. Whatever loads there "
+                        f"belongs to that site, so none of our other checks were run on it — "
+                        f"reported here so the page is not silently missing from your results. "
+                        f"Every case we have seen is a deliberate \u201cleave us a review\u201d "
+                        f"shortcut pointing at Google Maps or a sister brand, which is why this is "
+                        f"informational rather than an error. Worth a look only if a URL here is "
+                        f"one you expected to be a real page on this site."),
             details={"class": "redirects_off_brand", "final_url": landed,
                      "status": r.status})])
 
