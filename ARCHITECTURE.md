@@ -1162,3 +1162,44 @@ page whose final registrable domain differs from `config.base_url`. Not in each 
 different brand's domain is itself a finding: the sitemap is advertising pages the brand does not
 own. TDRC has 7 of 19. Skipping those pages quietly would replace a false finding with a hidden one,
 which is the trade this project never makes.
+
+---
+
+## D14. We broke the page, then reported the breakage — a category, not a coincidence
+
+Four separate times now, this tool has reported a defect **that its own machinery created.** Three
+were caught before a client saw them; one shipped 2,315 findings. Listing them together because the
+fourth arrived in a completely different subsystem, written months later, by someone who knew about
+the first three — which is the definition of a category rather than a mistake.
+
+| # | Where | What we did to the page | What we then reported | Cost |
+|---|---|---|---|---|
+| 1 | `space_before_punct` | the parser inserted a space at a tag boundary — the raw HTML is `insurance</strong>,` | 2,315 "space before punctuation" findings | the whole check; deleted |
+| 2 | partial CSS read | a stylesheet failed to fetch, so `display:none` text stayed in `visible_text` | fabricated `missing_space` and other text findings on text no reader sees | contained by `css_status` |
+| 3 | the network guard | the render layer **blocked** a tracker's image | would have been "this image fails to load" | prevented by design (`blocked_urls`) |
+| 4 | `scroll_to_load_everything` | `scroll-behavior: smooth` meant the scroll reached **1181px of 6862px**, so lazy images were never requested | 2 "broken images" on TDRC's homepage — both HTTP 200 with real bytes | caught on the first production render |
+
+**The shape is always the same.** The tool alters what the page is or how much of it exists, and
+then measures the altered page as if it were the page a visitor gets. Every one of these looked
+like a genuine defect in the output: a missing space really is missing, a `naturalWidth` of 0 really
+does mean "not decoded". Nothing in the finding itself reveals that we caused it.
+
+**What separates the caught ones from the shipped one is a verification step that does not share the
+broken assumption.** `space_before_punct` was believed because nothing re-read the raw HTML. The
+scroll bug was caught because the image was re-fetched over the network and came back 200 — a
+different mechanism answering the same question. #2 and #3 were designed with that check present
+from the start.
+
+So the rule, stated once for whoever hits the fifth instance:
+
+> **Before reporting that something on the page is missing, broken, or absent, confirm it by a
+> route that does not depend on the machinery that decided it was missing.** Re-fetch the resource,
+> re-read the raw bytes, ask the browser again. If no independent route exists, the finding is a
+> hypothesis and must be labelled one — as `css_status` labels its own.
+
+And its corollary, which produced #4's fix specifically:
+
+> **A preparation step must report whether it worked, not assume it did.** `scroll_to_load_everything`
+> now returns `reached_bottom` and `max_scroll`; the network guard proves attachment with a canary
+> instead of trusting a block count. A silent preparation step is a broken assumption waiting for a
+> finding to hang itself on.
