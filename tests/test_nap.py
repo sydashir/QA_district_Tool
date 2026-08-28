@@ -6,6 +6,8 @@ read (D2) will swap only the grid source, not the parse logic these tests pin.
 """
 from __future__ import annotations
 
+import pathlib
+
 import pytest
 
 from auditor import nap
@@ -157,3 +159,45 @@ def test_xlsx_grid_is_cached_and_cache_matches_a_fresh_parse():
 if __name__ == "__main__":
     import sys
     raise SystemExit(pytest.main([__file__, "-q"]))
+
+
+# --- the caveat the phone check stamps on every NAP finding -------------------------------------
+
+def test_no_phone_finding_carries_the_stale_unverified_caveat():
+    """Every NAP finding used to say "sheet ID unverified". The sheet WAS verified live on
+    2026-08-03 (CLAUDE.md §3), so that text was wrong on ~5,000 findings, and it was being patched
+    at report-time by `client_report.STALE_CAVEATS` instead of at source. Fixed at source.
+
+    Behavioural, not a source grep: what matters is what reaches the client, and the module is
+    entitled to describe the old string in a comment explaining why it changed."""
+    from types import SimpleNamespace
+
+    from auditor.checks import phone
+    from auditor.parse import ParsedPage
+
+    html = ('<html><body><p>Call us at (800) 692-9850 or 888-111-2222.</p>'
+            '<a href="tel:8006929850">(800) 692-9850</a></body></html>')
+    page = ParsedPage(url="https://www.gratitudelodge.com/x/", raw_html=html,
+                      visible_text="Call us at (800) 692-9850 or 888-111-2222.")
+    canon = SimpleNamespace(current_set=lambda: {"+18445760144"},
+                            stale_retired={"+18006929850"})
+    cfg = SimpleNamespace(brand="gl", canon=canon, canonical_phones=["844-576-0144"],
+                          third_party=set(), brand_numbers={})
+
+    findings = phone.run(page, cfg)
+    assert findings, "sanity: the fixture must produce NAP findings to check the wording of"
+    blob = " ".join(f"{f.suggestion} {f.details}" for f in findings)
+    assert "unverified" not in blob
+    assert "2026-07-02" not in blob
+    assert phone._NAP_PARENTHETICAL in blob
+    assert any(f.details.get("source") == phone._NAP_SOURCE for f in findings)
+
+
+def test_the_source_stamp_matches_what_the_backfill_wrote_to_the_database():
+    """`scripts/backfill_nap_caveat.py` rewrote the stored rows. If source emits anything else, a
+    new finding and a backfilled one describing the SAME defect disagree in the client's report."""
+    import auditor.checks.phone as phone
+    backfill = (pathlib.Path(phone.__file__).parent.parent.parent
+                / "scripts" / "backfill_nap_caveat.py").read_text(encoding="utf-8")
+    assert f'NEW_BARE = "{phone._NAP_SOURCE}"' in backfill
+    assert f'NEW_LONG = "({phone._NAP_PARENTHETICAL})"' in backfill

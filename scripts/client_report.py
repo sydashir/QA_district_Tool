@@ -60,10 +60,13 @@ URL_LIST_CLASSES = {
     "broken_links:unverified_external",
 }
 
-# The phone check still stamps every finding with a caveat that is no longer true: the NAP sheet was
-# verified live on 2026-08-03 (CLAUDE.md), so "sheet ID unverified" is wrong — and it sits on the
-# most important finding the client will read, undermining it. The source of the string is in the
-# check module, which cannot be edited mid-crawl, so it is corrected here at render time.
+# FIXED AT SOURCE — `auditor/checks/phone.py::_NAP_SOURCE` no longer emits the stale caveat, and
+# `scripts/backfill_nap_caveat.py` rewrote the rows that existed when it ran. This stays as a net
+# for rows written by runs that PREDATE the source fix, and there are more of those than you would
+# expect: RR run 107 finished after the backfill and left 67 fresh stale rows, and any run already
+# executing when the fix lands will do the same. Re-run the backfill after such a run; until then
+# this keeps the wrong text off the client's page. Delete it once a query for "sheet ID unverified"
+# returns zero and no pre-fix run can still land.
 STALE_CAVEATS = [
     ("(NAP 2026-07-02 snapshot; sheet ID unverified)", "(from your NAP sheet)"),
     ("NAP 2026-07-02 snapshot; sheet ID unverified", "from your NAP sheet"),
