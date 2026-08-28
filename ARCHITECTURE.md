@@ -1103,3 +1103,62 @@ Detection is by TRANSFORMATION rule (`our`->`or`, `ise`->`ize`, `lling`->`ling`,
 `ae`/`oe`->`e`), never a word list, so it needs no maintenance. The rules are anchored to real
 suffixes after a measured miss: a bare `ll`->`l` classified **`vallium` -> `valium`** — a misspelled
 drug — as a British spelling.
+
+---
+
+## D13. A defect the database cannot show you — the dropped-field trap
+
+**Found 2026-08-28 while mapping the cross-domain redirect bug. Recorded because the lesson is
+general and the failure mode is silent.**
+
+### The specific bug
+
+`audit.py` parses each page as:
+
+```python
+parsed = parse_html(r.text, page_url=canonical_url(r.url), base_url=r.final_url or r.url, ...)
+```
+
+`parsed.url` is the **requested** URL. `final_url` is used only to resolve relative links and is
+**never stored** — not on `ParsedPage`, not on the projection, not on the finding.
+
+So when a sitemap URL 301s onto **another brand's domain**, the page that comes back belongs to that
+other brand but is audited under *this* brand's configuration. It is not a per-check bug. Every
+brand-scoped check is wrong for that page at once: the phone canon and `cross_brand_dial`, the
+sister-brand check (the other brand's own name reads as an intruder), `schema`, `scope`,
+`misspelling`, `meta`.
+
+Confirmed real: TDRC's `/review-us/{code}` addresses are deliberate 301s to GL, RR and CAD review
+pages — **7 of 19 sampled pages**. Verified live: `/review-us/gl-long-beach` → 301 →
+`gratitudelodge.com/review-us/long-beach-ca/`.
+
+### The lesson, which is the part worth keeping
+
+**The blast radius is unmeasurable from stored data, and the query that looks like it measures it
+returns a confidently wrong answer.**
+
+"Which findings sit on a URL that is not the brand's own domain?" returns **zero** — for every
+brand, across the whole database. That looks like proof the bug affects nothing. It is an artifact:
+`parsed.url` is always the requested URL, which by construction is always on the brand's own domain.
+The field that would reveal the defect was dropped before anything was written.
+
+So: **when a projection drops a field, absence of evidence in the database is not evidence of
+absence.** A query over derived data can only ever see what the derivation kept. This is the same
+family as the partial-read traps already documented here — a partial sitemap read that silently
+undercounts, and a partial CSS read that cannot know what a page hides. In all three the danger is
+identical: the system returns a clean-looking answer to a question it is structurally incapable of
+answering, and nothing about the output says so.
+
+The practical rule: before trusting a query that reports "this does not happen", check that the data
+could have recorded it happening.
+
+### The fix (one change, not five)
+
+Carry `final_url` onto the projection, and at the **audit level** skip brand-scoped checks for any
+page whose final registrable domain differs from `config.base_url`. Not in each check —
+`render/markup.py` and `checks/schema.py` already carry a working registrable-domain helper to copy.
+
+**And the skip must not be silent.** A page listed in a brand's own sitemap that redirects to a
+different brand's domain is itself a finding: the sitemap is advertising pages the brand does not
+own. TDRC has 7 of 19. Skipping those pages quietly would replace a false finding with a hidden one,
+which is the trade this project never makes.
