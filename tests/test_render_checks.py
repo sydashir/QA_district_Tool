@@ -153,6 +153,41 @@ def test_an_image_we_blocked_ourselves_is_never_reported(mobile):
     assert suppressed == []
 
 
+def test_a_smooth_scrolling_page_is_still_scrolled_to_the_bottom(mobile):
+    """The bug that cost this check its first two production findings.
+
+    Under `scroll-behavior: smooth` each scrollTo starts an animation and the next call restarts
+    it, so the loop crawls. Measured on TDRC's live homepage: 1181px reached of 6862px."""
+    from render.images import scroll_to_load_everything
+
+    _open(mobile, "lazy_smooth.html")
+    result = scroll_to_load_everything(mobile, settle_ms=300)
+    assert result["reached_bottom"], (
+        f"only reached {result['max_scroll']}px of {result['doc_height']}px — the smooth-scroll "
+        f"override is not working, and every lazy image below that will be called broken")
+
+
+def test_a_lazy_image_that_exists_is_never_called_broken(mobile):
+    """`naturalWidth == 0` means "not decoded", which includes "never requested". TDRC reported two
+    of these; both returned HTTP 200 with real PNG bytes. Only a real fetch separates the cases."""
+    from render.images import find_broken, scroll_to_load_everything
+
+    _open(mobile, "lazy_smooth.html")
+    scroll_to_load_everything(mobile, settle_ms=300)
+    assert not any("real-image" in c["src"] for c in find_broken(mobile))
+
+
+def test_the_confirmation_step_does_not_silence_genuinely_missing_images(mobile):
+    """A fix that makes the check never fire is not a fix. Same page, same lazy loading, one file
+    that is really absent."""
+    from render.images import find_broken, scroll_to_load_everything
+
+    _open(mobile, "lazy_smooth.html")
+    scroll_to_load_everything(mobile, settle_ms=300)
+    broken = find_broken(mobile)
+    assert [c["src"].rsplit("/", 1)[-1] for c in broken] == ["lazy-but-truly-missing.png"]
+
+
 def test_findings_say_the_template_was_sampled_not_every_page(mobile):
     """One page per template is rendered, so a finding means "this template is broken and is used
     on N pages" — never "N pages were checked"."""

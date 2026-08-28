@@ -1,0 +1,22 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>lazy images on a smooth-scrolling page</title>
+<!-- Reproduces the trap that cost this check its first two production findings. TDRC's homepage
+     sets scroll-behavior:smooth; under it, a loop of window.scrollTo() calls restarts an animation
+     instead of advancing, so the page reached 1181px of 6862px and every lazy image below that was
+     never requested — and then reported as broken. Both files existed and returned HTTP 200. -->
+<style>
+  html { scroll-behavior: smooth; }
+  body { margin: 0; }
+  .filler { height: 1600px; background: #eee; }
+  img { display: block; width: 24px; height: 24px; }
+</style>
+<div class="filler">top</div>
+<div class="filler">more</div>
+<div class="filler">more</div>
+<!-- exists on disk: must NOT be reported, however far down the page it sits -->
+<img loading="lazy" src="real-image.png" alt="a real image, far below the fold">
+<div class="filler">more</div>
+<!-- genuinely absent: must STILL be reported. A fix that silences everything is not a fix. -->
+<img loading="lazy" src="lazy-but-truly-missing.png" alt="missing, far below the fold">
+<div class="filler">bottom</div>
