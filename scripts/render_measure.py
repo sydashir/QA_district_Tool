@@ -1,0 +1,126 @@
+"""Per-brand volume + evidence for the three rendered checks, against the 80% precision bar.
+
+Renders a sample of real pages per brand with the network guard proven attached, runs the axe
+contrast and tap-target rules and the broken-image probe, and writes one JSON row per finding with
+the evidence needed to hand-classify it (measured contrast ratio, element size, image URL).
+
+DELIBERATELY EXCLUDES MHD. Its origin 503s under concurrency — max_concurrency is a locked ceiling
+of 2 — and rendering costs far more requests per page than a text fetch. Nothing here is worth
+degrading a client's site for.
+
+Usage:  python3 scripts/render_measure.py gl cad          # one or more brand codes
+        python3 scripts/render_measure.py --all
+"""
+from __future__ import annotations
+
+import json
+import random
+import sys
+import time
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from playwright.sync_api import sync_playwright
+
+from auditor.config import load_brand
+from render.a11y import run_axe
+from render.images import find_broken, scroll_to_load_everything
+from render.safety import SafetyLedger, install, prove_attached
+
+ROOT = Path(__file__).resolve().parent.parent
+OUT = ROOT / "reports" / "_render_measure"
+BRANDS = ["gl", "rr", "cad", "coc", "ah", "ar", "tdrc", "dbh"]     # MHD excluded on purpose
+PAGES_PER_BRAND = 8
+VIEWPORT = {"width": 390, "height": 844}          # mobile: where tap targets actually matter
+
+
+def sample_urls(brand: str, n: int) -> list[str]:
+    """Real audited URLs from the resume cache, so the sample is pages that exist."""
+    cache = ROOT / "cache" / brand / "resume.done.jsonl"
+    if not cache.exists():
+        return []
+    urls = []
+    with open(cache) as fh:
+        for i, line in enumerate(fh):
+            if i > 4000:
+                break
+            try:
+                row = json.loads(line)
+            except Exception:
+                continue
+            if row.get("status") == 200 and row.get("url"):
+                urls.append(row["url"])
+    random.Random(31).shuffle(urls)
+    return urls[:n]
+
+
+def measure_brand(browser, brand: str) -> list[dict]:
+    cfg = load_brand(brand)
+    rows: list[dict] = []
+    for url in sample_urls(brand, PAGES_PER_BRAND):
+        led = SafetyLedger()
+        page = browser.new_page(viewport=VIEWPORT)
+        try:
+            install(page, cfg.base_url, led)
+            prove_attached(page, led)
+            page.goto(url, wait_until="domcontentloaded", timeout=45000)
+            scroll = scroll_to_load_everything(page, settle_ms=1200)
+            axe = run_axe(page)
+            broken = find_broken(page, blocked_urls=led.blocked_urls)
+        except Exception as e:
+            rows.append({"brand": brand, "url": url, "error": f"{type(e).__name__}: {e}"[:160]})
+            page.close()
+            continue
+
+        for v in axe["violations"]:
+            for node in v["nodes"]:
+                # `run_axe` flattens axe's `n.any[0].data` onto the node itself — read it there.
+                data = node.get("data") or {}
+                rows.append({
+                    "brand": brand, "url": url, "rule": v["id"],
+                    "selector": (node.get("target") or ["?"])[0],
+                    "html": (node.get("html") or "")[:200],
+                    "ratio": data.get("contrastRatio"),
+                    "fg": data.get("fgColor"), "bg": data.get("bgColor"),
+                    "font": data.get("fontSize"), "weight": data.get("fontWeight"),
+                    "minSize": data.get("minSize"),
+                    "message": (node.get("message") or "")[:200],
+                    "expected": data.get("expectedContrastRatio"),
+                })
+        for b in broken:
+            if b.get("src"):
+                rows.append({"brand": brand, "url": url, "rule": "broken-image",
+                             "src": b["src"], "html": b["html"][:200]})
+        rows.append({"brand": brand, "url": url, "rule": "_page",
+                     "incomplete": {v["id"]: len(v["nodes"]) for v in axe["incomplete"]},
+                     "reached_bottom": scroll["reached_bottom"],
+                     "blocked": led.blocked, "allowed": led.allowed})
+        page.close()
+        time.sleep(0.6)                            # polite: these are live client sites
+    return rows
+
+
+def main(brands: list[str]) -> None:
+    OUT.mkdir(parents=True, exist_ok=True)
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch()
+        for b in brands:
+            rows = measure_brand(browser, b)
+            (OUT / f"{b}.json").write_text(json.dumps(rows, indent=1))
+            pages = sum(1 for r in rows if r.get("rule") == "_page")
+            errs = sum(1 for r in rows if r.get("error"))
+            counts: dict[str, int] = {}
+            for r in rows:
+                if r.get("rule") and r["rule"] != "_page":
+                    counts[r["rule"]] = counts.get(r["rule"], 0) + 1
+            print(f"  {b.upper():<5} pages={pages:<3} errors={errs:<3} "
+                  f"contrast={counts.get('color-contrast', 0):<5} "
+                  f"target={counts.get('target-size', 0):<4} "
+                  f"broken_img={counts.get('broken-image', 0)}", flush=True)
+        browser.close()
+
+
+if __name__ == "__main__":
+    args = sys.argv[1:]
+    main(BRANDS if (not args or args[0] == "--all") else args)
