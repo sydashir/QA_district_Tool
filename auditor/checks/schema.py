@@ -79,17 +79,24 @@ def _types(node: dict) -> set[str]:
 
 
 
-def _registrable(host: str) -> str:
+def registrable(host: str) -> str:
+    """The brand-identifying part of a hostname. `help.rr.com` and `www.rr.com` are both `rr.com`."""
     parts = [p for p in host.lower().split(".") if p]
     return ".".join(parts[-2:]) if len(parts) >= 2 else host.lower()
 
 
-def _off_brand(page_url: str, base_url: str) -> bool:
-    """True when the page finally landed on a DIFFERENT brand's domain than the one being audited."""
+def off_brand(page_url: str, base_url: str) -> bool:
+    """True when the page finally landed on a DIFFERENT brand's domain than the one being audited.
+
+    PUBLIC because `audit.py` skips brand-scoped checks with it — one implementation, not a copy
+    per caller. It lives here rather than in a new module so it stays inside `checks_version`'s
+    hash: it decides check OUTPUT, and an unhashed helper that changes findings is precisely the
+    silent-staleness trap `checks_version` exists to prevent.
+    """
     if not base_url:
         return False
     from urllib.parse import urlparse
-    return _registrable(urlparse(page_url).netloc) != _registrable(urlparse(base_url).netloc)
+    return registrable(urlparse(page_url).netloc) != registrable(urlparse(base_url).netloc)
 
 
 def run(parsed: ParsedPage, config) -> list[Finding]:
@@ -97,7 +104,7 @@ def run(parsed: ParsedPage, config) -> list[Finding]:
     # happens here, both real: TDRC's /review-us/ URLs are deliberate 301s onto GL/RR/CAD, and AH's
     # page list contains a google.com/maps URL. Judging either produces a finding about a site we
     # were not auditing.
-    if _off_brand(parsed.url, getattr(config, "base_url", "")):
+    if off_brand(parsed.url, getattr(config, "base_url", "")):
         return []
     html = parsed.raw_html or ""
     blocks = _LD_BLOCK.findall(html)

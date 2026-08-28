@@ -43,6 +43,11 @@ _CHECK_COMPONENT: dict[str, set[str]] = {
 # enumeration output depends on crawl.py's enumerate logic (what's in the sitemap/REST sets) —
 # enumeration-scoped, so a crawl enumerate change rule-changes ONLY the 845 findings.
 _CHECK_COMPONENT["enumeration"] = _CHECK_COMPONENT["enumeration"] | {"src:crawl.py"}
+# `redirects_off_brand` is an enumeration finding MINTED IN audit.py (_off_brand_projection), so an
+# edit to the off-domain rule must rule-change it. Without this the findings vanish from the diff
+# and read as `resolved` — "someone fixed the sitemap" — when nothing changed. Exactly the trap the
+# collapse list below documents, in a new place.
+_CHECK_COMPONENT["enumeration"] = _CHECK_COMPONENT["enumeration"] | {"src:audit.py"}
 # broken_links imports CRUFT_RE from enumeration for the cruft_link class (B10), so an edit to
 # that shared pattern must rule-change link findings too — links-scoped, not global.
 _CHECK_COMPONENT["broken_links"] = _CHECK_COMPONENT["broken_links"] | {"src:enumeration.py"}
