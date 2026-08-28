@@ -36,8 +36,19 @@ from urllib.parse import urlparse
 # --------------------------------------------------------------------------- deny
 # Substring/pattern match on the request HOST. Kept as patterns rather than exact hosts because
 # several of these are account-scoped subdomains that differ per brand.
+# The canary is a deny-list ENTRY, not a special case in the guard. That is the point: a probe
+# that the guard has to reason about differently from a real tracker proves less than one that
+# takes the identical code path. `.invalid` is reserved by RFC 2606 and can never resolve, so this
+# pattern cannot match a host that really exists.
+CANARY_HOST = "canary.invalid"
+
 TRACKER_PATTERNS: tuple[str, ...] = (
+    r"canary\.invalid",
     # analytics + tag management
+    # cloudflareinsights was NOT on this list and got through on the first production render. It
+    # was caught only because unrecognised third parties are LOGGED rather than silently allowed —
+    # which is the whole reason that mechanism exists.
+    r"cloudflareinsights\.com", r"static\.cloudflareinsights",
     r"googletagmanager\.com", r"google-analytics\.com", r"analytics\.google\.com",
     r"\bgtag\b", r"doubleclick\.net", r"googleadservices\.com", r"googlesyndication\.com",
     # session recording / heatmaps
@@ -116,12 +127,18 @@ class SafetyLedger:
     # Every third party we did NOT block. This is how a new tracker gets discovered instead of
     # being silently leaked to — the client's marketing stack changes without telling us.
     unblocked_third_parties: dict[str, int] = field(default_factory=dict)
+    # Exact URLs we aborted. `images.find_broken` needs these to avoid reporting an image that WE
+    # stopped as an image the client broke. Kept on the ledger rather than in a set the caller
+    # maintains alongside it, because a caller who forgets the set gets false broken-image findings
+    # and no error — the failure is silent, so the data structure has to make it hard to miss.
+    blocked_urls: set = field(default_factory=set)
     pages: int = 0
 
     def record(self, url: str, verdict: str) -> None:
         host = (urlparse(url).netloc or "?").lower()
         if verdict == "block":
             self.blocked += 1
+            self.blocked_urls.add(url)
             self.blocked_hosts[host] = self.blocked_hosts.get(host, 0) + 1
         else:
             self.allowed += 1
@@ -129,22 +146,35 @@ class SafetyLedger:
                 self.unblocked_third_parties[host] = self.unblocked_third_parties.get(host, 0) + 1
 
     def assert_worked(self, *, min_pages: int = 1) -> None:
-        """Raise unless the guard demonstrably did something. Called at the END of every run.
+        """Confirm pages were actually seen. Attachment is proven separately — see below.
 
-        A deny-list that is configured but not attached looks exactly like a set of pages with no
-        trackers on them, and the difference is invisible in the output. These sites demonstrably
-        load GTM, Clarity, Meta and CTM, so a real run that blocked NOTHING did not work — and the
-        cost of believing it is polluting the client's analytics for as long as nobody notices.
+        This USED to assert on the BLOCK COUNT, and that was wrong twice, both times failing a run
+        that was working perfectly:
+
+        * DBH's headless rebuild references no external assets at all, so it blocks zero.
+        * The FIRST production render — GL's homepage — blocked zero because **the trackers are
+          consent-gated**. 81 requests, all first-party bar two, and no GTM, Clarity, Meta or CTM
+          anywhere, because we never accept a cookie banner. That is excellent news for the client
+          and it makes a block count useless as a health signal.
+
+        So a count of zero blocks is now INFORMATION, not an error.
         """
         if self.pages < min_pages:
             raise SafetyNotArmed(
                 f"network guard saw {self.pages} page(s); expected at least {min_pages}")
-        if self.blocked == 0:
+
+    def assert_attached(self, canary_host: str = "canary.invalid") -> None:
+        """Prove the route handler is live, by confirming a deliberate canary request was blocked.
+
+        Attachment is what actually matters, and unlike a block count it holds regardless of
+        whether the page under test loads any trackers of its own. Call this BEFORE navigating to
+        a client page.
+        """
+        if not any(canary_host in h for h in self.blocked_hosts):
             raise SafetyNotArmed(
-                f"network guard blocked NOTHING across {self.pages} page(s). These sites are known "
-                f"to load Google Tag Manager, Microsoft Clarity, Meta and CallTrackingMetrics, so "
-                f"zero blocks means the guard was not attached — not that the pages were clean. "
-                f"Refusing to report results from an unguarded run.")
+                "the network guard did not block a deliberate canary request, so it is not "
+                "attached. Refusing to render: an unguarded render fires the client's analytics, "
+                "A/B tests and call tracking.")
 
     def summary(self) -> str:
         top = sorted(self.blocked_hosts.items(), key=lambda kv: -kv[1])[:5]
@@ -153,14 +183,33 @@ class SafetyLedger:
                 f"{len(self.unblocked_third_parties)} unrecognised third-party host(s)")
 
 
+def prove_attached(page, ledger: SafetyLedger, *, timeout_ms: int = 2000) -> None:
+    """Fire a request the deny list must block, then assert it was. Call BEFORE the client page.
+
+    The canary is a request to a host that cannot exist, taking the same route handler, the same
+    `classify`, and the same `abort` as a real tracker would. If it comes back blocked, the guard
+    is attached; if it does not, we have proof to refuse on rather than a hopeful assumption.
+
+    The canary is then REMOVED from the ledger, so the run's reported numbers describe the client's
+    page and not our own probe.
+    """
+    page.set_content(f'<img src="https://{CANARY_HOST}/probe.gif">', wait_until="domcontentloaded")
+    waited = 0
+    while CANARY_HOST not in ledger.blocked_hosts and waited < timeout_ms:
+        page.wait_for_timeout(50)
+        waited += 50
+    ledger.assert_attached(CANARY_HOST)
+    ledger.blocked -= ledger.blocked_hosts.pop(CANARY_HOST, 0)
+
+
 def install(page, first_party: str, ledger: SafetyLedger):
     """Attach the guard to a Playwright page. MUST be called before the first navigation.
 
     Aborts with `blockedbyclient`, which is what a content blocker reports, so a site that notices
     sees an ordinary ad-blocker rather than something anomalous.
     """
-    def handler(route):
-        url = route.request.url
+    def handler(route):                # EXACTLY one parameter: Playwright passes (route, request)
+        url = route.request.url        # to any handler that will accept two, which corrupts args.
         verdict = classify(url, first_party)
         ledger.record(url, verdict)
         if verdict == "block":

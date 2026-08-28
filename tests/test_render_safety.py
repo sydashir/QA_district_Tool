@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from render.safety import SafetyLedger, SafetyNotArmed, classify
+from render.safety import CANARY_HOST, SafetyLedger, SafetyNotArmed, classify
 
 GL = "https://www.gratitudelodge.com/"
 
@@ -72,12 +72,43 @@ def test_an_unknown_third_party_is_allowed_but_recorded():
     assert led.unblocked_third_parties == {"brand-new-tracker.example": 1}
 
 
-def test_a_run_that_blocked_nothing_refuses_to_report():
-    """Configured is not the same as working. A guard that was never attached looks exactly like a
-    set of pages with no trackers, and the difference is invisible in the output."""
+def test_blocking_nothing_is_information_not_an_error():
+    """This test asserted the OPPOSITE until production refuted it, twice.
+
+    The old rule was "a run that blocked nothing was not attached". Then DBH's headless rebuild
+    blocked nothing because it references no external assets, and GL's homepage blocked nothing
+    because the trackers are consent-gated and we never consent. Both were healthy runs failed by
+    a bad proxy. Attachment is proven by the canary instead — see the next test."""
     led = SafetyLedger(pages=50)
-    with pytest.raises(SafetyNotArmed, match="blocked NOTHING"):
-        led.assert_worked()
+    led.assert_worked()                     # zero blocks, and that is fine
+
+
+def test_a_guard_that_never_attached_refuses_to_report():
+    """The failure that actually matters: the deny list configured but the handler never installed.
+    Indistinguishable from a clean page by any count, which is why it takes a deliberate probe."""
+    led = SafetyLedger(pages=50)
+    for _ in range(9):
+        led.record("https://www.googletagmanager.com/gtm.js", "block")
+    with pytest.raises(SafetyNotArmed, match="canary"):
+        led.assert_attached()               # nine real blocks still do not prove attachment
+
+
+def test_the_canary_is_a_deny_list_entry_not_a_special_case():
+    """A probe the guard has to treat differently from a real tracker proves less than one that
+    takes the identical path. `.invalid` is RFC 2606 reserved, so it can never match a real host."""
+    assert classify(f"https://{CANARY_HOST}/probe.gif", GL) == "block"
+    led = SafetyLedger(pages=1)
+    led.record(f"https://{CANARY_HOST}/probe.gif", "block")
+    led.assert_attached()
+
+
+def test_blocked_urls_are_kept_so_our_own_blocking_is_never_reported_as_a_defect():
+    """`images.find_broken` needs these. A caller who forgets gets false broken-image findings and
+    no error, so the ledger owns them rather than a set maintained alongside it."""
+    led = SafetyLedger()
+    led.record("https://www.googletagmanager.com/pixel.gif", "block")
+    led.record("https://www.gratitudelodge.com/hero.jpg", "allow")
+    assert led.blocked_urls == {"https://www.googletagmanager.com/pixel.gif"}
 
 
 def test_a_run_that_rendered_nothing_refuses_too():
