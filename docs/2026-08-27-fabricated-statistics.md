@@ -2,6 +2,12 @@
 
 **For Syed. Written 2026-08-27. NOT an audit finding — do not put this in the QA report.**
 
+> **OUTCOME, 2026-08-28: raised and knowingly accepted.** Syed reviewed this and decided the
+> fallback values stay as they are. No action follows from this document and no check was built to
+> flag the fabricated figures. It is kept — not deleted — as the record that the behaviour was
+> found, understood and accepted deliberately rather than overlooked. If anyone later asks whether
+> we knew, the answer is yes, and this is when.
+
 This is an editorial and possibly compliance matter, not a defect row. It needs a conversation with
 the client, not a ticket.
 
