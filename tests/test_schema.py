@@ -33,6 +33,10 @@ class _Canon:
         return self._n
 
 
+# Business nodes carry the BRAND name, not a placeholder. Every one of these fixtures is a
+# GL-configured page, and a real GL page names the business "Gratitude Lodge" — a bare "X"
+# is a page that exists nowhere, and it made these fixtures kinder than reality in the one
+# way that mattered once `business_name_internal` shipped.
 def _page(html: str, url="https://www.gratitudelodge.com/x/"):
     return ParsedPage(url=url, raw_html=html)
 
@@ -67,7 +71,7 @@ def test_a_business_inside_an_at_graph_is_found():
     """Rank Math nests everything under @graph; missing this would report every such page."""
     assert _classes(_ld(
         '{"@context":"https://schema.org","@graph":[{"@type":"WebPage"},'
-        '{"@type":"Organization","name":"X","url":"https://x/"}]}')) == []
+        '{"@type":"Organization","name":"Gratitude Lodge","url":"https://x/"}]}')) == []
 
 
 # --------------------------------------------------------------------------- invalid json
@@ -86,7 +90,7 @@ def test_a_block_that_is_not_valid_json_is_reported():
 def test_a_local_business_with_no_contact_details_is_a_warning_not_an_error():
     """Google RECOMMENDS telephone and address on a local business; schema.org does not require
     them. We do not report a failure against a standard the client never adopted."""
-    out = schema.run(_page(_ld('{"@type":"LocalBusiness","name":"X","url":"https://x/"}')), _Cfg())
+    out = schema.run(_page(_ld('{"@type":"LocalBusiness","name":"Gratitude Lodge","url":"https://x/"}')), _Cfg())
     incomplete = [f for f in out if f.details["class"] == "incomplete"]
     assert incomplete and incomplete[0].severity is Severity.WARNING
     assert set(incomplete[0].details["missing"]) == {"telephone", "address"}
@@ -95,14 +99,14 @@ def test_a_local_business_with_no_contact_details_is_a_warning_not_an_error():
 def test_a_bare_organization_is_not_held_to_the_local_business_bar():
     """AH, AR, CAD and COC use Organization with only name+url. That is valid markup, so it is not
     reported as incomplete — only a LOCAL business is expected to carry contact details."""
-    assert _classes(_ld('{"@type":"Organization","name":"X","url":"https://x/"}')) == []
+    assert _classes(_ld('{"@type":"Organization","name":"Gratitude Lodge","url":"https://x/"}')) == []
 
 
 # --------------------------------------------------------------------------- phones
 def test_a_sister_brands_number_in_the_markup_is_an_error():
     cfg = _Cfg(canon=_Canon({"+18445760144"}), brand_numbers={"+18663309449": ["RR"]})
     out = schema.run(_page(_ld(
-        '{"@type":"MedicalBusiness","name":"X","telephone":"+1-866-330-9449",'
+        '{"@type":"MedicalBusiness","name":"Gratitude Lodge","telephone":"+1-866-330-9449",'
         '"address":{"@type":"PostalAddress"}}')), cfg)
     cross = [f for f in out if f.details["class"] == "phone_cross_brand"]
     assert cross and cross[0].severity is Severity.ERROR and cross[0].details["owner"] == "RR"
@@ -113,7 +117,7 @@ def test_a_local_facility_line_from_the_nap_sheet_is_not_flagged():
     GL's own facility lines as unknown."""
     cfg = _Cfg(canon=_Canon({"+18445760144", "+15623301644"}))
     assert _classes(_ld(
-        '{"@type":"MedicalBusiness","name":"X","telephone":"+1-562-330-1644",'
+        '{"@type":"MedicalBusiness","name":"Gratitude Lodge","telephone":"+1-562-330-1644",'
         '"address":{"@type":"PostalAddress"}}'), cfg) == []
 
 
@@ -122,7 +126,7 @@ def test_an_unrecognised_number_is_only_a_warning():
     # rejects them as fictional, which is why the first draft of this test found nothing.)
     cfg = _Cfg(canon=_Canon({"+18445760144"}))
     out = schema.run(_page(_ld(
-        '{"@type":"MedicalBusiness","name":"X","telephone":"+1-213-555-0199",'
+        '{"@type":"MedicalBusiness","name":"Gratitude Lodge","telephone":"+1-213-555-0199",'
         '"address":{"@type":"PostalAddress"}}')), cfg)
     unknown = [f for f in out if f.details["class"] == "phone_unknown"]
     assert unknown and unknown[0].severity is Severity.WARNING
