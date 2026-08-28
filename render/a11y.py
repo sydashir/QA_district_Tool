@@ -76,6 +76,15 @@ def run_axe(page, *, rules: tuple[str, ...] = DEFAULT_RULES) -> dict:
                    nodes: v.nodes.map(n => ({
                        target: n.target, html: n.html,
                        message: (n.any[0] && n.any[0].message) || '',
+                       // Which part of the page this sits in. A cramped footer link and a cramped
+                       // booking button are the same rule and very different problems.
+                       region: (() => {
+                           try {
+                               const el = document.querySelector(n.target[0]);
+                               const box = el && el.closest('footer,nav,header,aside,main');
+                               return box ? box.tagName.toLowerCase() : '';
+                           } catch (e) { return ''; }
+                       })(),
                        data: (n.any[0] && n.any[0].data) || null}))})),
                incomplete: r.incomplete.map(v => ({
                    id: v.id,
@@ -121,20 +130,138 @@ def to_findings(result: dict, url: str, *, viewport: str, page_count: int = 1) -
                 note = (f" Separately, {len(undecided)} element(s) on this page could not be "
                         f"assessed for this rule at all ({', '.join(sorted(set(undecided))[:3])}) "
                         f"— those are NOT counted as failures.")
+            region = node.get("region") or ""
+            where = ""
+            if check == CHECK_TAP_TARGET and region:
+                where = (f" It is in the page's <{region}>, which on every instance measured so far "
+                         f"means site-wide furniture — a footer or navigation link — rather than a "
+                         f"button on the path to contacting you.")
             findings.append(Finding(
-                url=url, check=check, severity=Severity.ERROR,
+                url=url, check=check,
+                # Unreadable text is a different order of problem from a small link. Tap targets
+                # measured 18 findings across 63 pages on 2 of 8 brands, all of them in footers or
+                # leftover WordPress boilerplate; ERROR is reserved for defects that cost a call.
+                severity=Severity.ERROR if check == CHECK_CONTRAST else Severity.WARNING,
                 fingerprint=make_fingerprint(check, viewport, url, sel),
                 issue=(f"text fails the minimum contrast ratio" if check == CHECK_CONTRAST
                        else "tap target is smaller than 24x24 and has no spacing around it"),
                 location=f"{sel} ({viewport})",
                 snippet=(node.get("html") or "")[:180],
-                suggestion=(f"{node.get('message') or group.get('help', '')}.{detail}{note} "
+                suggestion=(f"{node.get('message') or group.get('help', '')}.{detail}{where}{note} "
                             f"Checked against WCAG "
                             f"{'1.4.3 (AA)' if check == CHECK_CONTRAST else '2.5.8 (AA)'}."),
-                details={"class": rule, "viewport": viewport, "selector": sel,
+                details={"class": rule, "viewport": viewport, "selector": sel, "region": region,
                          "page_count": page_count, "template_sampled": True,
                          "incomplete_on_page": len(undecided), **data}))
     return findings
+
+
+# --- colour maths -------------------------------------------------------------------------------
+# Implemented here rather than pulled from a library: it is nine lines of the WCAG 2.x definition,
+# and the same arithmetic was used to independently verify axe's numbers on 671 real nodes (all 671
+# agreed). Having our own copy is what made that verification possible — see ARCHITECTURE.md D14.
+
+def _hex_to_rgb(c: str) -> tuple[int, int, int]:
+    c = c.strip().lstrip("#")
+    if len(c) == 3:
+        c = "".join(ch * 2 for ch in c)
+    return int(c[0:2], 16), int(c[2:4], 16), int(c[4:6], 16)
+
+
+def _rel_luminance(rgb: tuple[int, int, int]) -> float:
+    def channel(v: float) -> float:
+        v /= 255
+        return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
+    r, g, b = (channel(x) for x in rgb)
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def _contrast_ratio(a: tuple[int, int, int], b: tuple[int, int, int]) -> float:
+    la, lb = _rel_luminance(a), _rel_luminance(b)
+    hi, lo = max(la, lb), min(la, lb)
+    return (hi + 0.05) / (lo + 0.05)
+
+
+def darken_to_pass(fg: str, bg: str, required: float = 4.5) -> str | None:
+    """The nearest version of THIS colour that meets the ratio, keeping its hue.
+
+    Scales the foreground toward black (or toward white when the background is dark — AR's palette
+    is light grey on near-black, where darkening makes it worse). Returns None if no scaling of the
+    hue can reach the target, which is honest: some pairs need a different background, not a
+    different text colour, and inventing an answer there would send a designer in a circle.
+
+    Multiplicative scaling keeps the channel ratios, so #1989ff stays recognisably the same blue
+    instead of becoming "use black" — advice a designer would correctly ignore.
+    """
+    try:
+        f, b = _hex_to_rgb(fg), _hex_to_rgb(bg)
+    except (ValueError, IndexError):
+        return None
+    if _contrast_ratio(f, b) >= required:
+        return fg
+    toward_white = _rel_luminance(b) < 0.5
+    best = None
+    for step in range(1, 101):
+        t = step / 100
+        if toward_white:
+            cand = tuple(round(c + (255 - c) * t) for c in f)
+        else:
+            cand = tuple(round(c * (1 - t)) for c in f)
+        if _contrast_ratio(cand, b) >= required:
+            best = cand
+            break
+    return "#%02x%02x%02x" % best if best else None
+
+
+# Below this share of assessable elements, listing findings implies a coverage that does not exist.
+# Set at 60% from the first per-brand measurement: TDRC 88.5%, AH 84.3%, CAD 70.3% read as genuine
+# coverage with gaps; AR 55.2%, GL 29.6%, COC 19.5%, RR 12.2% and DBH 2.1% do not.
+COVERAGE_FLOOR = 0.60
+
+_REASON_TEXT = {
+    "bgImage": "the text sits on top of a photograph or background image",
+    "bgGradient": "the text sits on a colour gradient rather than a flat colour",
+    "elmPartiallyObscured": "another element overlaps the text",
+    "elmPartiallyObscuring": "the text overlaps something else",
+    "pseudoContent": "a decorative layer is drawn over the text",
+    "shortTextContent": "there is too little text to sample reliably",
+    "equalRatio": "the text and its background are the same colour",
+}
+
+
+def coverage_finding(brand: str, *, assessed: int, withheld: int,
+                     reasons: dict[str, int]) -> Finding | None:
+    """Say how much of the site's contrast could actually be judged — or return None if most of it
+    could.
+
+    Without this, DBH's SEVEN contrast findings read as "we checked this site and found 7 problems".
+    We checked 2% of it. The withheld elements are not passes and must never be presented as though
+    a tool looked at them and was satisfied.
+    """
+    total = assessed + withheld
+    if not total:
+        return None
+    pct = assessed / total * 100
+    if pct >= COVERAGE_FLOOR * 100:
+        return None                       # genuine coverage; a caveat everywhere trains readers to skip it
+    dominant = max(reasons, key=reasons.get) if reasons else None
+    why = _REASON_TEXT.get(dominant or "", "")
+    why_text = (f" The most common reason is that {why} — a contrast figure cannot be calculated "
+                f"from that automatically, by any tool.") if why else ""
+    return Finding(
+        url="", check=CHECK_CONTRAST, severity=Severity.INFO,
+        fingerprint=make_fingerprint(CHECK_CONTRAST, "coverage", brand),
+        issue="most of this site's text contrast could not be assessed automatically",
+        location="site", snippet=f"{assessed} of {total} elements assessable",
+        suggestion=(f"Of the {total} pieces of text we looked at on this site, only {assessed} "
+                    f"({pct:.1f}%) could be measured for contrast at all.{why_text} "
+                    f"Any contrast findings listed here therefore describe the {pct:.1f}% we could "
+                    f"check — they are NOT a clean bill of health for the rest, which was not "
+                    f"assessed rather than assessed and passed. Judging the remainder needs a "
+                    f"person looking at the rendered page."),
+        details={"class": "contrast_coverage", "assessed": assessed, "withheld": withheld,
+                 "assessed_pct": round(pct, 1), "dominant_reason": dominant,
+                 "reasons": reasons, "template_sampled": True})
 
 
 def collapse_contrast(findings: list[Finding]) -> list[Finding]:
@@ -173,6 +300,16 @@ def collapse_contrast(findings: list[Finding]) -> list[Finding]:
         ratio = (first.details or {}).get("contrastRatio")
         urls = list(dict.fromkeys(f.url for f in group))
         need = required.split(":")[0]
+        try:
+            target = float(need)
+        except ValueError:
+            target = 4.5
+        # A designer should not have to reach for a contrast tool to act on this.
+        suggested = darken_to_pass(fg, bg, target)
+        fix = (f" Changing {fg} to {suggested} keeps the same colour and clears the standard."
+               if suggested and suggested.lower() != fg.lower()
+               else " No shade of this colour passes on this background — the background needs to "
+                    "change instead.")
         out.append(Finding(
             url=first.url, check=CHECK_CONTRAST, severity=Severity.ERROR,
             fingerprint=make_fingerprint(CHECK_CONTRAST, "pair", fg, bg, required),
@@ -183,10 +320,11 @@ def collapse_contrast(findings: list[Finding]) -> list[Finding]:
                         f"accessibility standard asks for at least {need}:1. This is one colour "
                         f"choice in the theme rather than {len(group)} separate mistakes: it "
                         f"appears on {len(group)} element(s) across {len(urls)} page(s) in this "
-                        f"sample, and darkening the one colour fixes all of them. Checked against "
+                        f"sample, so one change fixes all of them.{fix} Checked against "
                         f"WCAG 1.4.3 (AA)."),
             details={"class": "color-contrast", "fgColor": fg, "bgColor": bg,
                      "contrastRatio": ratio, "expectedContrastRatio": required,
+                     "suggested_fg": suggested,
                      "element_count": len(group), "page_count": len(urls),
                      "examples": urls[:5], "template_sampled": True}))
     return out

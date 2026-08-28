@@ -104,7 +104,11 @@ def test_tap_target_findings_cite_the_standard_they_test(mobile):
     tap = [f for f in to_findings(run_axe(mobile), "https://x/p/", viewport="mobile")
            if f.check == "tap_target"]
     assert tap and all("2.5.8 (AA)" in f.suggestion for f in tap)
-    assert all(f.severity.value == "error" for f in tap)
+    # WARNING, not ERROR — changed deliberately after the first per-brand measurement. 18 findings
+    # across 63 pages on 2 of 8 brands, every one in a footer or in leftover WordPress boilerplate
+    # (a `hello-world` sample post, a wordpress.org credit link). Genuine WCAG 2.5.8 failures, but
+    # ERROR in this project means a defect that costs a phone call.
+    assert all(f.severity.value == "warning" for f in tap)
 
 
 def test_the_44px_rule_is_advisory_off_by_default_and_never_an_error(mobile):

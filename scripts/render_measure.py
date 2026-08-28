@@ -92,8 +92,17 @@ def measure_brand(browser, brand: str) -> list[dict]:
             if b.get("src"):
                 rows.append({"brand": brand, "url": url, "rule": "broken-image",
                              "src": b["src"], "html": b["html"][:200]})
+        # Store WHY axe could not decide, not just how many. "331 withheld" is unactionable;
+        # "331 withheld, all bgImage" says the site paints text over pictures and no tool can judge
+        # it from computed styles alone.
+        reasons: dict[str, int] = {}
+        for v in axe["incomplete"]:
+            for n in v["nodes"]:
+                key = f"{v['id']}:{n.get('reason', 'unknown')}"
+                reasons[key] = reasons.get(key, 0) + 1
         rows.append({"brand": brand, "url": url, "rule": "_page",
                      "incomplete": {v["id"]: len(v["nodes"]) for v in axe["incomplete"]},
+                     "incomplete_reasons": reasons,
                      "reached_bottom": scroll["reached_bottom"],
                      "blocked": led.blocked, "allowed": led.allowed})
         page.close()
