@@ -26,6 +26,7 @@ including per-location facility lines.
 | `display_dial_mismatch` | the number shown differs from the number dialled | DBH: *shows "844-759-0999" but dials +1 888 707 6073* |
 | `stale_retired` | a retired number still printed on the page | GL: `+1 800 692 9850` |
 | `unknown` | a number in nobody's set | AH: `+1 800 950 6264` |
+| `display_dial_unknown` | shown and dialled differ, and the dialled one is in no brand's set | DBH |
 | `third_party` (INFO) | a known crisis hotline — expected, not a defect | CAD: SAMHSA's `+1 800 662 4357` |
 
 **How it avoids crying wolf.** Numbers are parsed with a real telephony library, not a regex, so
@@ -46,6 +47,8 @@ rather than blamed on one.
 | `social_misrouted` | a social icon pointing at the wrong network | TDRC: `linkedin.co` + `youtube.com` fused into one link |
 | `cruft_link` | a link to a leftover `-old` / `-copy` / `-delete` page | GL: `/adderall-detox-delete` |
 | `malformed_link` | an address that is not an address | CAD: `http://Medication-assisted treatment` |
+| `unreachable` | a link that timed out or failed to connect | CAD: an NIH archive page |
+| `double_slash` | an address containing a doubled slash | GL: `…/california//orange-county/` |
 | `unverified_external` (INFO) | an outside site we could not check (e.g. 403) | GL |
 
 **How it avoids crying wolf.** Every link is deduplicated before being probed — a nav link appears
@@ -63,6 +66,7 @@ Two halves. One is visible; the other is much harder to see and much more common
 | `placeholder` | the raw template code left on the page | GL: `[acf field=near-in]` |
 | `variable_name` | a variable **name** printed as text | DBH: *"See more about our 'TOPIC' program below"* |
 | `empty_state` | a template's own "nothing here" message | CAD: *"No Content Found in this FIeld"* |
+| `shortcode` | an unrendered shortcode visible on the page | GL: a `[…]` block printed as text |
 | `orphan_comma` | a value vanished, leaving a dangling comma | GL: *"In Long Beach during , there were 5 news reports"* |
 | `double_preposition` | a value vanished between two prepositions | *"…private insurance within of Aliso Viejo"* |
 | `empty_percent` | a percentage with no number | CAD: *"representing a % change compared to ."* |
@@ -147,10 +151,14 @@ of GL's own facility lines as wrong.
 | `blank` | a page or section with no content |
 | `empty_row` | a blank cell in an otherwise filled table |
 | `duplicate_paragraph` | the same paragraph repeated on one page |
+| `duplicate_link` | the same link repeated within one page |
 | `sister_brand` | another brand named in this brand's copy |
 | `county_for_country` | "county" written where "country" was meant |
 | `sitemap_dead` | a page in the sitemap that no longer exists |
 | `indexable_unsitemapped` | a live, indexable page missing from the sitemap |
+| `noindex_unsitemapped` (INFO) | a no-index page missing from the sitemap — usually correct, reported for completeness |
+| `cruft_noindex` | a leftover `-old`/`-copy` page missing from the sitemap, no-index limiting the harm |
+| `rest_404` | WordPress lists the page but it returns 404 to the public |
 
 ---
 
