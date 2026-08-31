@@ -1203,3 +1203,58 @@ And its corollary, which produced #4's fix specifically:
 > now returns `reached_bottom` and `max_scroll`; the network guard proves attachment with a canary
 > instead of trusting a block count. A silent preparation step is a broken assumption waiting for a
 > finding to hang itself on.
+
+---
+
+## D15. The crawl and the database write are independent — and the disk is the record
+
+Four times now, a run's result has survived on disk while the database said something else. Once is
+an incident. Four times is a property of the design, and it should be stated as one.
+
+| run | brand | what happened | what the database said | what disk held |
+|---|---|---|---|---|
+| 97 | — | machine/Docker outage mid-run | `running`, indefinitely | — |
+| 98 | RR | Postgres died AFTER the run; worker crashed in `unregister_worker` | correct (already committed) | the full report, independently |
+| 99 | MHD | Postgres died as the run started | `running`, 0 pages, 0 findings | complete report; **recovered** |
+| 108 | MHD | Postgres died 4h45m in (2026-08-28) | `running`, 0 pages, 0 findings | 5,254 findings / 621 pages; **recovered** |
+
+**Why it keeps happening: the crawl has no dependency on the database.** `run_audit` fetches pages,
+writes `cache/<brand>/resume.jsonl`, and writes `reports/<brand>/<stamp>/`. Postgres is touched only
+at the END, by `load_report_into_run`. So a database outage anywhere in a multi-hour crawl is
+invisible to the crawl and fatal to the record of it. The work completes; the receipt is lost.
+
+That separation is a good property — it is why five hours of crawling against a degraded origin
+survives a container dying — but it has a sharp edge:
+
+> **Success in one says nothing about the other.** A run reading `running` is not evidence that it
+> is running. A run with zero findings is not evidence that it found nothing. Check
+> `reports/<brand>/<stamp>/` before concluding anything was lost.
+
+This is the same shape as **D13** (a projection dropped a field, so absence of evidence in the
+database meant nothing) and **D14** (our own tooling created the defect it then reported). All three
+are one failure family: **the instrument disagrees with the thing being measured, and the instrument
+is more convenient to read.**
+
+### The correction this demands
+
+`settle_abandoned_run` currently tells the reader, for any abandoned run:
+
+> *"No results were recorded for it, and the previous run's results are unchanged."*
+
+**On runs 99 and 108 that sentence was false.** A complete report was sitting on disk both times. The
+function judges from the database alone, which is exactly the mistake above — so it must consult the
+disk before declaring a run resultless, and import the report when one exists. Two consequences:
+
+1. **The importer must be general.** Recovering run 108 by hand worked, but hand-recovery is why
+   this took four occurrences to notice. Any completed report directory with no matching database
+   rows should be importable in one call.
+2. **A stale run must be VISIBLE, not silently pending.** A run stuck at `running` with no worker
+   heartbeat renders in the UI as "waiting to start" forever. Nobody goes looking for a run that
+   looks like it is about to begin. `reconcile_orphaned_runs` already detects this correctly — from
+   the worker heartbeat, not elapsed time, which is right because RR legitimately crawls for six
+   hours — but it only runs **at worker startup**. If the worker never comes back, nothing ever
+   notices.
+
+**Ordering trap, learned the hard way today:** `reconcile_orphaned_runs` runs at worker startup and
+would have marked run 108 `failed` with "no results were recorded" — destroying the correct outcome —
+had the worker been started before the report was imported. **Import first, then start workers.**
