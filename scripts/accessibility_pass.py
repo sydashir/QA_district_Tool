@@ -38,6 +38,7 @@ import httpx
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from auditor.checks.schema import off_brand               # noqa: E402
+from auditor.report import canonical_url                  # noqa: E402
 from auditor.config import load_brand                     # noqa: E402
 from render.markup import audit_html                      # noqa: E402
 from server.db import SessionLocal                        # noqa: E402
@@ -115,7 +116,12 @@ def fetch_pages(urls: list[str], base_url: str) -> tuple[list[tuple[str, str]], 
             if off_brand(str(r.url), base_url):
                 off_brand_dropped += 1
                 continue
-            out.append((str(r.url), r.text))
+            # canonical_url, NOT the fetched URL. Page identity everywhere else in this project
+            # is the requested URL with the trailing slash stripped (auditor/report.py), and these
+            # sites serve the slashed form — so passing r.url stored 188 findings under a second
+            # identity for pages that already existed. Two join keys for one page is exactly what
+            # breaks a traffic join, and it silently halves the match rate.
+            out.append((canonical_url(str(r.url)), r.text))
     return out, off_brand_dropped
 
 
