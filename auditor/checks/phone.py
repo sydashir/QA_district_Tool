@@ -26,7 +26,7 @@ from collections import Counter
 import phonenumbers
 from bs4 import BeautifulSoup
 
-from ..parse import ParsedPage
+from ..parse import ParsedPage, _css_path
 from ..report import Finding, Severity, make_fingerprint
 
 CHECK = "phone"
@@ -150,7 +150,11 @@ def run(parsed: ParsedPage, config) -> list[Finding]:
                     suggestion=f"Shows {disp_e164} but dials {tel_e164} — both {brand}'s own numbers. "
                                f"If this is call-tracking (show local, route to a central line) it is "
                                f"intended — confirm it's deliberate, not a copy-paste error.",
-                    details={"displayed": disp_e164, "tel": tel_e164, "class": "display_dial_mismatch"}))
+                    details={"displayed": disp_e164, "tel": tel_e164, "class": "display_dial_mismatch",
+                             # The anchor this finding is about, so it can be
+                             # photographed. Without it the screenshot locator has to
+                             # re-derive the element from the numbers and resolved 50%.
+                             "selector": _css_path(a)}))
             else:  # dialed number is NOT this brand's — check whose it is
                 owners = [b for b in brand_numbers.get(tel_e164, ()) if b != brand]
                 if len(owners) == 1:  # dials exactly ONE other brand's live number -> cross-brand leak
@@ -162,7 +166,8 @@ def run(parsed: ParsedPage, config) -> list[Finding]:
                         suggestion=f"The button dials {tel_e164}, which is {owners[0]}'s number, not {brand}'s"
                                    f" — a cross-brand leak (likely a template copied from {owners[0]}). Fix the tel:.",
                         details={"displayed": disp_e164, "tel": tel_e164, "class": "cross_brand_dial",
-                                 "owner": owners[0]}))
+                                 "owner": owners[0],
+                                 "selector": _css_path(a)}))
                 elif len(owners) >= 2:  # a number claimed by 2+ brands -> ambiguous, don't hard-call
                     findings.append(Finding(
                         url=parsed.url, check=CHECK, severity=Severity.WARNING,

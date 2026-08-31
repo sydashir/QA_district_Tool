@@ -109,6 +109,12 @@ class Actionable:
     # SAME link twice inside ONE list is the duplicate the client reported, and only the container
     # tells those apart.
     region: str = "body"
+    # A CSS path to THIS element, so a screenshot can find the thing the finding is about.
+    # The check knows exactly which anchor it flagged and used to throw that away, which is the only
+    # reason `display_dial_mismatch` screenshots resolved 50% instead of ~100%: the locator had to
+    # re-derive the element from stored text, and on the real pages the label is often prose
+    # ("Call For Treatment") with the number rendered elsewhere. Costs one string per actionable.
+    selector: str = ""
     group: int = 0
 
 
@@ -390,6 +396,44 @@ def _strip_hidden(soup, extra_css: str = "") -> None:
                 continue
 
 
+def _css_path(el, max_depth: int = 8) -> str:
+    """A CSS selector that resolves to exactly this element within its document.
+
+    Built from `nth-of-type` steps rather than ids or classes: an id is often absent, and a class is
+    frequently shared by every card in a list — the two failure modes that make a re-derived
+    selector match nothing or match twenty things. A positional path always resolves to one node in
+    the document it was built from.
+
+    Stops at `max_depth` and anchors on whatever ancestor it reached, which keeps the string short
+    on deeply nested page builders (Elementor routinely nests fifteen divs). A truncated path can in
+    principle match more than one element, so consumers must still verify uniqueness — the
+    screenshot locator refuses anything that resolves to more than one node.
+    """
+    parts: list[str] = []
+    cur = el
+    depth = 0
+    while cur is not None and getattr(cur, "name", None) and cur.name != "[document]":
+        if cur.name == "html":
+            break
+        parent = cur.parent
+        if parent is None or not getattr(parent, "name", None):
+            break
+        same = [c for c in parent.find_all(cur.name, recursive=False)]
+        if len(same) > 1:
+            try:
+                idx = same.index(cur) + 1
+            except ValueError:
+                idx = 1
+            parts.append(f"{cur.name}:nth-of-type({idx})")
+        else:
+            parts.append(cur.name)
+        cur = parent
+        depth += 1
+        if depth >= max_depth:
+            break
+    return " > ".join(reversed(parts))
+
+
 def _visible_text(soup) -> str:
     """Visible text with BLOCK BOUNDARIES PRESERVED as newlines.
 
@@ -512,6 +556,7 @@ def parse_html(html: str, page_url: str, base_url: str | None = None,
         sib = el.find_next_sibling(["ul", "div", "nav"])
         submenu = bool(sib and len(sib.find_all("a", href=True)) >= 2)
         actionables.append(Actionable(
+            selector=_css_path(el),
             tag=el.name,
             text=" ".join((el.get_text(" ", strip=True) or "").split())[:120],
             href=raw_href.strip() if isinstance(raw_href, str) else None,

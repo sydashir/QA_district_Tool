@@ -25,6 +25,22 @@ _SLUG_RE = re.compile(r"^[a-z0-9-]+$")
 _TITLE_SEP_RE = re.compile(r"\s*\|\s*|\s+[-–—]\s+")
 
 
+# WordPress appends `-2` to a slug when the one you asked for is taken, so a trailing `-2` is a
+# reliable fingerprint of an accidental duplicate page — which is what the client kept finding by
+# hand ("make sure the existing URL for each page does not have -2", ClickUp 86b7xbvb9).
+#
+# Anchored to the END of the slug, and only when what precedes it is a word rather than a digit.
+# `-2` in the middle is ordinary wording (`top-2-rehabs`), and a preceding digit means a real
+# number, not a collision counter (`step-12-program`, `covid-19`). Only `-2` — `-3` and beyond do
+# occur but are rare enough that including them buys little and risks `phase-3`, `level-3`.
+_COLLISION_SLUG_RE = re.compile(r"(?<![0-9])-2$")
+
+
+def _is_collision_slug(url: str) -> bool:
+    slug = urlparse(url).path.strip("/").split("/")[-1]
+    return bool(slug) and bool(_COLLISION_SLUG_RE.search(slug))
+
+
 def run(parsed: ParsedPage, config) -> list[Finding]:
     findings: list[Finding] = []
     # Per-brand title bounds (P4): hashed as a CONFIG component, so a per-brand tune doesn't
@@ -70,6 +86,18 @@ def run(parsed: ParsedPage, config) -> list[Finding]:
 
     path = urlparse(parsed.url).path.strip("/")
     slug = path.split("/")[-1] if path else ""
+    if _is_collision_slug(parsed.url):
+        findings.append(Finding(
+            url=parsed.url, check=CHECK, severity=Severity.WARNING,
+            fingerprint=make_fingerprint(CHECK, "collision_slug", parsed.url),
+            issue="this page's address ends in -2, which usually means a duplicate",
+            location="url", snippet=slug,
+            suggestion=("WordPress adds `-2` to a web address when a page with that address "
+                        "already exists, so this is usually a second copy of another page rather "
+                        "than a page anyone meant to create. Check whether the original still "
+                        "exists: if it does, decide which one is real, and redirect the other to "
+                        "it. If this `-2` page is the one you want, give it the proper address."),
+            details={"class": "collision_slug", "slug": slug}))
     if slug and not _SLUG_RE.match(slug):
         findings.append(Finding(
             url=parsed.url, check=CHECK, severity=Severity.WARNING,

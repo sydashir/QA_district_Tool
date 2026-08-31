@@ -159,6 +159,8 @@ of GL's own facility lines as wrong.
 | `noindex_unsitemapped` (INFO) | a no-index page missing from the sitemap — usually correct, reported for completeness |
 | `cruft_noindex` | a leftover `-old`/`-copy` page missing from the sitemap, no-index limiting the harm |
 | `rest_404` | WordPress lists the page but it returns 404 to the public |
+| `redirected_internal` (INFO) | a link on your own site points at an address that redirects, instead of at the page itself — it works, but costs a round trip and stops the old address ever being retired |
+| `collision_slug` | a page address ending in `-2`, which is what WordPress does when the address was already taken — usually a duplicate of another page |
 | `redirects_off_brand` | a URL in this brand's sitemap that sends visitors to a different brand's website — nothing else on that page is audited, because the page that comes back is not this brand's |
 | `business_name_internal` | the machine-readable business card names the business with an internal content-management label instead of the brand — invisible to visitors, wrong to search engines |
 | `address_not_in_nap` | a street address published to search engines that is not on the brand's NAP sheet |

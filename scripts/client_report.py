@@ -54,7 +54,11 @@ SECTIONS: list[tuple[str, str, list[str]]] = [
     ("Search engines are being given the wrong information",
      "What machines read about this business, which is invisible when looking at the site.",
      ["schema:missing", "schema:invalid_json", "meta:*", "enumeration:sitemap_dead",
-      "enumeration:indexable_unsitemapped"]),
+      "enumeration:indexable_unsitemapped",
+      # Both added 2026-08-31 and both are search-engine problems rather than visitor-facing ones:
+      # a redirected internal link still works but bleeds link equity and pins the old URL alive,
+      # and a `-2` address is usually a duplicate page competing with the original.
+      "broken_links:redirected_internal"]),
     ("Structural and housekeeping",
      "Real, lower urgency: heading order, repeated content, blank sections.",
      ["heading_structure:*", "duplication:*", "blank:*", "empty_row:*", "accessibility:*"]),

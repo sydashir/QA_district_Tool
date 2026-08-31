@@ -165,7 +165,9 @@ def run(parsed: ParsedPage, config) -> list[Finding]:
                             f"nothing. Point it at the right page. If it is meant to open a popup "
                             f"or form, that has stopped working and needs a developer."),
                 details={"class": "dead_cta", "label": label, "tag": a.tag,
-                         "href": a.href, "in_nav": a.in_nav}))
+                         "href": a.href, "in_nav": a.in_nav,
+                         # So a screenshot can photograph the actual button. See parse._css_path.
+                         "selector": getattr(a, "selector", "")}))
 
         # --- social icon wired to the wrong network ---
         if a.href and a.href.startswith("http"):

@@ -160,6 +160,28 @@ def _select_probe_window(to_probe: list[str], max_links: int | None) -> list[str
     return picked
 
 
+def _redirect_finding(target, sources, final, code):
+    """An INTERNAL link that points at a URL which redirects, instead of at the live page.
+
+    This was counted and thrown away from M1 until 2026-08-31 (`stats["redirects"] += 1  # benign
+    redirect; tagged in stats, not a finding`). The client asked for exactly this — old URLs still
+    linked across the sites, each costing a redirect hop — and the tool had no coverage, despite
+    already holding the answer at the moment it incremented the counter.
+
+    INFO, deliberately. The visitor gets there. What it costs is a round trip, some link equity, and
+    the ability to ever retire the old URL. Calling that an ERROR would drown the classes that cost
+    a phone call, which is the ordering the whole report is built on.
+    """
+    return _finding(
+        target, sources, "redirect", Severity.INFO,
+        "an internal link goes through a redirect instead of straight to the page",
+        (f"This link points at {target}, which redirects ({code}) to {final}. It works, so nobody "
+         f"notices — but every visit pays an extra round trip, search engines pass the link through "
+         f"a hop, and the old URL can never be retired while pages still point at it. Link "
+         f"straight to {final}."),
+        "redirected_internal", status=code, final_url=final)
+
+
 def _finding(target, sources, subtype, severity, issue, suggestion, cls, **details):
     return Finding(
         url=sources[0], check=CHECK, severity=severity,
@@ -296,7 +318,12 @@ async def check_links(pages, client, config, max_links: int | None = None, on_do
         is_internal = _registrable(_host(url)) == internal
 
         if final and final.split("#")[0].rstrip("/") != url.rstrip("/") and code and code < 400:
-            stats["redirects"] += 1  # benign redirect; tagged in stats, not a finding in M1
+            stats["redirects"] += 1
+            # Reported since 2026-08-31, and ONLY for internal links: an external site's redirects
+            # are its own business and we could not fix them anyway. Internal ones are ours, and
+            # they are what the client asked about.
+            if is_internal:
+                findings.append(_redirect_finding(url, sources, final, code))
 
         if err:
             stats["broken"] += 1
