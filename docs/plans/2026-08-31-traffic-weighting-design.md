@@ -64,6 +64,20 @@ delegated ownership is *not* required for Search Analytics reads.
 `permissionLevel`. Nothing further needs to be asked of anyone, and nothing needs to be asked *up
 front* — see the trap below.
 
+**RULE: `sites.list` determines the property type. Never ask.** Asking invites a confident wrong
+answer, and a wrong answer is indistinguishable from a failed grant. So the tooling must REPORT, per
+brand, which property matched and of which kind — a brand returning zero rows is then diagnosed
+rather than guessed at:
+
+    GL   sc-domain:gratitudelodge.com       siteFullUser    4,102 pages   OK
+    RR   https://renaissancerecovery.com/   siteFullUser        0 pages   URL-PREFIX ON THE BARE
+         HOST, but we crawl www. — this property cannot contain our pages. Ask for the www prefix
+         property, or a domain property.
+    CAD  (no property matched)              —                   —         NOT GRANTED
+
+Three different causes, three different messages. Without that they all read "no traffic data", and
+someone spends an afternoon on the wrong one.
+
 **Enabling it on our side:** switch on the Search Console API in the existing GCP project, and add
 `https://www.googleapis.com/auth/webmasters.readonly` to the `SCOPES` list in `auditor/sheets.py`.
 That file is outside `auditor/checks/`, so it costs no cache invalidation, and the same key file
@@ -234,8 +248,16 @@ writes missing values as zeros in the download.
 current corpus, **915 are "no-index page missing from the sitemap" and 492 are "sitemap page returns
 4xx"**. A no-indexed page has no impressions because it is no-indexed; a dead URL has none because it
 is dead. Counting those as matching failures would make the match rate look broken and would bury
-the genuine gaps. They are excluded from the match-rate denominator and shown unweighted, with the
-reason stated.
+the genuine gaps. They are excluded from the match-rate denominator and shown unweighted.
+
+**The exclusion must be VISIBLE on the finding, not merely applied.** A silent exclusion is a rule
+nobody can see, and the next person to look wonders why `enumeration` findings are never weighted
+and re-adds them. So the finding carries its reason and the report prints it:
+
+> *"This page is no-indexed, so it has no search impressions by design — not weighted."*
+> *"This page returns an error, so nobody reaches it from search — not weighted."*
+
+The rule then explains itself at exactly the point someone would otherwise undo it.
 
 ---
 
