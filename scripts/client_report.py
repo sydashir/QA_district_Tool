@@ -222,6 +222,19 @@ def render(brand_code: str, run, findings) -> str:
             f"here — only the pictures were dropped, and every one of them is still in the audit "
             f"spreadsheet.</p></section>")
 
+    # The accessibility pass runs SEPARATELY from the crawl (it needs a browser), so it attaches
+    # its findings to whichever run was latest when IT ran. The next crawl makes a new run and those
+    # findings are not on it. Without this note the section simply vanishes and its silence reads as
+    # "nothing wrong", when the truth is "nobody looked" — the same distinction the contrast
+    # coverage caveat protects. Cheap to state, and it is how anyone notices the drift.
+    acc_note = ""
+    if not any(f[0] == "accessibility" for f in findings):
+        acc_note = ("<p class='caveat'><strong>The accessibility checks were not run against this "
+                    "crawl.</strong> They are a separate pass, so their results belong to an "
+                    "earlier crawl of this site and are not included below. Nothing here says "
+                    "anything about screen readers, link names or form labels either way — it "
+                    "means nobody looked this time, not that there was nothing to find.</p>")
+
     caveat = ""
     if partial:
         caveat = ("<p class='caveat'><strong>This was a partial sample.</strong> Only part of this "
@@ -273,6 +286,7 @@ footer{{margin-top:44px;color:var(--mut);font-size:13px;border-top:1px solid var
 page it was found on.</p>
 {''.join(out)}
 <section class="limits"><h2>What this audit cannot see</h2>
+{acc_note}
 <p class="why">Being told a category is empty is only useful alongside what was never looked at.
 The audit reads the HTML each page sends to a browser. It does not draw the page, so anything that
 only exists once the page is on a screen is invisible to it — and silence below does

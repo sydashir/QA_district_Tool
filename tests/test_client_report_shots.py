@@ -78,3 +78,38 @@ def test_the_image_cannot_force_horizontal_scrolling():
     """The shots are 2x crops of a 390px viewport. A fixed width would break the report on a phone."""
     out = render("TDRC", _run(), [_finding(shot=PNG)])
     assert "max-width:100%" in out
+
+
+# --- the accessibility pass is separate from the crawl, and that drifts ---------------------------
+# It attaches findings to whichever run was latest WHEN IT RAN. The next crawl creates a new run, the
+# report reads that one, and the accessibility findings simply are not there. Silence then reads as
+# "nothing wrong" when the truth is "nobody looked" — the same distinction the contrast coverage
+# caveat exists to protect, and the reason a stale-vs-missing note is not optional.
+
+def _acc_finding():
+    return ("accessibility", "link-name", "error", "a link has no readable name (/)",
+            "https://x/p/", "<a></a>", "give the link text", 7, None, None)
+
+
+def test_a_report_whose_run_has_no_accessibility_findings_says_so():
+    from scripts.client_report import render
+
+    out = render("TDRC", _run(), [_finding()])
+    assert "accessibility checks were not run" in out.lower()
+
+
+def test_a_report_that_has_accessibility_findings_does_not_claim_they_are_missing():
+    from scripts.client_report import render
+
+    out = render("TDRC", _run(), [_finding(), _acc_finding()])
+    assert "accessibility checks were not run" not in out.lower()
+
+
+def test_the_missing_notice_sits_with_the_other_limits_not_in_the_findings():
+    """It is a statement about coverage, not a defect on the site. Putting it in the findings list
+    would make it look like something to fix."""
+    from scripts.client_report import render
+
+    out = render("TDRC", _run(), [_finding()])
+    limits = out.split("What this audit cannot see")[1]
+    assert "accessibility checks were not run" in limits.lower()

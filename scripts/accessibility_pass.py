@@ -152,6 +152,47 @@ def store(brand_code: str, findings: list) -> int:
         return len(rows)
 
 
+def status(brands: list[str]) -> int:
+    """Which brands' accessibility findings belong to a crawl that is no longer the latest.
+
+    This pass is not part of the crawl — it needs a browser — so every new audit silently leaves it
+    behind. Without a way to ASK, the drift is discovered by someone reading a report months later
+    and wondering why a section disappeared. Returns the number of stale brands, so it can gate a
+    script or a CI step.
+    """
+    stale = 0
+    print(f"  {'brand':<6}{'latest run':>11}{'acc findings':>14}   state")
+    with SessionLocal() as s:
+        for b in brands:
+            brand = s.scalar(select(Brand).where(Brand.code == b.upper()))
+            if brand is None:
+                continue
+            latest = s.scalar(select(Run).where(Run.brand_id == brand.id, Run.status == "ok")
+                              .order_by(Run.started_at.desc()).limit(1))
+            if latest is None:
+                print(f"  {b.upper():<6}{'-':>11}{'-':>14}   no completed run")
+                continue
+            n_here = s.execute(sql("""select count(*) from findings
+                                      where run_id=:r and "check"='accessibility'"""),
+                               {"r": latest.id}).scalar()
+            if n_here:
+                print(f"  {b.upper():<6}{latest.id:>11}{n_here:>14}   current")
+                continue
+            last = s.execute(sql("""select f.run_id, count(*) from findings f
+                                    where f.brand_id=:b and f."check"='accessibility'
+                                    group by 1 order by 1 desc limit 1"""),
+                             {"b": brand.id}).first()
+            stale += 1
+            where = f"last on run {last[0]} ({last[1]} findings)" if last else "never run"
+            print(f"  {b.upper():<6}{latest.id:>11}{0:>14}   STALE — {where}")
+    if stale:
+        print(f"\n  {stale} brand(s) need `python3 scripts/accessibility_pass.py --all`.")
+        print("  Their reports will say the checks were not run, rather than implying they passed.")
+    else:
+        print("\n  every brand's accessibility findings are on its latest run")
+    return stale
+
+
 def main(brands: list[str], n: int) -> None:
     total = 0
     for b in brands:
@@ -177,5 +218,10 @@ if __name__ == "__main__":
     ap.add_argument("brands", nargs="*")
     ap.add_argument("--all", action="store_true")
     ap.add_argument("-n", type=int, default=30, help="pages sampled per brand")
+    ap.add_argument("--status", action="store_true",
+                    help="report which brands' accessibility findings are on a superseded run")
     a = ap.parse_args()
-    main(BRANDS if (a.all or not a.brands) else a.brands, a.n)
+    chosen = BRANDS if (a.all or not a.brands) else a.brands
+    if a.status:
+        raise SystemExit(1 if status(chosen) else 0)
+    main(chosen, a.n)
