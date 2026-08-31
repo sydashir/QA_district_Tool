@@ -17,6 +17,7 @@ fixed. `OPEN_STATUSES` is the single definition, used by every count in this fil
 """
 from __future__ import annotations
 
+import os
 from datetime import datetime, timedelta, timezone
 from typing import Literal
 
@@ -33,8 +34,18 @@ from .models import Brand, Finding, Page, Run, Triage, fp_hash
 OPEN_STATUSES = ("new", "persisting")
 
 app = FastAPI(title="District Site Auditor", version="0.1.0")
+# The Vite dev server is the DEFAULT, not the only possibility. Hardcoding it was correct under the
+# one topology deploy/README.md describes — Caddy serving web/dist from the same origin as the API,
+# where CORS never engages — and silently wrong under any other, where the browser blocks every call
+# and the API logs nothing to explain it. Nothing in compose enforces that topology, so make it
+# configurable rather than leave a deployment to discover it.
+#
+# `allow_credentials=True` makes the browser reject a wildcard origin anyway, so the list has to be
+# explicit. Comma-separated; blanks dropped so a trailing comma is harmless.
+_CORS_ORIGINS = [o.strip() for o in
+                 os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",") if o.strip()]
 app.add_middleware(
-    CORSMiddleware, allow_origins=["http://localhost:5173"],
+    CORSMiddleware, allow_origins=_CORS_ORIGINS,
     allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
 

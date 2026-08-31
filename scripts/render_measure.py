@@ -22,12 +22,24 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from playwright.sync_api import sync_playwright
+# HOST-ONLY TOOL. `scripts/` is COPYed into the image but `render/` deliberately is not (keeping it
+# out of `checks_version` is the whole reason it is a separate package — CLAUDE.md), and playwright
+# is in neither requirements file. So inside a container these imports raise ModuleNotFoundError
+# with no hint as to why a script that is right there refuses to start. Say it plainly instead.
+try:
+    from playwright.sync_api import sync_playwright
+
+    from render.a11y import run_axe
+    from render.images import find_broken, scroll_to_load_everything
+    from render.safety import SafetyLedger, install, prove_attached
+except ModuleNotFoundError as exc:  # pragma: no cover - container-only path
+    raise SystemExit(
+        f"{exc.name} is not available, so this measurement cannot run here.\n"
+        f"scripts/render_measure.py is a HOST-ONLY tool: the container image ships neither the "
+        f"render/ package (kept out of checks_version on purpose) nor playwright. Run it on the "
+        f"host, from the repo root:  python3 scripts/render_measure.py <brand>") from exc
 
 from auditor.config import load_brand
-from render.a11y import run_axe
-from render.images import find_broken, scroll_to_load_everything
-from render.safety import SafetyLedger, install, prove_attached
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "reports" / "_render_measure"
