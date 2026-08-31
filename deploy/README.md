@@ -446,10 +446,16 @@ nothing is misreported as fixed. It settles after one cycle.
 
 ## Backups — the units that were missing
 
-`backup.sh` has worked since 2026-08-18. **Nothing ever ran it.** There was no timer, no service and
-no cron line, so every backup this project had was a person remembering to type a command. That is
-the same gap `auditor-nightly.timer` was written to close, and it bites harder here: a missing audit
-shows up as a stale dashboard, a missing backup shows up only when you need it.
+`backup.sh` has worked since 2026-08-18 and §7 above documents a cron line for it. **No schedule was
+ever actually installed** — verified 2026-08-31: no crontab entry, no launchd job, no unit file
+anywhere. So every backup this project has had was a person remembering to type a command, and the
+first real one was taken by hand on 2026-08-31, thirteen days after the script was written.
+
+The cron line in §7 still works. These units exist because everything else in this directory is a
+systemd unit, a documented command is not a schedule, and `Persistent=true` replays a backup missed
+while the box was down — which cron cannot do. That is the same gap `auditor-nightly.timer` was
+written to close, and it bites harder here: a missing audit shows up as a stale dashboard, a missing
+backup shows up only when you need it.
 
 Two timers, installed the same way as the nightly one:
 
