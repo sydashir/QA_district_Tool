@@ -27,10 +27,21 @@ findings that matter most. They are cheap to fix and they are the real prerequis
    description — do their damage *in the search results page itself*, which GA4 never observes. On
    the current corpus `meta` is one of the largest classes. GSC **impressions** is the only correct
    weight for them; GA4 has no number for a page nobody clicked *because* the title was wrong.
-2. **GA4's `(other)` row silently eats the long tail.** Cardinality folding starts above ~500 unique
-   dimension values/day. RR has ~7,970 URLs with findings, GL ~2,960 — 16× and 6× over. The rows
-   folded away are the low-traffic ones, which is precisely the population where "is this worth a
-   ticket?" is the question. GA4 also applies row thresholding and sampling.
+2. **GA4's `(other)` row silently eats the long tail — but GSC is NOT immune, and the first draft
+   of this document was wrong to imply it was.** GA4 folds above ~500 unique dimension values/day
+   (RR ~7,970 URLs, GL ~2,960 — 16× and 6× over) and also applies thresholding and sampling. What
+   review established is that **GSC drops rows too**, from Google's own API documentation:
+
+   > "When you group by page and/or query, our system may drop some data in order to be able to
+   > calculate results in a reasonable time using a reasonable amount of computing resources."
+
+   > "The Search Analytics method exposes a maximum of 50K rows of data per day per search type
+   > … **sorted by clicks**."
+
+   Grouping by page is exactly what this design does, and the tail that falls off is the low-click
+   tail — the same population. **GSC's advantage here is that its loss is smaller and bounded, not
+   that it is absent.** The honest statement is that neither source can promise a row for every
+   page, which is why §6's "unmatched" state is mandatory rather than defensive.
 3. **Credentials are half the ask.** GSC needs the service account added as a user on each property;
    GA4 needs a property ID *plus* a role grant per property, and someone has to find nine property
    IDs.
@@ -41,13 +52,32 @@ The existing Sheets service account can be reused; nothing new is created.
 
 > For each of the nine properties in Search Console, add
 > **`app-service-account@lexical-sol-454719-s2.iam.gserviceaccount.com`**
-> as a user with **Restricted** permission (read-only is sufficient — we never write).
-> Search Console → Settings → Users and permissions → Add user.
+> as a user. Search Console → Settings → Users and permissions → Add user.
+> **Only an existing owner can add a user.** Owner, Full and Restricted all reach the Performance
+> data this needs; **Full is the safe minimum** to ask for, since Restricted has occasionally
+> surprised people on API reads.
 
-**Nine separate grants, one per property**, and note whether each is a *domain* property
-(`sc-domain:example.com`) or a *URL-prefix* property — the API `siteUrl` differs and a URL-prefix
-property only covers the exact prefix, so `https://www.gratitudelodge.com/` and
-`https://gratitudelodge.com/` would be different properties.
+A service account needs no special treatment — the address is added like any other user, and
+delegated ownership is *not* required for Search Analytics reads.
+
+**Syed can verify every grant himself** by calling `sites.list`, which returns each `siteUrl` and its
+`permissionLevel`. Nothing further needs to be asked of anyone, and nothing needs to be asked *up
+front* — see the trap below.
+
+**Enabling it on our side:** switch on the Search Console API in the existing GCP project, and add
+`https://www.googleapis.com/auth/webmasters.readonly` to the `SCOPES` list in `auditor/sheets.py`.
+That file is outside `auditor/checks/`, so it costs no cache invalidation, and the same key file
+already in use works unchanged.
+
+**Nine separate grants, one per property.**
+
+**The trap worth knowing before it wastes a day:** domain vs URL-prefix matters twice. It changes the
+identifier (`sc-domain:renaissancerecovery.com` versus `https://www.renaissancerecovery.com/`) *and*
+it changes coverage — a domain property spans all subdomains and protocols, a URL-prefix property
+covers only the exact prefix. **A URL-prefix property registered on the bare host, while we crawl
+`www.`, returns zero rows and looks exactly like a failed grant.** Given GL and RR are the two
+`www` brands, this is likely rather than hypothetical. Do not ask anyone which kind they have —
+`sites.list` says, and asking invites a wrong answer.
 
 **What could stall it:** the properties are HWA-managed, so this is a request through Jake, and nine
 grants is nine chances for one to be missed. The design must therefore work brand-by-brand — a
@@ -193,10 +223,19 @@ both show zero.
 | **Not connected** — no GSC grant for this brand | "Traffic data is not connected for this site, so these findings are listed in the usual order and none of them are weighted. It does not mean these pages are quiet." |
 | **Unmatched** — connected, but this URL was not in the data | "We could not match this page to the traffic data, so it is unweighted. That is a gap in our matching, not a measurement of the page." |
 | **Matched, zero** — present in GSC with zero impressions | "This page had no search impressions in the period. It may be new, no-indexed, or reached another way." |
+| **Cannot have data** — the finding is *about* the page being invisible to search | not weighted at all, and not listed as unmatched |
 | **Partial reach** — collapsed finding, truncated source list | "Reach is at least N/mo, measured across 8 of 1,343 affected pages." |
 
 And a rule the CSV path forces: **a zero that came from a CSV is `unknown`, not `zero`** — Google
 writes missing values as zeros in the download.
+
+**One whole class is unweightable by construction, and must not be reported as "unmatched".**
+`enumeration` findings are largely about pages that *cannot* appear in Search Console: on the
+current corpus, **915 are "no-index page missing from the sitemap" and 492 are "sitemap page returns
+4xx"**. A no-indexed page has no impressions because it is no-indexed; a dead URL has none because it
+is dead. Counting those as matching failures would make the match rate look broken and would bury
+the genuine gaps. They are excluded from the match-rate denominator and shown unweighted, with the
+reason stated.
 
 ---
 
