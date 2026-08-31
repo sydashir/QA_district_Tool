@@ -32,7 +32,13 @@ from .report import Finding, Severity
 
 # Global sources that shape ALL checks' output/fingerprints — a change here makes every
 # resolved finding suspect (stale ruleset), not just one check's.
-_GLOBAL_SRC = {"src:parse.py", "src:report.py"}
+_GLOBAL_SRC = {"src:parse.py", "src:report.py",
+               # The HTML parser stack builds `visible_text`, the headings, the links and the
+               # blocks — everything parse.py produces. An upgrade to any of them changes what the
+               # page LOOKS LIKE to us, so it is global for exactly the same reason parse.py is:
+               # a moved ruler here makes every vanished finding suspect, not one check's.
+               # libxml2 is separate from lxml because lxml wheels bundle it statically.
+               "dict:beautifulsoup4", "dict:lxml", "dict:soupsieve", "lib:libxml2"}
 
 # check name (Finding.check) -> the check-version component(s) that drive it.
 _CHECK_COMPONENT: dict[str, set[str]] = {

@@ -1299,6 +1299,27 @@ that way if anyone asks, rather than implying a rigour the record does not suppo
 
 From this commit forward, a library change surfaces as `rule_changed` on the checks it can affect.
 
+### The sweep that followed, and what it found
+
+Asked the same question of every library that touches check output. Four more qualify, each proven
+by measurement rather than argument:
+
+| library | what it decides | measured effect of a version change |
+|---|---|---|
+| `beautifulsoup4` | the `NavigableString` taxonomy `_visible_text` filters on, and `get_text()` behind every heading | bs4 4.14 wraps `<template>` content in `TemplateString`, so a heading inside one yields `text=''` and `structure` emits an "empty heading" WARNING older bs4 never produced |
+| `lxml` | the parser backend — every `BeautifulSoup(html, "lxml")` in `parse.py`, `css_cache.py`, `checks/phone.py` | builds the tree that becomes `visible_text`, headings, links, blocks |
+| **`libxml2`, keyed separately** | the actual HTML parser inside lxml | on 2.14.6, HTML5 named character references (`&nGt;`, `&bnequiv;`) resolve to characters where the older HTML4 table left them as literal text — `visible_text` changing byte-for-byte |
+| `soupsieve` | the CSS engine behind `soup.select()` in `_strip_hidden` | decides which `display:none` rules match, i.e. which copy is deleted *before* `visible_text` exists |
+
+**`libxml2` needs its own key because lxml wheels bundle it statically.** The same lxml release
+rebuilt against a newer libxml2 parses HTML differently while the distribution version stands still,
+and a `--no-binary` install takes the OS copy instead. Hashing `lxml`'s version alone would miss it.
+
+These four are **GLOBAL** in `diff.py`, alongside `src:parse.py`, because they change what the page
+looks like to us rather than what one check makes of it. All four are now pinned, for the same
+reason as the other two: an unpinned global component lets a rebuild rule-change every finding on
+every brand with no code change and no visible cause.
+
 **The general rule, now stated so it is not re-learned a third time:** a third-party library that
 ships DATA — a dictionary, a metadata bundle, a parser's behaviour — is a ruleset, and every ruleset
 a check's output depends on belongs in the hash. Code we import is not automatically neutral just

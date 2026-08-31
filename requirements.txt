@@ -1,7 +1,10 @@
 # District Site Auditor — runtime deps. Target: Python 3.12 (spec); tomllib is stdlib.
 httpx>=0.28
-beautifulsoup4>=4.14
-lxml>=6.1
+# PINNED: the HTML parser stack is a GLOBAL checks_version component. An upgrade changes
+# visible_text itself, so an unpinned `>=` lets a rebuild rule-change every finding on every
+# brand with no code change. soupsieve comes in via beautifulsoup4 and is hashed too.
+beautifulsoup4==4.14.3
+lxml==6.1.0
 pydantic>=2.13
 typer>=0.26
 # PINNED for a different and worse reason than pyspellchecker: the phone check's output depends

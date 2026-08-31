@@ -91,7 +91,21 @@ def components(config, checks_dir: Path = CHECKS_DIR) -> dict:
     # which one cannot now be reconstructed from any run record. Those findings are not wrong, but
     # their provenance is unknown, exactly as the NAP snapshot caveat says of numbers taken from a
     # dated export. From this commit forward a library change surfaces as `rule_changed`.
-    _LIB_COMPONENTS = ("pyspellchecker", "phonenumbers")
+    #   beautifulsoup4  -> owns the NavigableString taxonomy `_visible_text` filters on, and the
+    #                      `get_text()` behind every Heading. Measured: bs4 4.14 wraps <template>
+    #                      content in TemplateString, so a heading inside one yields text='' and
+    #                      `structure` emits an "empty heading" WARNING that older bs4 never did.
+    #   lxml            -> the parser backend: every BeautifulSoup(html, "lxml") in parse.py,
+    #                      css_cache.py and checks/phone.py.
+    #   soupsieve       -> the CSS engine behind soup.select() in `_strip_hidden`, so it decides
+    #                      which display:none rules match and therefore which copy is deleted
+    #                      BEFORE visible_text exists.
+    #
+    # These three shape `visible_text` itself, which is the input to spelling, misspelling,
+    # empty_slot, blank, duplication, scope, brands and the phone matcher — so they are GLOBAL in
+    # diff.py, exactly like src:parse.py.
+    _LIB_COMPONENTS = ("pyspellchecker", "phonenumbers",
+                       "beautifulsoup4", "lxml", "soupsieve")
     try:
         import importlib.metadata as _md
         for _lib in _LIB_COMPONENTS:
@@ -102,6 +116,17 @@ def components(config, checks_dir: Path = CHECKS_DIR) -> dict:
     except Exception:
         for _lib in _LIB_COMPONENTS:
             comp[f"dict:{_lib}"] = "UNAVAILABLE"
+    # libxml2 gets its OWN key, separate from the lxml distribution version. lxml wheels bundle
+    # libxml2 STATICALLY, so the same lxml release rebuilt against a newer libxml2 parses HTML
+    # differently while the dist version stands still — and a --no-binary install takes the OS copy
+    # instead. Measured on libxml2 2.14.6: HTML5 named character references (`&nGt;`, `&bnequiv;`,
+    # `&NotNestedGreaterGreater;`) now resolve to characters where the older HTML4 entity table left
+    # them as literal text. That is visible_text changing byte-for-byte with no code change.
+    try:
+        from lxml import etree as _etree
+        comp["lib:libxml2"] = ".".join(str(x) for x in _etree.LIBXML_VERSION)
+    except Exception:
+        comp["lib:libxml2"] = "UNAVAILABLE"
     # Phone ruler = the canonical VALUES (not their source): an identical-numbers snapshot->live
     # swap is then a no-op for the version. Full NAP value-set when present, else the flat list.
     canon = getattr(config, "canon", None)
