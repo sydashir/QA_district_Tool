@@ -1,0 +1,26 @@
+# Weekly proof that the backups can actually be restored.
+#
+# Taking a backup and never restoring it is the most common way to not have backups. `pg_dump`
+# exiting 0 proves a file was written, nothing more — a dump can be truncated by a full disk, or
+# written against a server whose catalog the local pg_dump cannot read, and look perfectly fine on
+# disk. This restores the newest one for real and compares content checksums against the live
+# database, so a broken backup is discovered on a Sunday rather than during an incident.
+#
+# Install:  sudo cp deploy/auditor-backup-verify.{service,timer} /etc/systemd/system/
+#           sudo systemctl daemon-reload && sudo systemctl enable --now auditor-backup-verify.timer
+
+[Unit]
+Description=Verify the newest District Site Auditor backup restores
+Documentation=file:///opt/auditor/deploy/README.md
+
+[Timer]
+# Sunday 04:00 Pacific: after Saturday night's backup, and clear of both the 23:00 backup and the
+# 02:00 audit. The restore briefly doubles the database's disk footprint, so it should not share a
+# window with a seven-hour crawl.
+OnCalendar=Sun *-*-* 04:00:00 America/Los_Angeles
+Persistent=true
+RandomizedDelaySec=600
+Unit=auditor-backup-verify.service
+
+[Install]
+WantedBy=timers.target

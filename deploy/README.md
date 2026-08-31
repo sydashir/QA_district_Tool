@@ -441,3 +441,55 @@ nothing is misreported as fixed. It settles after one cycle.
 7. **No log rotation for the app itself under systemd.** Output goes to the journal; cap it with
    `SystemMaxUse=` in `journald.conf`. Under Docker both Python services cap json-file logs at
    5 × 10 MB.
+
+---
+
+## Backups — the units that were missing
+
+`backup.sh` has worked since 2026-08-18. **Nothing ever ran it.** There was no timer, no service and
+no cron line, so every backup this project had was a person remembering to type a command. That is
+the same gap `auditor-nightly.timer` was written to close, and it bites harder here: a missing audit
+shows up as a stale dashboard, a missing backup shows up only when you need it.
+
+Two timers, installed the same way as the nightly one:
+
+```bash
+sudo cp deploy/auditor-backup.{service,timer} /etc/systemd/system/
+sudo cp deploy/auditor-backup-verify.{service,timer} /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now auditor-backup.timer auditor-backup-verify.timer
+systemctl list-timers 'auditor-*'
+```
+
+| unit | when | what |
+|---|---|---|
+| `auditor-backup.timer` | nightly 23:00 Pacific | `pg_dump -Fc` to `/var/backups/auditor`, 14-day retention, never below 7 dumps |
+| `auditor-backup-verify.timer` | Sunday 04:00 Pacific | restores the newest dump into a scratch DB and compares CONTENT checksums against live |
+
+23:00 is deliberate: `pg_dump` takes only an ACCESS SHARE lock and is safe during a crawl, but the
+audit writes its findings at the *end* of a seven-hour run, and there is no reason to make one box
+do both at once.
+
+**Why a separate verify timer.** A dump that has never been restored is a file, not a backup.
+`pg_dump` exiting 0 proves something was written — not that it can be read back. `backup-verify.sh`
+restores for real and compares row counts *and* content checksums, including the `triage` table,
+which is the one thing here a re-crawl cannot rebuild: a human's judgement about a defect.
+
+The checksum uses `coalesce` on every nullable column on purpose. In SQL `a || NULL` is NULL, so a
+naive concatenation drops whole rows from `string_agg` and the checksum silently compares fewer rows
+than it claims to — which produced an empty checksum that read as a pass the first time it was run
+by hand.
+
+### On the dev machine (macOS)
+
+There is no systemd. Run both by hand against the local container:
+
+```bash
+BACKUP_DIR="$PWD/backups" BACKUP_DOCKER_CONTAINER=district-pg deploy/backup.sh
+BACKUP_DIR="$PWD/backups" BACKUP_DOCKER_CONTAINER=district-pg deploy/backup-verify.sh
+```
+
+`backups/` is gitignored — the dumps are client data and must never be committed.
+
+Both scripts are bash-3.2 clean (no `mapfile`) and treat a missing `flock` as "no lock available"
+rather than "lock held", so they behave on macOS as well as on the Linux box.

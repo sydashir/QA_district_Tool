@@ -1,0 +1,36 @@
+# Nightly Postgres backup trigger.
+#
+# The backup script has existed since 2026-08-18 and works. NOTHING EVER RAN IT — there was no timer,
+# no service and no cron line, so every "backup" this project has ever had was a human remembering.
+# That is the same failure the nightly audit timer was written to prevent, and it is worse here:
+# a missing audit is noticed when the dashboard goes stale, while a missing backup is noticed only
+# when you need it.
+#
+# Install:  sudo cp deploy/auditor-backup.{service,timer} /etc/systemd/system/
+#           sudo systemctl daemon-reload && sudo systemctl enable --now auditor-backup.timer
+# Check:    systemctl list-timers auditor-backup.timer
+
+[Unit]
+Description=Nightly Postgres backup for the District Site Auditor
+Documentation=file:///opt/auditor/deploy/README.md
+
+[Timer]
+# 23:00 Pacific, deliberately NOT near 02:00. pg_dump takes only an ACCESS SHARE lock so it is safe
+# during a crawl, but the audit writes its findings at the END of a seven-hour run and there is no
+# reason to make one box do both at once. 23:00 sits after the previous night's run has long
+# finished and three hours before the next one starts, so every dump captures a settled database.
+# Named zone, not a UTC offset — see the reasoning in auditor-nightly.timer.
+OnCalendar=*-*-* 23:00:00 America/Los_Angeles
+
+# Replay a backup missed while the machine was down. A backup skipped because of a reboot is exactly
+# the backup you will wish you had.
+Persistent=true
+
+# Small jitter only. There is no politeness constraint here (this talks to loopback, not to nine
+# client sites), so this is purely to avoid colliding with anything else scheduled on the hour.
+RandomizedDelaySec=300
+
+Unit=auditor-backup.service
+
+[Install]
+WantedBy=timers.target

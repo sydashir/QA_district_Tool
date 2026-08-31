@@ -1,0 +1,33 @@
+# Payload for auditor-backup-verify.timer. Restores the newest dump into a throwaway database and
+# compares it to the live one. Fails loudly if they differ — that failure is the entire point.
+#
+# Test:  sudo systemctl start auditor-backup-verify.service
+#        journalctl -u auditor-backup-verify.service -n 40
+
+[Unit]
+Description=Restore-test the newest District Site Auditor backup
+Documentation=file:///opt/auditor/deploy/README.md
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=auditor
+Group=auditor
+WorkingDirectory=/opt/auditor
+EnvironmentFile=/etc/auditor/auditor.env
+Environment=BACKUP_DOCKER_SERVICE=db
+Environment=COMPOSE_DIR=/opt/auditor
+Environment=BACKUP_DIR=/var/backups/auditor
+
+ExecStart=/opt/auditor/deploy/backup-verify.sh
+
+# A full restore of ~330k findings plus two checksum passes. Ten minutes is generous; if it is still
+# going after that, something is wrong and saying so is more useful than waiting.
+TimeoutStartSec=900
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+ProtectHome=yes
+# No ReadWritePaths: this unit only READS the backup directory. It writes nothing outside Postgres,
+# and the scratch database it creates is dropped by a trap even if the comparison fails.

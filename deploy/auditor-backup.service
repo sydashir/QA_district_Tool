@@ -1,0 +1,46 @@
+# The nightly backup's payload. Fired by auditor-backup.timer — never enabled on its own.
+#
+# Install:  see auditor-backup.timer
+# Test:     sudo systemctl start auditor-backup.service   # dumps immediately, ignores the timer
+#           journalctl -u auditor-backup.service -n 30
+
+[Unit]
+Description=Dump the District Site Auditor database
+Documentation=file:///opt/auditor/deploy/README.md
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=auditor
+Group=auditor
+WorkingDirectory=/opt/auditor
+EnvironmentFile=/etc/auditor/auditor.env
+Environment=PYTHONUNBUFFERED=1
+
+# BACKUP_DOCKER_SERVICE=db makes the script run pg_dump INSIDE the compose container, so the host
+# needs no postgres-client package and cannot drift to a pg_dump older than the server (which fails
+# outright against a newer catalog). COMPOSE_DIR must be where docker-compose.yml lives.
+Environment=BACKUP_DOCKER_SERVICE=db
+Environment=COMPOSE_DIR=/opt/auditor
+Environment=BACKUP_DIR=/var/backups/auditor
+Environment=RETENTION_DAYS=14
+Environment=MIN_KEEP=7
+
+ExecStart=/opt/auditor/deploy/backup.sh
+
+# A dump of ~330k findings takes seconds, but a box under a crawl can be slow. Fail loudly at ten
+# minutes rather than hang until tomorrow's timer.
+TimeoutStartSec=600
+
+# No Restart=. A failed backup is already in the journal; retrying blindly could interleave with the
+# next scheduled run and confuse the retention pass.
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+# NOT ProtectSystem=strict: this unit must WRITE to /var/backups/auditor. strict would make the
+# directory read-only and the failure would look like a permissions bug in the script.
+ProtectSystem=full
+ReadWritePaths=/var/backups/auditor
+ProtectHome=yes
+
+# No [Install] section — started BY the timer.
