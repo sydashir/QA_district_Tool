@@ -14,6 +14,7 @@ Usage:  python3 scripts/render_measure.py gl cad          # one or more brand co
 from __future__ import annotations
 
 import json
+import os
 import random
 import sys
 import time
@@ -31,12 +32,31 @@ from render.safety import SafetyLedger, install, prove_attached
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "reports" / "_render_measure"
 BRANDS = ["gl", "rr", "cad", "coc", "ah", "ar", "tdrc", "dbh"]     # MHD excluded on purpose
-PAGES_PER_BRAND = 8
+PAGES_PER_BRAND = int(os.getenv("RENDER_SAMPLE", "8"))
 VIEWPORT = {"width": 390, "height": 844}          # mobile: where tap targets actually matter
 
 
+def _family(url: str) -> str:
+    """The page's template family, approximated by its first path segment.
+
+    Crude on purpose — it needs no per-brand configuration and it captures the thing that actually
+    matters: sites here are built from a handful of templates, and one template can be 92% of the
+    URLs. DBH is 530 `/location-served/*` against 46 everything-else.
+    """
+    from urllib.parse import urlparse
+    segs = [x for x in urlparse(url).path.split("/") if x]
+    return segs[0] if segs else "(home)"
+
+
 def sample_urls(brand: str, n: int) -> list[str]:
-    """Real audited URLs from the resume cache, so the sample is pages that exist."""
+    """Real audited URLs from the resume cache, STRATIFIED across template families.
+
+    A uniform random sample of a site that is 92% one template lands 92% in that template — which
+    is what happened to DBH: eight of eight pages were `/location-served/*`, and the resulting
+    "2.1% of contrast assessable" described one template while reading as a statement about the
+    site. Round-robin across families instead, so a minority template that is 8% of the URLs still
+    appears. Same lesson as first-N sampling: a sample that is not spread describes the sample.
+    """
     cache = ROOT / "cache" / brand / "resume.done.jsonl"
     if not cache.exists():
         return []
@@ -51,8 +71,38 @@ def sample_urls(brand: str, n: int) -> list[str]:
                 continue
             if row.get("status") == 200 and row.get("url"):
                 urls.append(row["url"])
-    random.Random(31).shuffle(urls)
-    return urls[:n]
+    rng = random.Random(31)
+    rng.shuffle(urls)
+
+    buckets: dict[str, list[str]] = {}
+    for u in urls:
+        buckets.setdefault(_family(u), []).append(u)
+    order = sorted(buckets, key=lambda k: -len(buckets[k]))
+    total = sum(len(buckets[k]) for k in order)
+
+    # PROPORTIONAL, with a floor of one for the runner-up. Equal-weight round-robin was the first
+    # attempt and it is the opposite mistake: it gave DBH's dominant template — 92% of the site —
+    # one page out of eight, so the sample would have described a 1% template as loudly as the one
+    # almost every visitor sees. Weight by real share, then guarantee the second-largest family at
+    # least one page so a minority template cannot vanish entirely.
+    quota = {k: max(0, round(n * len(buckets[k]) / total)) for k in order}
+    if len(order) > 1 and quota.get(order[1], 0) == 0:
+        quota[order[1]] = 1
+        quota[order[0]] = max(1, quota[order[0]] - 1)
+
+    out: list[str] = []
+    for k in order:
+        out.extend(buckets[k][-quota.get(k, 0):] if quota.get(k) else [])
+        del buckets[k][len(buckets[k]) - quota.get(k, 0):]
+    # top up from the largest family if rounding left us short
+    i = 0
+    while len(out) < n and i < len(order):
+        k = order[i]
+        if buckets[k]:
+            out.append(buckets[k].pop())
+        else:
+            i += 1
+    return out[:n]
 
 
 def measure_brand(browser, brand: str) -> list[dict]:
