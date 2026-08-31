@@ -109,6 +109,49 @@ class Run(Base):
     __table_args__ = (Index("ix_runs_brand_started", "brand_id", "started_at"),)
 
 
+class PageTraffic(Base):
+    """How much traffic one page got, in one period, from one source.
+
+    A SEPARATE TABLE, not a column on `findings`, and the reason is that the two have different
+    lifetimes. A finding is an OBSERVATION belonging to one run and never changes; traffic for the
+    same URL changes every week. Joining at read time means an old run re-renders with today's
+    traffic, which is what the reader wants — "which of these should I fix first" is a question
+    asked now, not at crawl time.
+
+    `value_state` exists because of a specific trap. Google's CSV export writes MISSING values as
+    zeros (its own docs: values shown as `~` or `-` in the report "will be zeros in the downloaded
+    data"), so a zero from a CSV cannot be distinguished from a real zero. A zero that means "we do
+    not know" must never rank a finding as unimportant, so CSV rows land as `unknown` and only the
+    API can produce `measured`.
+    """
+
+    __tablename__ = "page_traffic"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    brand_id: Mapped[int] = mapped_column(ForeignKey("brands.id"), index=True)
+
+    # Normalised page identity: lowercased host + path, no scheme, no trailing slash. NOT the raw
+    # URL — Google reports the slashed form the sites actually serve, and `canonical_url()` strips
+    # it, so raw equality matches almost nothing.
+    url_key: Mapped[str] = mapped_column(Text, index=True)
+
+    period: Mapped[str] = mapped_column(String(32))        # e.g. "2026-06-01..2026-08-31"
+    impressions: Mapped[int | None] = mapped_column(nullable=True)
+    clicks: Mapped[int | None] = mapped_column(nullable=True)
+    position: Mapped[float | None] = mapped_column(nullable=True)
+
+    source: Mapped[str] = mapped_column(String(16))        # gsc_csv | gsc_api
+    # measured | unknown — see the class docstring. Never infer this from the number being zero.
+    value_state: Mapped[str] = mapped_column(String(12), default="measured")
+    # Server default, matching migration 0003 — one definition of 'now', in the database.
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),
+                                                 server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("brand_id", "url_key", "period", "source", name="uq_traffic_page_period"),
+    )
+
+
 class Finding(Base):
     __tablename__ = "findings"
 
