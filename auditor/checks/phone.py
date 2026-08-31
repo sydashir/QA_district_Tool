@@ -63,7 +63,17 @@ def _vanity_numbers(text: str) -> set[str]:
     return out
 
 
-_SNAP_CAVEAT = "NAP 2026-07-02 snapshot; sheet ID unverified"
+# What a NAP-derived finding cites as its authority. This said "NAP 2026-07-02 snapshot; sheet ID
+# unverified" on roughly 5,000 findings, and it was WRONG on both halves: the sheet ID was verified
+# live on 2026-08-03 (CLAUDE.md §3), and the numbers come from the 2026-07-20 export, not the
+# 2026-07-02 one. It read to the client as "we are not sure this is your number" underneath a
+# finding telling them to change their phone number — the caveat undermined the finding.
+#
+# These two strings are LOAD-BEARING and must not drift: `scripts/backfill_nap_caveat.py` already
+# rewrote the stored rows to exactly these values, so anything else here makes a new finding and a
+# backfilled one disagree about the same defect. `tests/test_nap.py` pins them to that script.
+_NAP_SOURCE = "NAP sheet, verified 2026-08-03"      # goes in details["source"]
+_NAP_PARENTHETICAL = "from your NAP sheet"          # goes inline in suggestion prose
 
 
 def run(parsed: ParsedPage, config) -> list[Finding]:
@@ -128,7 +138,7 @@ def run(parsed: ParsedPage, config) -> list[Finding]:
                     fingerprint=make_fingerprint(CHECK, "dials_retired" + slot("dials_retired", tel_e164, disp_e164), parsed.url, tel_e164, disp_e164),
                     issue="click-to-call dials a retired number", location=f"tel:{raw}",
                     snippet=f"shows {display!r} but dials RETIRED {tel_e164}",
-                    suggestion=f"The button dials {tel_e164}, a retired number ({_SNAP_CAVEAT}) — "
+                    suggestion=f"The button dials {tel_e164}, a retired number ({_NAP_PARENTHETICAL}) — "
                                f"customers reach a dead line. Fix the tel: target.",
                     details={"displayed": disp_e164, "tel": tel_e164, "class": "dials_retired"}))
             elif tel_e164 in clean:  # dials one of THIS brand's OWN live numbers -> benign call-tracking
@@ -185,25 +195,25 @@ def run(parsed: ParsedPage, config) -> list[Finding]:
                     url=parsed.url, check=CHECK, severity=Severity.ERROR,
                     fingerprint=make_fingerprint(CHECK, "retired", parsed.url, e164),
                     issue="retired phone number still present", location="page", snippet=e164,
-                    suggestion=f"{e164} is a retired NAP number ({_SNAP_CAVEAT}) — replace "
+                    suggestion=f"{e164} is a retired NAP number ({_NAP_PARENTHETICAL}) — replace "
                                f"with the current canonical number.",
-                    details={"number": e164, "class": "stale_retired", "source": _SNAP_CAVEAT}))
+                    details={"number": e164, "class": "stale_retired", "source": _NAP_SOURCE}))
             elif e164 in third_party:  # Poison Control / SAMHSA / Lifeline / RAINN -> expected
                 findings.append(Finding(
                     url=parsed.url, check=CHECK, severity=Severity.INFO,
                     fingerprint=make_fingerprint(CHECK, "third_party", parsed.url, e164),
                     issue="known third-party hotline", location="page", snippet=e164,
-                    suggestion=f"{e164} is a documented third-party crisis hotline ({_SNAP_CAVEAT})"
+                    suggestion=f"{e164} is a documented third-party crisis hotline ({_NAP_PARENTHETICAL})"
                                f" — expected on the page, not a defect.",
-                    details={"number": e164, "class": "third_party", "source": _SNAP_CAVEAT}))
+                    details={"number": e164, "class": "third_party", "source": _NAP_SOURCE}))
             elif canon is not None:  # not clean, not known-retired -> unknown to the NAP
                 findings.append(Finding(
                     url=parsed.url, check=CHECK, severity=Severity.WARNING,
                     fingerprint=make_fingerprint(CHECK, "unknown", parsed.url, e164),
                     issue="unknown phone number (not in NAP)", location="page", snippet=e164,
-                    suggestion=f"{e164} is not in {brand}'s NAP numbers ({_SNAP_CAVEAT}) — "
+                    suggestion=f"{e164} is not in {brand}'s NAP numbers ({_NAP_PARENTHETICAL}) — "
                                f"verify it belongs on this brand.",
-                    details={"number": e164, "class": "unknown", "source": _SNAP_CAVEAT}))
+                    details={"number": e164, "class": "unknown", "source": _NAP_SOURCE}))
             else:  # legacy flat list (no NAP canon): preserve the original label
                 findings.append(Finding(
                     url=parsed.url, check=CHECK, severity=Severity.WARNING,

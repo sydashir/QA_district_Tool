@@ -31,6 +31,7 @@ from .checks import (actions, blank, brands, duplication, empty_row, empty_slot,
                      schema,
                      enumeration, links, meta, misspelling, phone, placeholder, scope,
                      spelling, structure)
+from .checks.schema import off_brand    # one implementation; see its docstring
 from .config import BrandConfig
 from .css_cache import BrandCSS
 from .parse import ParsedPage, parse_html
@@ -82,9 +83,51 @@ class PageProjection:
     intrinsic_findings: list[Finding] = field(default_factory=list)
 
 
+def _off_brand_projection(parsed: ParsedPage, r, config: BrandConfig) -> PageProjection:
+    """A page that redirected onto ANOTHER BRAND'S domain: report the redirect, audit nothing else.
+
+    `parsed.url` is always the URL we REQUESTED, so a sitemap URL that 301s to a sister brand comes
+    back as that brand's page while every brand-scoped check judges it as this one's. Confirmed on
+    TDRC, whose `/review-us/{code}` URLs redirect to GL/RR/CAD review pages — 7 of 19 sampled pages.
+    `phone` compared them against the wrong canonical numbers, `brands` read the owning brand's own
+    name as an intruder, `schema` produced 6 false `phone_cross_brand`, and `misspelling` fed
+    another brand's vocabulary into this brand's typo ledger.
+
+    Everything derived from the page is dropped, not just the checks: `title`/`h1`/`meta` would
+    otherwise reach cross-page duplicate detection and pair another brand's page with ours, and
+    `link_urls` would attribute their outbound links to us.
+
+    The redirect is REPORTED rather than silently skipped. A sitemap advertising pages the brand
+    does not own is a defect in its own right, and a quiet skip would trade a false finding for a
+    hidden one."""
+    landed = r.final_url or parsed.url
+    return PageProjection(
+        url=parsed.url, final_url=r.final_url, status=r.status,
+        content_hash=C.page_hash(parsed.raw_html), last_modified=r.last_modified,
+        intrinsic_findings=[Finding(
+            url=parsed.url, check="enumeration", severity=Severity.INFO,
+            fingerprint=make_fingerprint("enumeration", "redirects_off_brand", parsed.url),
+            issue="this page was not audited: it redirects to a different website",
+            location=parsed.url, snippet=f"{parsed.url} -> {landed}",
+            suggestion=(f"This URL is listed among {getattr(config, 'brand', 'this brand')}'s own "
+                        f"pages, but opening it sends the visitor to {landed}. Whatever loads there "
+                        f"belongs to that site, so none of our other checks were run on it — "
+                        f"reported here so the page is not silently missing from your results. "
+                        f"Every case we have seen is a deliberate \u201cleave us a review\u201d "
+                        f"shortcut pointing at Google Maps or a sister brand, which is why this is "
+                        f"informational rather than an error. Worth a look only if a URL here is "
+                        f"one you expected to be a real page on this site."),
+            details={"class": "redirects_off_brand", "final_url": landed,
+                     "status": r.status})])
+
+
 def _project(parsed: ParsedPage, r, config: BrandConfig, ledger=None) -> PageProjection:
     """Run intrinsic checks and collapse a ParsedPage to a projection. The ParsedPage is
     expected to be released by the caller right after."""
+    # Before ANY check runs: did we actually land on this brand's site? Deliberately first — the
+    # ledger below consumes the page's text, and another brand's vocabulary must not enter it.
+    if r.final_url and off_brand(r.final_url, getattr(config, "base_url", "")):
+        return _off_brand_projection(parsed, r, config)
     # The site-level typo ledger is filled HERE because this is the only moment the page's text
     # exists — the ParsedPage is released as soon as this returns. It stores counts and one short
     # context per rare token, never text. See misspelling.TokenLedger.

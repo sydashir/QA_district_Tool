@@ -43,6 +43,11 @@ _CHECK_COMPONENT: dict[str, set[str]] = {
 # enumeration output depends on crawl.py's enumerate logic (what's in the sitemap/REST sets) —
 # enumeration-scoped, so a crawl enumerate change rule-changes ONLY the 845 findings.
 _CHECK_COMPONENT["enumeration"] = _CHECK_COMPONENT["enumeration"] | {"src:crawl.py"}
+# `redirects_off_brand` is an enumeration finding MINTED IN audit.py (_off_brand_projection), so an
+# edit to the off-domain rule must rule-change it. Without this the findings vanish from the diff
+# and read as `resolved` — "someone fixed the sitemap" — when nothing changed. Exactly the trap the
+# collapse list below documents, in a new place.
+_CHECK_COMPONENT["enumeration"] = _CHECK_COMPONENT["enumeration"] | {"src:audit.py"}
 # broken_links imports CRUFT_RE from enumeration for the cruft_link class (B10), so an edit to
 # that shared pattern must rule-change link findings too — links-scoped, not global.
 _CHECK_COMPONENT["broken_links"] = _CHECK_COMPONENT["broken_links"] | {"src:enumeration.py"}
@@ -64,6 +69,10 @@ _CHECK_COMPONENT["phone"] = _CHECK_COMPONENT["phone"] | {"canonical_phones", "sr
 # meta output depends on the per-brand title bounds (P4) — config-scoped to meta, so a
 # per-brand threshold tune rule-changes only that brand's meta findings.
 _CHECK_COMPONENT["meta"] = _CHECK_COMPONENT["meta"] | {"title_bounds"}
+# schema's business-name and address findings are judged against the NAP tab that nap.py parses, so
+# a change to that parse (or to the tab) must rule-change them — schema-scoped, never global. Same
+# reasoning as phone's dependency on nap.py directly above.
+_CHECK_COMPONENT["schema"] = _CHECK_COMPONENT["schema"] | {"src:nap.py", "nap_locations"}
 # placeholder output depends on the ACF-token ruleset imported from the GeoData Fetcher's
 # geo_field_validator (out-of-repo, path via $GEODATA_SERVICES_DIR) — placeholder-scoped, so
 # updating/repointing it rule-changes ONLY the [acf field] findings, never another check's.
