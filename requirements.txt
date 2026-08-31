@@ -4,10 +4,19 @@ beautifulsoup4>=4.14
 lxml>=6.1
 pydantic>=2.13
 typer>=0.26
-phonenumbers>=9.0   # phone check (M1)
+# PINNED for a different and worse reason than pyspellchecker: the phone check's output depends
+# on this library's metadata, but it is NOT a `checks_version` component. So an upgrade changes
+# which numbers parse and how they normalise while the version stays identical — findings move
+# and the diff reports nothing changed, which is the silent-staleness trap `checks_version`
+# exists to prevent. Either pin it or make it a component; pinning is the cheaper half.
+phonenumbers==9.0.34   # phone check (M1)
 # Phase 2 adds: anthropic, rapidfuzz
 #
 # The placeholder check imports the REAL extract_acf_tokens from the GeoData Fetcher's
 # services/geo_field_validator.py (read-only, single source of truth). Default path:
 # ~/Documents/workk/district/services — override with GEODATA_SERVICES_DIR.
-pyspellchecker>=0.9  # offline US-English dictionary for the spellcheck check
+# PINNED, and it must stay pinned. `checks_version.py` records the installed version as the
+# component `dict:pyspellchecker`, so a newer wheel resolved at image-build time silently
+# moves EVERY brand's check-version and rule-changes the spelling findings. A `>=` here means
+# a rebuild can invalidate nine resume caches with no code change and no visible cause.
+pyspellchecker==0.9.0
