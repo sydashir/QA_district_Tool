@@ -18,6 +18,8 @@ be finished when it is not.
 from __future__ import annotations
 
 import logging
+import os
+from pathlib import Path
 
 from .sheets import SUMMARY_HEADER, digest_line, publish_open_tab, summary_row
 from .triage import untriaged_error_summary
@@ -99,14 +101,59 @@ def publish_brand(client, *, brand: str, run_id: str, findings, delta: dict,
 # app-service-account@lexical-sol-454719-s2.iam.gserviceaccount.com has Editor (verified 2026-08-04).
 # A service account can never CREATE a sheet (no Drive storage quota), so this is a human-made file.
 SHEET_ID = "1QnKHZBnEoxW2gIcOdDz6Ac2WjUbAa94Te_KR-7r2m-E"
-CREDENTIALS = "/Users/ashir/Documents/workk/district/credentials/service-account.json"
+# WHERE THE SERVICE-ACCOUNT KEY LIVES. This was a single hardcoded laptop path, which meant the
+# CLIENT-FACING output path — the only thing that puts findings in front of the QA team — returned
+# 503 from any machine that was not Syed's Mac. Containerising made that immediate rather than
+# theoretical.
+#
+# Resolved at CALL time, not import time: the module must import cleanly on a box with no key at
+# all (the tests do exactly that), and an env var set by compose must be able to win.
+CREDENTIALS_ENV = ("SHEETS_CREDENTIALS", "GOOGLE_APPLICATION_CREDENTIALS")
+CREDENTIALS_FALLBACKS = (
+    "/etc/auditor/service-account.json",                 # deploy target (deploy/README.md)
+    str(Path(__file__).resolve().parent.parent / "credentials" / "service-account.json"),
+    # The original laptop path, kept LAST so nothing breaks for the machine this was written on.
+    "/Users/ashir/Documents/workk/district/credentials/service-account.json",
+)
+
+
+class CredentialsMissing(RuntimeError):
+    """No service-account key could be found. Says where it looked, so it is actionable."""
+
+
+def resolve_credentials() -> str:
+    """First existing key from the env vars, then the fallbacks. Raises with the full search path.
+
+    An error that just says "credentials not found" costs someone an hour. This one names the env
+    var to set and every path it tried, in order.
+    """
+    tried: list[str] = []
+    for var in CREDENTIALS_ENV:
+        val = os.getenv(var)
+        if val:
+            if Path(val).is_file():
+                return val
+            # An env var that is SET but points at nothing is an error, not a reason to look
+            # elsewhere. Falling through would quietly publish with a different key than the
+            # operator named — the failure would be invisible and would reach the client's sheet.
+            raise CredentialsMissing(
+                f"${var} is set to {val!r} but no such file exists. Fix the path or unset the "
+                f"variable to fall back to {CREDENTIALS_FALLBACKS[0]}.")
+    for cand in CREDENTIALS_FALLBACKS:
+        if Path(cand).is_file():
+            return cand
+        tried.append(cand)
+    raise CredentialsMissing(
+        "no Google service-account key found, so the sheet cannot be written. Set "
+        "$SHEETS_CREDENTIALS to the key file (or mount it at /etc/auditor/service-account.json). "
+        "Looked in order: " + "; ".join(tried))
 
 
 def _client(dry_run: bool, out=None):
     import sys
 
     from .sheets import DryRunSheets, SheetsClient
-    real = SheetsClient(spreadsheet_id=SHEET_ID, credentials_path=CREDENTIALS)
+    real = SheetsClient(spreadsheet_id=SHEET_ID, credentials_path=resolve_credentials())
     if not dry_run:
         return real
     # A dry run still READS, so the preview reflects the triage the client has actually written.

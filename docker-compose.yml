@@ -38,6 +38,10 @@ x-app-env: &app-env
     # reports `rule_changed` — correct behaviour, but a whole noisy cycle. Set it once, never move
     # it, and keep it identical to the systemd units in deploy/.
     GEODATA_SERVICES_DIR: /opt/geodata-services
+    # Fixed CONTAINER path for the sheets key; the HOST path varies per machine and is set by
+    # SHEETS_CREDENTIALS_HOST in .env. Same asymmetry as GEODATA_* above, and for the same reason:
+    # the container path must never move, because things downstream depend on it being stable.
+    SHEETS_CREDENTIALS: /etc/auditor/service-account.json
 
 x-app-volumes: &app-volumes
   volumes:
@@ -59,6 +63,18 @@ x-app-volumes: &app-volumes
     # loudly — it produces an empty mount, and checks_version silently records the ruleset as
     # MISSING. Verify with:  docker compose run --rm api ls /opt/geodata-services
     - ${GEODATA_HOST_DIR:-/opt/geodata-services}:/opt/geodata-services:ro
+    # The Google service-account key. Without it `POST /api/export/sheet` cannot write the client's
+    # sheet — the one output the QA team actually reads — so a missing mount is a broken product,
+    # not a missing nicety. Mounted as a FILE and read-only, so nothing else in its directory (on a
+    # dev box that is the Fetcher repo's credentials folder) is exposed to the container.
+    # create_host_path:false makes a wrong path FAIL rather than silently mounting an empty dir —
+    # the same trap the GEODATA mount above warns about.
+    - type: bind
+      source: ${SHEETS_CREDENTIALS_HOST:-/etc/auditor/service-account.json}
+      target: /etc/auditor/service-account.json
+      read_only: true
+      bind:
+        create_host_path: false
 
 services:
   db:

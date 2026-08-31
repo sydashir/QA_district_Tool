@@ -15,6 +15,14 @@
 #   auditor/sheets.py:62  `from google.oauth2 import service_account` -> the Google Sheet export
 openpyxl==3.1.5
 google-auth==2.49.2
+# UNDECLARED UNTIL 2026-08-31, and the sheet export only ever worked because of luck.
+# `google.auth.transport.requests` — which `SheetsClient` reaches through
+# `service_account.Credentials` — imports `requests`, but google-auth declares it only as the
+# optional extra `google-auth[requests]`. On the dev Mac `requests` happened to be installed by
+# unrelated tools (camoufox, serpapi), so the export worked there and 503'd in a clean container
+# with "The requests library is not installed". Declared explicitly so the CLIENT-FACING output
+# path does not depend on what else someone happens to have installed.
+requests==2.33.1
 
 # --- product layer (server/) -------------------------------------------------------------------
 fastapi==0.136.1
