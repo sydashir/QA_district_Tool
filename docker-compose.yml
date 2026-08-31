@@ -42,6 +42,22 @@ x-app-env: &app-env
     # SHEETS_CREDENTIALS_HOST in .env. Same asymmetry as GEODATA_* above, and for the same reason:
     # the container path must never move, because things downstream depend on it being stable.
     SHEETS_CREDENTIALS: /etc/auditor/service-account.json
+    # TIMEZONE, AND IT IS NOT COSMETIC. Every audit timestamp is NAIVE LOCAL TIME
+    # (`time.strftime("%Y-%m-%dT%H:%M:%S")` in audit.py/crawl.py/publish.py). Those strings become
+    # summary.json's run_at, first_seen/last_seen on every finding, AND the report directory name.
+    # Two things then compare them as if they were absolute:
+    #   * server/importer.py stamps the naive string with tzinfo=UTC;
+    #   * scripts/post_run_report.py picks the previous run with `d.name < current.name`.
+    # The image is UTC and this machine is PKT (+5), so a container run would be NAMED five hours
+    # earlier than the laptop run that preceded it — sorting before it, and silently selecting a
+    # stale diff baseline. `reports/` already holds 105 directories named in PKT.
+    # So: pin the zone, and keep it the same as whatever the existing reports/ tree was written in.
+    # Mixing zones in one tree is what breaks ordering, not the choice of zone itself.
+    TZ: ${TZ:-UTC}
+    # deploy/nightly_enqueue.py defaults to http://127.0.0.1:8099, which is right when systemd runs
+    # it on the HOST but points at nothing inside a container. `deploy/` is COPYed into the image, so
+    # `docker compose exec worker python3 deploy/nightly_enqueue.py` would retry six times and exit 1.
+    AUDITOR_API_URL: http://api:8099
 
 x-app-volumes: &app-volumes
   volumes:

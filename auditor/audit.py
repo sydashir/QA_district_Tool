@@ -613,11 +613,45 @@ def write_run(findings: list[Finding], projections: list[PageProjection], *, bra
             "components": components, "changed": changed}
 
 
+def _preflight() -> None:
+    """Prove our own dependencies load BEFORE crawling. Raise, do not limp.
+
+    Without this, a missing GeoData mount is reported to the client as THEIR WEBSITE BEING DOWN, and
+    the chain that gets there is entirely reasonable at every step:
+
+      1. `checks/placeholder.py` resolves `geo_field_validator.py` from $GEODATA_SERVICES_DIR, and
+         `_extract_acf_tokens()` raises FileNotFoundError when it is absent. `lru_cache` does not
+         cache a raise, so it raises again for every page.
+      2. The per-page guard below ("one page must never sink the run") catches it — correctly, for
+         its own purpose — so all N pages land in `failed` and `pages_audited` is 0.
+      3. `server/jobs.py` sees 0 pages and records the run `refused`, with the message "The website
+         was unreachable or its page index is missing."
+
+    Every one of those is right in isolation and the conclusion is false: the site was fine, our
+    bind mount was wrong. Docker makes this likely rather than theoretical — a wrong
+    GEODATA_HOST_DIR is silently CREATED as an empty directory, so there is no error anywhere.
+
+    Same family as D14/D15: our own machinery failed and the report blamed the thing being measured.
+    A dependency we control is checked once, up front, and its failure is stated in our own words.
+    """
+    from .checks.placeholder import _GEODATA_GFV, _extract_acf_tokens
+    try:
+        _extract_acf_tokens()
+    except Exception as e:
+        raise RuntimeError(
+            f"the ACF token ruleset could not be loaded, so this audit was not started: "
+            f"{type(e).__name__}: {e}. Expected geo_field_validator.py at {_GEODATA_GFV}. "
+            f"Set $GEODATA_SERVICES_DIR (in Docker, check the /opt/geodata-services bind mount — a "
+            f"wrong host path is created as an EMPTY directory rather than failing). "
+            f"THIS IS OUR CONFIGURATION, NOT THE CLIENT'S WEBSITE.") from e
+
+
 async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile: bool = True,
                     max_link_probes: int | None = 400, head_sample: bool = False,
                     now: str | None = None, write: bool = True, resume: bool = False,
                     cached_only: bool = False) -> dict:
     now = now or time.strftime("%Y-%m-%dT%H:%M:%S")
+    _preflight()
     brand_css = BrandCSS()          # one stylesheet fetch per brand, shared by every page
     async with C.make_client(config.crawl) as client:
         sitemap_urls, blocked, child_sitemaps, failed_sitemaps = await C.enumerate_sitemap(
