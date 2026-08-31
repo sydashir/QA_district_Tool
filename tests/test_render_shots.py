@@ -178,3 +178,63 @@ def test_the_tally_is_reported_per_check_not_globally(page):
     tally = ShotTally()
     attach_shots(page, [tap, _contrast_finding("#777", "#fff", "#nope")], tally=tally)
     assert set(tally.per_class) == {"tap_target", "contrast"}
+
+
+# --- locating a TEXT finding's element ------------------------------------------------------------
+# Text findings carry no CSS selector — only attributes and text — so they need a locator derived
+# from what was stored. `display_dial_mismatch` is the one worth doing first: 574 pages, the
+# flagship defect, and "shows Call Now! 844-759-0999 but dials 888-707-6073" is far more damning as
+# a picture of the actual button than as a quoted string.
+
+@pytest.fixture()
+def tel_page(browser):
+    p = browser.new_page(viewport={"width": 390, "height": 844}, device_scale_factor=2)
+    p.goto((FIXTURES / "tel.html").as_uri(), wait_until="domcontentloaded")
+    yield p
+    p.close()
+
+
+def test_the_mismatched_button_is_found_by_its_number_pair(tel_page):
+    from render.shots import mark_tel_mismatch
+
+    assert mark_tel_mismatch(tel_page, "+18887076073", "+18447590999") == 1
+    assert tel_page.evaluate("() => document.querySelector('[data-qa-target]').id") == "bad"
+
+
+def test_a_link_whose_text_and_target_agree_is_not_the_defect(tel_page):
+    from render.shots import mark_tel_mismatch
+
+    assert mark_tel_mismatch(tel_page, "+18447590999", "+18447590999") == 0
+
+
+def test_matching_on_the_dial_target_alone_would_be_ambiguous(tel_page):
+    """#bad and #other dial the same number with different text. The displayed number is what
+    separates them — without it the locator would have two candidates and refuse both."""
+    from render.shots import mark_tel_mismatch
+
+    same_target = tel_page.evaluate(
+        "() => Array.from(document.querySelectorAll('a')).filter("
+        "a => (a.getAttribute('href')||'').includes('8887076073')).length")
+    assert same_target == 2
+    # Still exactly one, because the DISPLAYED number separates them. Matching on the dial target
+    # alone would have two candidates that are genuinely different links.
+    assert mark_tel_mismatch(tel_page, "+18887076073", "+18447590999") == 1
+
+
+def test_capturing_a_text_finding_goes_through_the_same_gate_and_tally(tel_page):
+    from render.shots import ShotTally, capture_tel_mismatch
+
+    tally = ShotTally()
+    shot = capture_tel_mismatch(tel_page, "+18887076073", "+18447590999", tally=tally)
+    assert shot and shot["data_uri"].startswith("data:image/png;base64,")
+    assert tally.per_class["phone"]["one"] == 1
+    # and the marker must not survive
+    assert tel_page.evaluate("() => document.querySelectorAll('[data-qa-target]').length") == 0
+
+
+def test_a_number_pair_that_is_not_on_the_page_is_counted_as_a_miss(tel_page):
+    from render.shots import ShotTally, capture_tel_mismatch
+
+    tally = ShotTally()
+    assert capture_tel_mismatch(tel_page, "+15551234567", "+15559999999", tally=tally) is None
+    assert tally.per_class["phone"]["none"] == 1

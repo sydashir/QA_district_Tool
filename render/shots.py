@@ -215,3 +215,75 @@ def attach_shots(page, findings, *, tally: ShotTally | None = None,
             f.details["shot_bytes"] = shot["bytes"]
             taken += 1
     return taken
+
+
+# --- locating a TEXT finding's element ------------------------------------------------------------
+# Render findings carry an exact CSS selector from axe. Text findings do not — they carry attributes
+# and text, so the element has to be re-derived from what was stored. That is fuzzier, and a
+# screenshot of the WRONG element is worse than none: it is confident-looking evidence for something
+# we did not find. So these locators mark candidates and REFUSE unless exactly one survives, and
+# every refusal is counted (see `ShotTally`), because a class that mostly cannot be located is not a
+# capability — and without the tally it looks identical to a class with nothing to show.
+
+_TARGET_ATTR = "data-qa-target"
+
+_MARK_TEL = """([telDigits, shownDigits, attr]) => {
+    const digits = (s) => (s || '').replace(/\\D+/g, '').replace(/^1(?=\\d{10}$)/, '');
+    document.querySelectorAll('[' + attr + ']').forEach(e => e.removeAttribute(attr));
+    const hits = Array.from(document.querySelectorAll('a[href^="tel:"], a[href^="TEL:"]'))
+        .filter(a => {
+            const target = digits(a.getAttribute('href'));
+            const shown = digits(a.textContent);
+            // BOTH halves must agree. Matching the dial target alone is ambiguous — a page can
+            // carry the same tel: on several links with different labels — and matching the shown
+            // number alone would pick up the CORRECT link that happens to display it.
+            return target === telDigits && shown === shownDigits && target !== shown;
+        });
+    // MARK THE FIRST WHEN SEVERAL MATCH — and that is not a weakened gate.
+    // The gate exists so we never photograph the WRONG element. These candidates have already been
+    // pinned to BOTH of the finding's numbers: the same dial target AND the same displayed text.
+    // Every one of them is therefore the finding's own defect, repeated (a CTA in the header, the
+    // sticky bar and the footer). Any one illustrates it correctly. Measured: refusing them scored
+    // 0/14, of which 12 were this case — the tally is what made that visible.
+    if (hits.length >= 1) hits[0].setAttribute(attr, '1');
+    return hits.length;
+}"""
+
+
+def mark_tel_mismatch(page, tel: str, displayed: str) -> int:
+    """Mark the click-to-call whose LABEL and TARGET disagree. Returns how many matched.
+
+    Only marks when exactly one matches; 0 or >1 leaves the page untouched, which is what makes the
+    caller's refusal safe. Digits are compared after stripping a leading US country code, because
+    the finding stores E.164 while the page shows whatever the template wrote.
+    """
+    def _digits(s: str) -> str:
+        d = "".join(ch for ch in (s or "") if ch.isdigit())
+        return d[1:] if len(d) == 11 and d.startswith("1") else d
+
+    return page.evaluate(_MARK_TEL, [_digits(tel), _digits(displayed), _TARGET_ATTR])
+
+
+def capture_tel_mismatch(page, tel: str, displayed: str, *,
+                         tally: ShotTally | None = None) -> dict | None:
+    """Photograph a `display_dial_mismatch` — the flagship defect, and the one most worth seeing.
+
+    "shows Call Now! 844-759-0999 but dials 888-707-6073" is an accurate sentence that a reader has
+    to take on trust. A picture of the actual button is not.
+    """
+    try:
+        n = mark_tel_mismatch(page, tel, displayed)
+    except Exception:
+        n = 0
+    if n < 1:
+        if tally:
+            tally.record("phone", "none")
+        return None
+    try:
+        return capture(page, f"[{_TARGET_ATTR}]", tally=tally, cls="phone")
+    finally:
+        try:
+            page.evaluate("(attr) => document.querySelectorAll('[' + attr + ']')"
+                          ".forEach(e => e.removeAttribute(attr))", _TARGET_ATTR)
+        except Exception:
+            pass

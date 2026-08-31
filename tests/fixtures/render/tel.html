@@ -1,0 +1,10 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>click-to-call</title>
+<style>body{font:16px system-ui;margin:0;padding:20px} a{display:block;margin:14px 0}</style>
+<!-- The real defect shape: the text says one number, the link dials another. -->
+<a id="bad" href="tel:8887076073">Call Now! 844-759-0999</a>
+<!-- Correct: text and target agree. Must never be photographed as the defect. -->
+<a id="good" href="tel:8447590999">Call 844-759-0999</a>
+<!-- Same dial target as #bad but different text — makes a naive href-only locator ambiguous. -->
+<a id="other" href="tel:8887076073">Speak to us: 888-707-6073</a>

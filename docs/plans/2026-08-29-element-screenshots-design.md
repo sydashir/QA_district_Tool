@@ -133,3 +133,58 @@ attribute-anchored classes will behave alike just because they all have attribut
 **Sequencing: none of this starts until the merge queue is clear** — merge `buildlist`, re-run the
 NAP backfill, regenerate all nine client reports, then screenshots. Building mid-MHD is what the
 worktree exists to avoid.
+
+
+---
+
+## MEASURED RESULT — 2026-08-31
+
+Built in §7 order. Render-finding screenshots ship. **Text-finding screenshots do not.**
+
+### Shipped: render findings
+
+`render/shots.py` — 48px padding, PNG, outline applied only after measurement and removed in a
+`finally`. `attach_shots` de-duplicates by *picture*, not by finding: contrast collapses to a colour
+pair, broken images to a src. Measured on TDRC, 8 pages: **44 contrast nodes → 11 shots**, locator
+**11/11 (100%)**.
+
+Verified on CAD's live homepage that the outline does not contaminate anything: axe reported **34
+violations before the shots and 34 after**. That was D14's fifth-instance risk, and there is now a
+test that fails if the outline survives a capture.
+
+`scripts/client_report.py` embeds them as base64 PNGs under the finding, with a 4 MB budget per
+report and a notice naming how many were dropped if it ever binds. Rendered findings also needed a
+report section — `contrast`, `tap_target` and `broken_image` matched no section key and would have
+been **silently dropped from every report**.
+
+### NOT shipped: `display_dial_mismatch` — 50%, against a 70% floor
+
+Measured on **14 real findings from the live sites**, and the tally is the only reason this is known:
+
+| attempt | located | why the misses |
+|---|---|---|
+| exactly-one-match gate | **0 / 14 (0%)** | 12 refused as "ambiguous", 2 not found |
+| after allowing repeats of the SAME defect | **7 / 14 (50%)** | 7 not found |
+
+The first relaxation was legitimate and the tally is what exposed the need for it: candidates pinned
+to BOTH the dial target and the displayed text are the same defect repeated — a CTA in the header,
+the sticky bar and the footer — so photographing the first is correct, not a weakened gate.
+
+**The remaining 50% cannot be fixed by relaxing anything, because the premise is wrong.** The
+locator assumed the displayed number appears in the link's own text. On the real pages it often does
+not: `connectionsoc.com` carries `<a href="tel:844-759-0999">Call For Treatment</a>` six times, and
+the finding's `displayed` number (`657-298-1982`) is elsewhere on the page entirely. The phone check
+pairs a `tel:` target with a number rendered somewhere else; the link's label is frequently prose.
+
+Crossing the bar from here would mean matching on the dial target alone, which brings back genuine
+ambiguity — several different links, different labels, one arbitrary choice. **That is precisely the
+"confident-looking picture of something we did not find" this gate exists to prevent**, so it is not
+worth 20 percentage points.
+
+`mark_tel_mismatch` / `capture_tel_mismatch` are kept and tested — parked, in the same spirit as
+`SPELLCHECK=1` — so the measurement can be repeated if the locator premise is ever revisited. They
+are not called from any shipping path.
+
+**What would change the verdict:** storing a selector, or an offset, on the finding at audit time.
+The text layer knows exactly which anchor it flagged; it simply does not record it. That is a change
+in `checks/phone.py` (hashed) and would want batching with other check work rather than doing alone.
