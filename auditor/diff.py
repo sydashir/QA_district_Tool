@@ -82,6 +82,13 @@ _CHECK_COMPONENT["placeholder"] = _CHECK_COMPONENT["placeholder"] | {
 # so adding an approved term rule-changes ONLY spelling findings, never another check's.
 _CHECK_COMPONENT["spelling"] = _CHECK_COMPONENT["spelling"] | {
     "vocab:allowlist.json", "vocab:domain_vocab.json", "dict:pyspellchecker"}
+# phone output depends on libphonenumber's bundled METADATA, which decides which strings parse as a
+# number, which are valid, and how E.164 normalisation lands. New area codes ship in it regularly.
+# Phone-scoped: a phonenumbers upgrade must rule-change the phone findings and nothing else.
+_CHECK_COMPONENT["phone"] = _CHECK_COMPONENT["phone"] | {"dict:phonenumbers"}
+# schema reads phone numbers through the same library for its cross-brand and unknown-number
+# classes (checks/schema.py imports `normalize` from checks/phone.py), so it moves with it too.
+_CHECK_COMPONENT["schema"] = _CHECK_COMPONENT["schema"] | {"dict:phonenumbers"}
 
 
 def load_history(path) -> dict:

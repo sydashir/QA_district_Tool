@@ -1258,3 +1258,48 @@ disk before declaring a run resultless, and import the report when one exists. T
 **Ordering trap, learned the hard way today:** `reconcile_orphaned_runs` runs at worker startup and
 would have marked run 108 `failed` with "no results were recorded" — destroying the correct outcome —
 had the worker been started before the report was imported. **Import first, then start workers.**
+
+---
+
+## D16. Library versions are rulesets too — and phone findings before 2026-08-31 have unknown provenance
+
+`checks_version` has always hashed the things we own: check source, `parse.py`, `report.py`, the ACF
+token ruleset, the spelling vocabularies, the canonical phone values. It hashed exactly one thing we
+do **not** own — `pyspellchecker`'s version, because the dictionary decides which words are "known".
+
+That was the right instinct applied to one library and not the others. **`phonenumbers` is the same
+kind of dependency and was never a component.** It ships libphonenumber's metadata, which decides:
+
+* which strings parse as a phone number at all,
+* which come back `is_valid_number`,
+* how E.164 normalisation lands.
+
+New area codes and renumbering plans ship in that metadata regularly. So an upgrade moves phone
+findings — the flagship check, the one that caught COC's wrong dial targets — **with no code change
+of ours and no change in the version**. Vanished findings would then read as `resolved`: "someone
+fixed it", when nobody touched the site. Precisely the silent-staleness trap the module exists to
+prevent, sitting inside the module that prevents it.
+
+**Fixed 2026-08-31:** `dict:phonenumbers` is now a component, scoped in `diff.py` to `phone` and to
+`schema` (which imports `normalize` from `checks/phone.py`, verified at `checks/schema.py:39`), so an
+upgrade rule-changes those checks and nothing else. `phonenumbers==9.0.34` and
+`pyspellchecker==0.9.0` are now pinned, because an unpinned component means a rebuild can invalidate
+nine resume caches with no code change and no visible cause.
+
+### The honest part
+
+**Every phone finding produced before this commit was computed under an unrecorded version of
+`phonenumbers`, and which one cannot be reconstructed from any run record.** No run stored it; the
+requirement was `>=9.0`; the installed version today is 9.0.34 but nothing says it always was.
+
+Those findings are not thereby wrong — the checks were tested against the client's own documented
+mangled variants, and the flagship cross-brand catches were verified by hand. But their provenance
+is unknown, in exactly the way the NAP caveat says of numbers taken from a dated export. State it
+that way if anyone asks, rather than implying a rigour the record does not support.
+
+From this commit forward, a library change surfaces as `rule_changed` on the checks it can affect.
+
+**The general rule, now stated so it is not re-learned a third time:** a third-party library that
+ships DATA — a dictionary, a metadata bundle, a parser's behaviour — is a ruleset, and every ruleset
+a check's output depends on belongs in the hash. Code we import is not automatically neutral just
+because we did not write it.

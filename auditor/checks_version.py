@@ -75,13 +75,33 @@ def components(config, checks_dir: Path = CHECKS_DIR) -> dict:
         _f = checks_dir.parent / "ai" / _name
         comp[f"vocab:{_name}"] = (
             _sha(_f.read_text(encoding="utf-8")) if _f.exists() else "MISSING")
-    # The English dictionary itself is a ruleset we do not own — a pyspellchecker upgrade can
-    # change which words are known, so its version is a component too.
+    # THIRD-PARTY RULESETS WE DO NOT OWN. Each of these ships data or parsing behaviour that decides
+    # what a check reports, so an upgrade changes findings with no code change of ours. Without the
+    # version in the hash, those changed findings read as `resolved` — "someone fixed it" — when
+    # nothing on the site moved. Same trap as the ACF ruleset and the spelling vocabularies above.
+    #
+    #   pyspellchecker  -> which words are "known", i.e. every `spelling` finding.
+    #   phonenumbers    -> its bundled libphonenumber METADATA decides which strings parse as a
+    #                      number, which are `is_valid_number`, and how E.164 normalisation lands.
+    #                      New area codes and renumbering plans ship in that metadata regularly, so
+    #                      an upgrade genuinely moves phone findings — the flagship check.
+    #
+    # HONESTY NOTE, and it is not small: phonenumbers became a component on 2026-08-31. Every phone
+    # finding produced BEFORE that commit was computed under an unpinned, unrecorded version, and
+    # which one cannot now be reconstructed from any run record. Those findings are not wrong, but
+    # their provenance is unknown, exactly as the NAP snapshot caveat says of numbers taken from a
+    # dated export. From this commit forward a library change surfaces as `rule_changed`.
+    _LIB_COMPONENTS = ("pyspellchecker", "phonenumbers")
     try:
         import importlib.metadata as _md
-        comp["dict:pyspellchecker"] = _md.version("pyspellchecker")
+        for _lib in _LIB_COMPONENTS:
+            try:
+                comp[f"dict:{_lib}"] = _md.version(_lib)
+            except Exception:
+                comp[f"dict:{_lib}"] = "UNAVAILABLE"
     except Exception:
-        comp["dict:pyspellchecker"] = "UNAVAILABLE"
+        for _lib in _LIB_COMPONENTS:
+            comp[f"dict:{_lib}"] = "UNAVAILABLE"
     # Phone ruler = the canonical VALUES (not their source): an identical-numbers snapshot->live
     # swap is then a no-op for the version. Full NAP value-set when present, else the flat list.
     canon = getattr(config, "canon", None)
