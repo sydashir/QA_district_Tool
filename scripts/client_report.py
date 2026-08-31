@@ -34,6 +34,16 @@ SECTIONS: list[tuple[str, str, list[str]]] = [
      ["actions:dead_cta", "broken_links:broken", "actions:social_misrouted",
       "broken_links:fused_url", "broken_links:malformed_link", "accessibility:link-name",
       "accessibility:label"]),
+    # RENDERED-PAGE findings. They had nowhere to go until 2026-08-31 and would have been silently
+    # dropped from every report: `_matches` needs a section key, and contrast / tap_target /
+    # broken_image matched none. Placed here, after "cannot get through", because the harm is the
+    # same shape — a visitor who cannot read the text or hit the button is stopped just as surely as
+    # one following a dead link — and ahead of housekeeping, which would undersell it.
+    ("Some visitors cannot read or use the page",
+     "Text too faint to read, a broken image, or a tap target too small to hit on a phone. "
+     "These are found by loading the page in a real browser, so they are what a visitor actually "
+     "gets rather than what the code says.",
+     ["contrast:*", "tap_target:*", "broken_image:*"]),
     ("The page shows something that was never meant to be published",
      "Template code, placeholder text, or an unfinished page that reached the public site.",
      ["placeholder:*", "empty_slot:lorem_ipsum", "empty_slot:not_found_sentinel",
@@ -113,16 +123,42 @@ def fetch(session, brand_code: str):
         return None, []
     findings = session.execute(sql("""
         SELECT f.check, f.details->>'class' AS cls, f.severity, f.issue, f.url,
-               f.snippet, f.suggestion, COALESCE(f.page_count, 1) AS pages, f.first_seen
+               f.snippet, f.suggestion, COALESCE(f.page_count, 1) AS pages, f.first_seen,
+               f.details->>'shot' AS shot
         FROM findings f
         WHERE f.run_id = :r AND f.status IN ('new','persisting')
         ORDER BY f.severity, COALESCE(f.page_count,1) DESC"""), {"r": row[0]}).fetchall()
     return row, findings
 
 
+# Embedded-image budget for one report. Screenshots are base64 PNGs inline, so the report stays a
+# single file that still shows its pictures after someone forwards it — a referenced folder does
+# not survive an email, and that is how these are actually delivered. 4 MB is far above the measured
+# need (~20 KB a shot, a handful of shots per brand) and exists so a pathological run cannot produce
+# a report nobody can open. A budget that is hit is ANNOUNCED, never silently applied.
+SHOT_BUDGET_BYTES = 4 * 1024 * 1024
+
+
+def _shot_html(shot: str | None, budget: list[int], omitted: list[int]) -> str:
+    """One <img>, if it fits. `budget` and `omitted` are single-element lists used as counters."""
+    if not shot:
+        return ""
+    cost = len(shot)
+    if cost > budget[0]:
+        omitted[0] += 1
+        return ""
+    budget[0] -= cost
+    # No lazy-loading and no external anything: this has to render offline, from a file on a laptop
+    # with the network off, which is the situation a forwarded report is opened in.
+    return (f"<div class='shot'><img alt='the element this finding is about' "
+            f"src='{html.escape(shot, quote=True)}'></div>")
+
+
 def render(brand_code: str, run, findings) -> str:
     _, started, pages, partial, name, base_url = run
     sev_rank = {"error": 0, "warning": 1, "info": 2}
+    _shot_budget = [SHOT_BUDGET_BYTES]
+    _shots_omitted = [0]
     out = []
     total = len(findings)
 
@@ -158,6 +194,7 @@ def render(brand_code: str, run, findings) -> str:
                 + (f"<div class='snippet'>{snippet}</div>" if snippet else "")
                 + f"<div class='where'><a href='{html.escape(f[4])}'>{html.escape(f[4][:96])}</a></div>"
                 + (f"<div class='fix'>{html.escape(_trim(f[6] or ''))}</div>" if f[6] else "")
+                + _shot_html(f[9] if len(f) > 9 else None, _shot_budget, _shots_omitted)
                 + "</li>")
         more = ""
         if len(rows) > TOP_N:
@@ -170,6 +207,16 @@ def render(brand_code: str, run, findings) -> str:
             f"<p class='why'>{html.escape(why)}</p>"
             f"<p class='count'>{len(rows):,} finding(s), {errs:,} of them certain.</p>"
             f"<ul>{''.join(items)}</ul>{more}</section>")
+
+    # A budget that was hit must SAY so. A report quietly missing half its pictures reads as a
+    # report about findings that happen not to have any — the same silent-cap failure the project
+    # rules out everywhere else.
+    if _shots_omitted[0]:
+        out.append(
+            f"<section><p class='caveat'>{_shots_omitted[0]:,} screenshot(s) were left out of this "
+            f"file to keep it small enough to open and email. The findings themselves are all "
+            f"here — only the pictures were dropped, and every one of them is still in the audit "
+            f"spreadsheet.</p></section>")
 
     caveat = ""
     if partial:
@@ -199,6 +246,10 @@ li.error{{border-left-color:var(--err)}} li.warning{{border-left-color:var(--war
   border-radius:6px;padding:8px 10px;margin:7px 0;white-space:pre-wrap;word-break:break-word}}
 .where a{{color:var(--mut);font-size:13px;word-break:break-all}}
 .fix{{font-size:14px;color:var(--mut);margin-top:6px}}
+.shot{{margin-top:10px}}
+/* max-width, never a fixed width: these are 2x-scale crops of a 390px mobile viewport, so they must
+   shrink on a phone and never force the page to scroll sideways. */
+.shot img{{max-width:100%;height:auto;border:1px solid var(--bd);border-radius:6px;display:block}}
 .more{{color:var(--mut);font-size:14px}}
 .caveat{{background:#fff8e6;border:1px solid #f0d999;border-radius:8px;padding:12px 14px}}
 footer{{margin-top:44px;color:var(--mut);font-size:13px;border-top:1px solid var(--line);padding-top:16px}}

@@ -119,3 +119,62 @@ def test_the_tally_reports_a_class_that_would_not_ship(page):
     assert t.hit_rate("bad") < SHIP_FLOOR
     assert "bad" in t.below_floor()
     assert "good" not in t.below_floor()
+
+
+# --- attaching shots to findings ------------------------------------------------------------------
+
+def _contrast_finding(fg, bg, sel, url="https://x/a/", ratio=3.1):
+    from auditor.report import Finding, Severity
+    return Finding(url=url, check="contrast", severity=Severity.ERROR, fingerprint=sel,
+                   issue="", location="mobile", snippet="", suggestion="",
+                   details={"class": "color-contrast", "fgColor": fg, "bgColor": bg,
+                            "contrastRatio": ratio, "expectedContrastRatio": "4.5:1",
+                            "selector": sel, "viewport": "mobile"})
+
+
+def test_only_one_shot_is_taken_per_colour_pair(page):
+    """The whole point of collapsing. 671 contrast nodes across 8 brands were 15 colour decisions —
+    photographing every node would be 671 near-identical images of the same theme colour."""
+    from render.shots import attach_shots
+
+    # Three findings sharing ONE colour pair, each on a different element, plus one with a
+    # different pair. Selectors must resolve uniquely or the locator gate refuses them — which is
+    # correct behaviour and would hide what this test is actually checking.
+    findings = [_contrast_finding("#777", "#fff", sel)
+                for sel in ("#crowded", "p:nth-of-type(1)", "p:nth-of-type(2)")]
+    findings.append(_contrast_finding("#111", "#fff", "#crowded"))
+    attach_shots(page, findings)
+    with_shots = [f for f in findings if f.details.get("shot")]
+    assert len(with_shots) == 2, "expected one per distinct colour pair, not one per element"
+
+
+def test_a_finding_whose_element_cannot_be_located_simply_has_no_image(page):
+    from render.shots import ShotTally, attach_shots
+
+    f = _contrast_finding("#777", "#fff", "#not-on-this-page")
+    tally = ShotTally()
+    attach_shots(page, [f], tally=tally)
+    assert "shot" not in f.details
+    assert tally.per_class["contrast"]["none"] == 1
+
+
+def test_shots_are_attached_after_measurement_not_before(page):
+    """attach_shots takes findings that ALREADY exist — it cannot run before the measurement that
+    produced them. That ordering is the D14 guard, expressed in the signature itself."""
+    import inspect
+
+    from render.shots import attach_shots
+    params = list(inspect.signature(attach_shots).parameters)
+    assert params[:2] == ["page", "findings"]
+
+
+def test_the_tally_is_reported_per_check_not_globally(page):
+    from render.shots import ShotTally, attach_shots
+    from auditor.report import Finding, Severity
+
+    tap = Finding(url="https://x/", check="tap_target", severity=Severity.WARNING,
+                  fingerprint="t", issue="", location="mobile", snippet="", suggestion="",
+                  details={"class": "target-size", "selector": "#crowded"})
+    tally = ShotTally()
+    attach_shots(page, [tap, _contrast_finding("#777", "#fff", "#nope")], tally=tally)
+    assert set(tally.per_class) == {"tap_target", "contrast"}

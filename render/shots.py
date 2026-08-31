@@ -155,3 +155,63 @@ def capture(page, selector: str, *, tally: ShotTally | None = None, cls: str = "
     return {"data_uri": "data:image/png;base64," + base64.b64encode(raw).decode("ascii"),
             "bytes": len(raw),
             "width": round(box["width"] * 2), "height": round(box["height"] * 2)}
+
+
+# A finding's shot key: what makes two findings the SAME PICTURE. Contrast collapses to a colour
+# decision, so every element sharing a colour pair would produce the same image of a different
+# instance — 671 nodes were 15 decisions on the last measurement. Broken images collapse by src.
+# Everything else is photographed per element, because there is nothing to collapse it by.
+def _shot_key(f) -> tuple:
+    d = f.details or {}
+    cls = d.get("class")
+    if cls == "color-contrast":
+        return ("contrast", d.get("fgColor"), d.get("bgColor"),
+                str(d.get("expectedContrastRatio")))
+    if cls == "broken_image":
+        return ("image", d.get("src"))
+    return ("el", f.check, d.get("selector") or f.location, f.url)
+
+
+def _selector_for(f) -> str | None:
+    d = f.details or {}
+    sel = d.get("selector")
+    if sel:
+        return sel
+    if d.get("class") == "broken_image" and d.get("src"):
+        # CSS.escape is not available in Python; quote the attribute and rely on the URL not
+        # containing a double quote, which no URL we have seen does.
+        src = str(d["src"]).replace('"', '\\"')
+        return f'img[src="{src}"], img[currentSrc="{src}"]'
+    return None
+
+
+def attach_shots(page, findings, *, tally: ShotTally | None = None,
+                 max_shots: int = 40) -> int:
+    """Photograph the element behind each finding, ONE per distinct picture. Returns how many.
+
+    Takes findings that already exist, which is deliberate and not merely convenient: the outline
+    this draws must never be present while a measurement runs, and a function that can only be
+    handed finished findings cannot be called before one. The ordering guard is the signature.
+
+    `max_shots` bounds a pathological page. A cap that is hit is REPORTED by the caller, never
+    silently applied — the project's standing rule about sampling.
+    """
+    seen: set[tuple] = set()
+    taken = 0
+    for f in findings:
+        if taken >= max_shots:
+            break
+        key = _shot_key(f)
+        if key in seen:
+            continue
+        sel = _selector_for(f)
+        if not sel:
+            continue
+        seen.add(key)
+        shot = capture(page, sel, tally=tally, cls=f.check)
+        if shot:
+            f.details = dict(f.details or {})
+            f.details["shot"] = shot["data_uri"]
+            f.details["shot_bytes"] = shot["bytes"]
+            taken += 1
+    return taken

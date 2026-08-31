@@ -29,9 +29,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 try:
     from playwright.sync_api import sync_playwright
 
-    from render.a11y import run_axe
+    from render.a11y import run_axe, to_findings
     from render.images import find_broken, scroll_to_load_everything
     from render.safety import SafetyLedger, install, prove_attached
+    from render.shots import ShotTally, attach_shots
 except ModuleNotFoundError as exc:  # pragma: no cover - container-only path
     raise SystemExit(
         f"{exc.name} is not available, so this measurement cannot run here.\n"
@@ -117,7 +118,7 @@ def sample_urls(brand: str, n: int) -> list[str]:
     return out[:n]
 
 
-def measure_brand(browser, brand: str) -> list[dict]:
+def measure_brand(browser, brand: str, tally=None) -> list[dict]:
     cfg = load_brand(brand)
     rows: list[dict] = []
     for url in sample_urls(brand, PAGES_PER_BRAND):
@@ -135,6 +136,15 @@ def measure_brand(browser, brand: str) -> list[dict]:
             page.close()
             continue
 
+        # Shots are taken from the SAME open page, after axe has finished — no extra page load
+        # (measured: 40-250ms per shot against 10.1s for a fresh render), and no outline present
+        # while anything is being measured. attach_shots de-duplicates by colour pair, so a page
+        # with 57 contrast nodes yields a handful of images rather than 57 of the same colour.
+        findings = to_findings(axe, url, viewport="mobile")
+        shots_taken = attach_shots(page, findings, tally=tally)
+        by_selector = {(f.details or {}).get("selector"): (f.details or {}).get("shot")
+                       for f in findings if (f.details or {}).get("shot")}
+
         for v in axe["violations"]:
             for node in v["nodes"]:
                 # `run_axe` flattens axe's `n.any[0].data` onto the node itself — read it there.
@@ -149,6 +159,7 @@ def measure_brand(browser, brand: str) -> list[dict]:
                     "minSize": data.get("minSize"),
                     "message": (node.get("message") or "")[:200],
                     "expected": data.get("expectedContrastRatio"),
+                    "shot_bytes": len(by_selector.get((node.get("target") or ["?"])[0]) or ""),
                 })
         for b in broken:
             if b.get("src"):
@@ -163,6 +174,7 @@ def measure_brand(browser, brand: str) -> list[dict]:
                 key = f"{v['id']}:{n.get('reason', 'unknown')}"
                 reasons[key] = reasons.get(key, 0) + 1
         rows.append({"brand": brand, "url": url, "rule": "_page",
+                     "shots_taken": shots_taken,
                      "incomplete": {v["id"]: len(v["nodes"]) for v in axe["incomplete"]},
                      "incomplete_reasons": reasons,
                      "reached_bottom": scroll["reached_bottom"],
@@ -177,7 +189,8 @@ def main(brands: list[str]) -> None:
     with sync_playwright() as pw:
         browser = pw.chromium.launch()
         for b in brands:
-            rows = measure_brand(browser, b)
+            tally = ShotTally()
+            rows = measure_brand(browser, b, tally=tally)
             (OUT / f"{b}.json").write_text(json.dumps(rows, indent=1))
             pages = sum(1 for r in rows if r.get("rule") == "_page")
             errs = sum(1 for r in rows if r.get("error"))
@@ -185,10 +198,13 @@ def main(brands: list[str]) -> None:
             for r in rows:
                 if r.get("rule") and r["rule"] != "_page":
                     counts[r["rule"]] = counts.get(r["rule"], 0) + 1
+            shots = sum(r.get("shots_taken") or 0 for r in rows if r.get("rule") == "_page")
             print(f"  {b.upper():<5} pages={pages:<3} errors={errs:<3} "
+                  f"shots={shots:<4} "
                   f"contrast={counts.get('color-contrast', 0):<5} "
                   f"target={counts.get('target-size', 0):<4} "
                   f"broken_img={counts.get('broken-image', 0)}", flush=True)
+            print(f"        locator: {tally.summary()}", flush=True)
         browser.close()
 
 
