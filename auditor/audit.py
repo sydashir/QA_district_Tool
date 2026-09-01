@@ -472,7 +472,51 @@ _DIGITS = re.compile(r"\d+")
 _TEMPLATE_MIN_PAGES = 3     # two pages is a coincidence; three is a template
 
 
-def _collapse_repeats(findings: list[Finding]) -> list[Finding]:
+def _source_pattern(sources: list[str], audited: list[str]) -> str | None:
+    """Describe WHICH pages carry a finding as a prefix glob — or None when no glob is honest.
+
+    A template defect on 3,353 pages does not need 3,353 stored URLs, but the eight we cap at are
+    not enough to compute traffic reach and are actively misleading alone: GL's `dead_cta "View All"`
+    claims 1,343 pages while its eight stored sources all sit under one path, so a reader concludes
+    the defect is confined there.
+
+    THE RULE IS NO OVER-CLAIMING. A pattern is returned only when EVERY audited page matching it
+    carries the finding. `host/*` on a defect covering 1,343 of 3,353 pages would hand a reach
+    calculation 2,010 pages that do not have it, and inventing traffic is worse than having none —
+    the same reason `url_key` keeps `www` in the traffic importer.
+
+    When no exact pattern exists the caller keeps what it already has: the true count plus a capped
+    sample, and `reach_basis: partial, N of M`.
+    """
+    if len(sources) < 2 or not audited:
+        return None
+    src = set(sources)
+
+    def _parts(u: str) -> list[str]:
+        rest = u.split("://", 1)[-1]
+        host, _, path = rest.partition("/")
+        return [f"{u.split('://')[0]}://{host}"] + [p for p in path.split("/") if p]
+
+    first = _parts(sources[0])
+    common = list(first)
+    for u in sources[1:]:
+        q = _parts(u)
+        i = 0
+        while i < len(common) and i < len(q) and common[i] == q[i]:
+            i += 1
+        common = common[:i]
+        if not common:
+            return None                      # not even the same host
+    # Walk from the most specific prefix outwards; take the first that is EXACT.
+    for depth in range(len(common), 0, -1):
+        prefix = "/".join(common[:depth])
+        covered = {u for u in audited if u == prefix or u.startswith(prefix + "/")}
+        if covered and covered <= src:
+            return f"{prefix}/*"
+    return None
+
+
+def _collapse_repeats(findings: list[Finding], audited: list[str] | None = None) -> list[Finding]:
     """One template fault on 1,500 pages is ONE fix, not 1,500 rows.
 
     Same principle as `_collapse_phone` (a wrong number site-wide) and `_collapse_headings`. The
@@ -515,7 +559,13 @@ def _collapse_repeats(findings: list[Finding]) -> list[Finding]:
             suggestion=(f"{rep.suggestion} This appears on {len(sources)} pages, so it comes from "
                         f"a shared template — one fix corrects all of them."),
             details={**(rep.details or {}), "page_count": len(sources),
-                     "sources": sources[:8], "template_wide": True}))
+                     "sources": sources[:8], "template_wide": True,
+                     # Which pages, without storing all of them — None when no glob is exact.
+                     # The count above is already true; this is purely so a reader (and traffic
+                     # reach) can tell WHICH pages rather than inferring from eight samples that
+                     # happen to share a path.
+                     "source_pattern": _source_pattern(sources, audited or []),
+                     "sources_truncated": len(sources) > 8}))
     return keep
 
 
@@ -791,7 +841,7 @@ async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile:
         # sister-brand mentions: keep only the anomalously rare ones (deliberate ones are site-wide)
         findings = _collapse_brands(findings, len(projections))
         # template-driven duplicate/empty-slot faults -> one finding per template
-        findings = _collapse_repeats(findings)
+        findings = _collapse_repeats(findings, [p.url for p in projections])
         findings = _collapse_headings(findings)  # template-driven multi-H1 -> one per template
 
         run = None
