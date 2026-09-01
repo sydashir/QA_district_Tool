@@ -98,10 +98,11 @@ def test_the_gate_counts_its_own_misses(page):
     capture(page, "a", tally=tally, cls="contrast", require_unique=True)
 
     assert tally.per_class["tap_target"]["attempted"] == 2
-    assert tally.per_class["tap_target"]["one"] == 1
+    assert tally.per_class["tap_target"]["captured"] == 1
     assert tally.per_class["tap_target"]["none"] == 1
     assert tally.per_class["contrast"]["many"] == 1
     assert tally.hit_rate("tap_target") == pytest.approx(0.5)
+    assert tally.located_rate("tap_target") == pytest.approx(0.5)
 
 
 def test_the_tally_reports_a_class_that_would_not_ship(page):
@@ -109,14 +110,14 @@ def test_the_tally_reports_a_class_that_would_not_ship(page):
 
     t = ShotTally()
     for _ in range(7):
-        t.record("good", "one")
+        t.record("good", "captured")
     for _ in range(3):
         t.record("good", "none")
     for _ in range(9):
         t.record("bad", "none")
-    t.record("bad", "one")
-    assert t.hit_rate("good") >= SHIP_FLOOR
-    assert t.hit_rate("bad") < SHIP_FLOOR
+    t.record("bad", "captured")
+    assert t.located_rate("good") >= SHIP_FLOOR
+    assert t.located_rate("bad") < SHIP_FLOOR
     assert "bad" in t.below_floor()
     assert "good" not in t.below_floor()
 
@@ -227,7 +228,7 @@ def test_capturing_a_text_finding_goes_through_the_same_gate_and_tally(tel_page)
     tally = ShotTally()
     shot = capture_tel_mismatch(tel_page, "+18887076073", "+18447590999", tally=tally)
     assert shot and shot["data_uri"].startswith("data:image/png;base64,")
-    assert tally.per_class["phone"]["one"] == 1
+    assert tally.per_class["phone"]["captured"] == 1
     # and the marker must not survive
     assert tel_page.evaluate("() => document.querySelectorAll('[data-qa-target]').length") == 0
 
@@ -238,3 +239,72 @@ def test_a_number_pair_that_is_not_on_the_page_is_counted_as_a_miss(tel_page):
     tally = ShotTally()
     assert capture_tel_mismatch(tel_page, "+15551234567", "+15559999999", tally=tally) is None
     assert tally.per_class["phone"]["none"] == 1
+
+
+# --- the tally distinguishes the locator from the feature ------------------------------------------
+# Measured on AH: `dead_cta` resolved 21 of 24 selectors (88%) but produced 20 shots — one element
+# resolved uniquely and could not be photographed. Counting that as a locator success is right and
+# counting it as a feature success is wrong, so they are separate numbers.
+#
+# The uncapturable case turned out NOT to be a defect. AH's `<a>Call Now! 844-759-0999</a>` is 0x0
+# with visibility:visible — but `checkVisibility()` says false and `offsetParent` is null: it sits
+# inside a hidden ancestor, the desktop variant of a responsive header at mobile width. Measured
+# across 24 pages of six brands, "visible-but-zero-box" looked like 224 per page until ancestors
+# were accounted for, at which point it collapsed to a handful of mega-menu parents. Not a check.
+
+def test_the_tally_separates_captured_from_merely_located(page):
+    from render.shots import ShotTally
+
+    t = ShotTally()
+    t.record("dead_cta", "captured")
+    t.record("dead_cta", "uncapturable")
+    t.record("dead_cta", "none")
+    assert t.per_class["dead_cta"]["captured"] == 1
+    assert t.per_class["dead_cta"]["uncapturable"] == 1
+    assert t.located_rate("dead_cta") == pytest.approx(2 / 3)   # the selector worked twice
+    assert t.hit_rate("dead_cta") == pytest.approx(1 / 3)       # a picture exists once
+
+
+def test_an_element_with_no_box_counts_as_located_not_lost(page):
+    """It is in the DOM and the selector found it. That the browser lays it out to nothing is a fact
+    about the page at this width, not a failure of the locator."""
+    from render.shots import ShotTally, capture
+
+    page.evaluate("""() => {
+        const a = document.createElement('a');
+        a.id = 'zero'; a.textContent = 'invisible';
+        a.style.cssText = 'display:inline-block;width:0;height:0;overflow:hidden';
+        document.body.appendChild(a);
+    }""")
+    t = ShotTally()
+    assert capture(page, "#zero", tally=t, cls="dead_cta") is None
+    assert t.per_class["dead_cta"]["uncapturable"] == 1
+    assert t.per_class["dead_cta"]["none"] == 0
+
+
+def test_the_summary_reports_both_numbers(page):
+    from render.shots import ShotTally
+
+    t = ShotTally()
+    for _ in range(8):
+        t.record("dead_cta", "captured")
+    t.record("dead_cta", "uncapturable")
+    t.record("dead_cta", "none")
+    s = t.summary()
+    assert "located" in s and "captured" in s
+
+
+def test_the_ship_floor_is_judged_on_the_locator(page):
+    """The floor asks 'can we find the element' — an element that has no box is not the locator's
+    fault, and excluding it would penalise the wrong thing."""
+    from render.shots import SHIP_FLOOR, ShotTally
+
+    t = ShotTally()
+    for _ in range(7):
+        t.record("x", "captured")
+    t.record("x", "uncapturable")
+    for _ in range(2):
+        t.record("x", "none")
+    assert t.located_rate("x") == pytest.approx(0.8)
+    assert "x" not in t.below_floor()
+    assert SHIP_FLOOR <= 0.8

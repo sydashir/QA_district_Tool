@@ -81,19 +81,41 @@ class ShotTally:
     accident, and the two are indistinguishable from outside without this.
     """
 
+    # FOUR outcomes, because "did the selector work" and "is there a picture" are different
+    # questions and one number cannot answer both. Measured on AH: `dead_cta` resolved 21 of 24
+    # selectors but produced 20 shots — one element resolved uniquely and had no box to photograph.
+    # Counting that as a locator failure would penalise the locator for the page's layout.
+    #
+    #   captured     — selector found exactly one element AND a screenshot was taken
+    #   uncapturable — found exactly one element, but it has no box (hidden ancestor, 0x0 at this
+    #                  width). NOT a defect: AH's 0x0 "Call Now!" anchor is the desktop variant of
+    #                  a responsive header, `checkVisibility()` false, `offsetParent` null.
+    #   none         — selector matched nothing
+    #   many         — selector matched several; refused, because the wrong element is worse
     per_class: dict[str, dict[str, int]] = field(default_factory=dict)
 
     def record(self, cls: str, outcome: str) -> None:
-        d = self.per_class.setdefault(cls, {"attempted": 0, "one": 0, "none": 0, "many": 0})
+        d = self.per_class.setdefault(
+            cls, {"attempted": 0, "captured": 0, "uncapturable": 0, "none": 0, "many": 0})
         d["attempted"] += 1
         d[outcome] = d.get(outcome, 0) + 1
 
-    def hit_rate(self, cls: str) -> float:
+    def located_rate(self, cls: str) -> float:
+        """Did the SELECTOR work — the question the ship floor asks."""
         d = self.per_class.get(cls)
-        return d["one"] / d["attempted"] if d and d["attempted"] else 0.0
+        if not d or not d["attempted"]:
+            return 0.0
+        return (d["captured"] + d["uncapturable"]) / d["attempted"]
+
+    def hit_rate(self, cls: str) -> float:
+        """Did a PICTURE result — always <= located_rate, and the feature's real coverage."""
+        d = self.per_class.get(cls)
+        return d["captured"] / d["attempted"] if d and d["attempted"] else 0.0
 
     def below_floor(self) -> list[str]:
-        return sorted(c for c in self.per_class if self.hit_rate(c) < SHIP_FLOOR)
+        # Judged on the LOCATOR. An element with no box is not the locator's fault, and failing a
+        # class for the page's layout would retire a working mechanism for the wrong reason.
+        return sorted(c for c in self.per_class if self.located_rate(c) < SHIP_FLOOR)
 
     def summary(self) -> str:
         if not self.per_class:
@@ -101,12 +123,14 @@ class ShotTally:
         parts = []
         for cls in sorted(self.per_class):
             d = self.per_class[cls]
-            parts.append(f"{cls}: {d['one']}/{d['attempted']} located "
-                         f"({self.hit_rate(cls) * 100:.0f}%; {d['none']} not found, "
-                         f"{d['many']} ambiguous)")
+            parts.append(
+                f"{cls}: located {d['captured'] + d['uncapturable']}/{d['attempted']} "
+                f"({self.located_rate(cls) * 100:.0f}%), captured {d['captured']} "
+                f"({self.hit_rate(cls) * 100:.0f}%); {d['uncapturable']} had no box, "
+                f"{d['none']} not found, {d['many']} ambiguous")
         note = ""
         if self.below_floor():
-            note = (f" — BELOW THE {SHIP_FLOOR * 100:.0f}% FLOOR and not shippable: "
+            note = (f" — BELOW THE {SHIP_FLOOR * 100:.0f}% LOCATOR FLOOR and not shippable: "
                     f"{', '.join(self.below_floor())}")
         return "; ".join(parts) + note
 
@@ -129,7 +153,13 @@ def capture(page, selector: str, *, tally: ShotTally | None = None, cls: str = "
         return None
 
     count = box.get("count", 0)
-    if count != 1 or box.get("invisible"):
+    if count == 1 and box.get("invisible"):
+        # The selector WORKED. The element simply has no box at this width — a hidden ancestor or a
+        # 0x0 layout. That is a fact about the page, not a failure to locate.
+        if tally:
+            tally.record(cls, "uncapturable")
+        return None
+    if count != 1:
         if tally:
             tally.record(cls, "many" if count > 1 else "none")
         return None
@@ -151,7 +181,7 @@ def capture(page, selector: str, *, tally: ShotTally | None = None, cls: str = "
             pass
 
     if tally:
-        tally.record(cls, "one")
+        tally.record(cls, "captured")
     return {"data_uri": "data:image/png;base64," + base64.b64encode(raw).decode("ascii"),
             "bytes": len(raw),
             "width": round(box["width"] * 2), "height": round(box["height"] * 2)}
