@@ -823,7 +823,12 @@ async def run_audit(config: BrandConfig, limit: int | None = None, do_reconcile:
         # sitemap_unreachable is for SITEMAPPED pages that failed (a sitemap advertising a dead
         # page); REST-only failures are the enumeration rest_404 bucket (from_audit), not this.
         sitemap_failed = [r for r in failed if canonical_url(r.url) in sitemap_set]
-        findings.extend(enumeration.sitemap_unreachable(sitemap_failed, config.brand))
+        # The denominator is the SITEMAPPED pages we tried, so the failure rate is computed
+        # against the same population as the failures. Without it nothing collapses, which is the
+        # safe default: guessing a denominator would collapse findings that are real.
+        sitemap_attempted = len([u for u in to_fetch if canonical_url(u) in sitemap_set])
+        findings.extend(enumeration.sitemap_unreachable(
+            sitemap_failed, config.brand, attempted=sitemap_attempted))
         link_findings, link_stats = await links.check_links(
             projections, client, config, max_links=max_link_probes, on_done=_progress("link probe"))
         findings.extend(link_findings)

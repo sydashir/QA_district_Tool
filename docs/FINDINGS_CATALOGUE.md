@@ -161,6 +161,7 @@ of GL's own facility lines as wrong.
 | `rest_404` | WordPress lists the page but it returns 404 to the public |
 | `redirected_internal` (INFO) | a link on your own site points at an address that redirects, instead of at the page itself — it works, but costs a round trip and stops the old address ever being retired |
 | `collision_slug` | a page address ending in `-2`, which is what WordPress does when the address was already taken — usually a duplicate of another page |
+| `crawl_incomplete` | our own crawl could not reach most of the site, so this run is not a picture of it — reported once, about the crawl, instead of one claim per page |
 | `redirects_off_brand` | a URL in this brand's sitemap that sends visitors to a different brand's website — nothing else on that page is audited, because the page that comes back is not this brand's |
 | `business_name_internal` | the machine-readable business card names the business with an internal content-management label instead of the brand — invisible to visitors, wrong to search engines |
 | `address_not_in_nap` | a street address published to search engines that is not on the brand's NAP sheet |

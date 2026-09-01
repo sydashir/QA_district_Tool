@@ -88,11 +88,47 @@ def classify(url: str, brand: str, *, ok: bool, status, noindex: bool) -> Findin
         "to confirm intent.", noindex=True, cruft=False)
 
 
-def sitemap_unreachable(results, brand: str) -> list[Finding]:
+# Above this share of the attempted pages failing, the failure is OURS and is reported as one fact
+# about the crawl instead of one finding per page.
+#
+# Measured, like the refusal floor it mirrors: across 106 historical runs the median fetch success
+# rate is 99.7%, and the legitimate lows are COC 58.7% (its sitemap really is ~38% dead), MHD 69%
+# and DBH 75%. Those brands' per-page findings are REAL and must survive, so the bar sits above
+# their failure rates: 50% failing is not a site with dead pages, it is a crawl that did not work.
+MASS_FAILURE_RATE = 0.50
+
+
+def sitemap_unreachable(results, brand: str, attempted: int | None = None) -> list[Finding]:
     """Findings for SITEMAP pages that failed to fetch — in audit scope but unauditable. A page
     listed in the sitemap that 404s or won't load is exactly what a QA tool should catch; today
     they're silently dropped by the ``ok`` filter. Identity is fixed per (brand, url) regardless
-    of the transient status, so a page flapping 404<->timeout keeps one identity in the diff."""
+    of the transient status, so a page flapping 404<->timeout keeps one identity in the diff.
+
+    **When MOST of the attempt failed, this returns ONE finding about the crawl.** RR run 119
+    attempted 8,029 pages, 77 answered, and this function minted 7,777 "page unreachable" rows —
+    a report telling the client 97% of their site was down when we had been rate limited. Pages do
+    not stop existing all at once; a failure that broad is always our side. `attempted` is the
+    denominator, and without it nothing is collapsed, because guessing one would collapse findings
+    that are real (see ARCHITECTURE.md D17).
+    """
+    if attempted and results and len(results) / attempted >= MASS_FAILURE_RATE:
+        failed = len(results)
+        rate = failed / attempted
+        return [Finding(
+            url=canonical_url(results[0].url), check=CHECK, severity=Severity.WARNING,
+            fingerprint=make_fingerprint(CHECK, "crawl_incomplete", brand),
+            issue=(f"this audit could not reach most of the site — {failed:,} of {attempted:,} "
+                   f"pages did not respond"),
+            location="crawl", snippet=f"{failed:,}/{attempted:,} failed ({rate:.0%})",
+            suggestion=(f"OUR crawl reached only {attempted - failed:,} of {attempted:,} pages, so "
+                        f"this run is not a picture of the site. A failure that broad is almost "
+                        f"always us being rate limited or throttled — pages do not stop existing "
+                        f"all at once. This is reported as ONE fact about the crawl rather than "
+                        f"{failed:,} claims about your pages. Nothing here says those pages are "
+                        f"broken; it says we did not see them."),
+            details={"class": "crawl_incomplete", "failed": failed, "attempted": attempted,
+                     "failure_rate": round(rate, 4)})]
+
     out: list[Finding] = []
     for r in results:
         url = canonical_url(r.url)
