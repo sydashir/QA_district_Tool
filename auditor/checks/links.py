@@ -182,14 +182,37 @@ def _redirect_finding(target, sources, final, code):
         "redirected_internal", status=code, final_url=final)
 
 
+# How many source pages we STORE on a finding. The full list can be the whole site — GL's footer
+# Facebook link is on all 3,353 pages — and storing that per finding trades a correctness problem
+# for a storage one. The sample is capped; the COUNT is not.
+SOURCE_SAMPLE = 5
+
+
 def _finding(target, sources, subtype, severity, issue, suggestion, cls, **details):
+    """Build a link finding. `sources` is the FULL list of pages carrying this link.
+
+    THE COUNT AND THE SAMPLE ARE SEPARATE, and conflating them was a real defect: callers used to
+    pass a pre-truncated list, `page_count` was never set, and `server/importer.py` falls back to
+    `len(sources)` — so every one of 1,247 open findings claimed to affect exactly 5 pages. The
+    count WAS the truncation. Worse, `len(sources) >= page_count` then reads "complete" on every
+    truncated finding, so a traffic-reach figure built on it would be stamped `measured`.
+
+    So: the caller passes everything, this records the true count, stores a capped sample, and says
+    plainly whether the sample is all of it.
+    """
+    sources = list(sources)
+    total = len(sources)
     return Finding(
         url=sources[0], check=CHECK, severity=severity,
         fingerprint=make_fingerprint(CHECK, subtype, target) if subtype
         else make_fingerprint(CHECK, target),  # broken keeps identity = bare target (stable)
         issue=issue, location=target, snippet=str(details.get("status") or target),
         suggestion=suggestion,
-        details={"target": target, "class": cls, "sources": sources, **details})
+        details={"target": target, "class": cls,
+                 "sources": sources[:SOURCE_SAMPLE],
+                 "page_count": total,
+                 "sources_truncated": total > SOURCE_SAMPLE,
+                 **details})
 
 
 async def check_links(pages, client, config, max_links: int | None = None, on_done=None):
@@ -213,7 +236,7 @@ async def check_links(pages, client, config, max_links: int | None = None, on_do
     # Content-bug classes are decidable WITHOUT a probe — flag them and don't waste a request.
     to_probe: list[str] = []
     for url in targets:
-        sources = targets[url][:5]
+        sources = targets[url]          # FULL list — _finding caps the stored sample
         if _is_malformed(url):
             stats["malformed"] += 1
             findings.append(_finding(
@@ -314,7 +337,7 @@ async def check_links(pages, client, config, max_links: int | None = None, on_do
 
     for url in capped:
         code, final, err = status.get(url, (None, url, "NotProbed"))
-        sources = targets[url][:5]
+        sources = targets[url]          # FULL list — _finding caps the stored sample
         is_internal = _registrable(_host(url)) == internal
 
         if final and final.split("#")[0].rstrip("/") != url.rstrip("/") and code and code < 400:
