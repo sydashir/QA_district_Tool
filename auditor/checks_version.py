@@ -29,6 +29,29 @@ def _sha(s: str) -> str:
     return hashlib.sha256(s.encode("utf-8")).hexdigest()[:12]
 
 
+def code_fingerprint(checks_dir: Path = CHECKS_DIR) -> str:
+    """A hash of the CHECK SOURCE FILES ONLY — "is this the code the repo has?", nothing else.
+
+    Exists because a whole night's crawl once ran against an image built 3h37m before the code it
+    was supposed to be running, and nothing warned. The container executes source COPYed in at build
+    time; `docker compose` mounts `cache`, `reports`, `data` and the geodata dir but NEVER the
+    source, so editing `auditor/` changes nothing the worker runs until someone rebuilds. The stale
+    run produced zero findings from the new checks and looked entirely normal.
+
+    Deliberately NOT `version()`. That folds in the config and the geodata PATH, which legitimately
+    differ between host (`/Users/...`) and container (`/opt/geodata-services`) — so comparing full
+    check-versions across that boundary always reports a difference and therefore tells you nothing.
+    This hashes file CONTENT, so it is identical wherever the same code sits.
+    """
+    parts = [f"{p.name}:{_sha(p.read_text(encoding='utf-8'))}"
+             for p in sorted(checks_dir.glob("*.py"))]
+    for extra in ("parse.py", "report.py", "nap.py", "crawl.py", "audit.py"):
+        f = checks_dir.parent / extra
+        if f.exists():
+            parts.append(f"{extra}:{_sha(f.read_text(encoding='utf-8'))}")
+    return _sha("|".join(parts))
+
+
 def components(config, checks_dir: Path = CHECKS_DIR) -> dict:
     """Everything whose change should invalidate cached findings: each check module's
     source, the GLOBAL sources that shape check output/fingerprints (parse.py builds

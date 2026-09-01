@@ -156,9 +156,15 @@ def _brand_or_404(session: Session, code: str) -> Brand:
 # --------------------------------------------------------------------------- endpoints
 @app.get("/api/health")
 def health(session: Session = Depends(get_session)) -> dict:
+    # `code_fingerprint` is here so a caller OUTSIDE the container can tell whether the image is
+    # running the repo's code. The container cannot see the repo, so it cannot answer that alone —
+    # but it can publish what it IS running, and the host can compare. A nine-brand crawl once ran
+    # against an image built 3h37m before the code it was meant to run, with nothing warning.
+    from auditor.checks_version import code_fingerprint
     return {"ok": True, "brands": session.scalar(select(func.count(Brand.id))),
             "runs": session.scalar(select(func.count(Run.id))),
-            "findings": session.scalar(select(func.count(Finding.id)))}
+            "findings": session.scalar(select(func.count(Finding.id))),
+            "code_fingerprint": code_fingerprint()}
 
 
 @app.get("/api/brands", response_model=list[BrandOut])
