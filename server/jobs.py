@@ -27,7 +27,11 @@ from __future__ import annotations
 
 import asyncio
 import os
+import time
+from dataclasses import dataclass
 from datetime import datetime, timezone
+
+from sqlalchemy import text as sql_text
 
 from procrastinate import App, PsycopgConnector
 from sqlalchemy import select
@@ -99,6 +103,20 @@ def audit_brand(context, brand_code: str, run_id: int | None = None,
         session.commit()
         run_id = run.id
 
+    # COOL DOWN before touching the network. The queue used to start the next brand's enumeration
+    # the instant the previous run ended; on 2026-09-01 that put three brands into the 8 seconds
+    # after a 400-request link-probe burst, got all three rate limited, and recorded all three as
+    # "the website was unreachable". Waiting is cheaper than a false report.
+    with SessionLocal() as session:
+        last = session.execute(sql_text("""
+            SELECT extract(epoch FROM (now() - max(finished_at)))
+            FROM runs WHERE finished_at IS NOT NULL AND id <> :rid"""), {"rid": run_id}).scalar()
+    wait = cooldown_seconds(float(last) if last is not None else None)
+    if wait:
+        print(f"[cooldown] a run finished {float(last):.0f}s ago — waiting {wait:.0f}s before "
+              f"crawling {brand_code} so we are not throttled", flush=True)
+        time.sleep(wait)
+
     try:
         cfg = load_brand(brand_code.lower())
         result = asyncio.run(run_audit(cfg, resume=True, limit=max_pages))
@@ -133,18 +151,26 @@ def audit_brand(context, brand_code: str, run_id: int | None = None,
             # The CLI gets this via publish's EmptyAuditRefused; the worker never calls publish, so
             # it has to make the same judgement itself. Found by the acceptance run: MHD's degraded
             # origin was recorded as `failed`, which reads like our bug rather than their outage.
-            pages = int(result.get("pages_audited") or 0)
-            if pages == 0:
+            verdict = crawl_verdict(result)
+            if verdict.refuse:
                 r.status = "refused"
-                r.error_text = (
-                    "no pages could be enumerated, so nothing was audited. The website was "
-                    "unreachable or its page index is missing. Previous results are unchanged — "
-                    "this brand has NOT been given a clean bill of health.")
+                r.error_text = verdict.reason
                 session.commit()
                 return {"run_id": run_id, "status": "refused"}
             r.status, r.error_text = "failed", "the audit ran but wrote no report directory"
             session.commit()
             raise RuntimeError(r.error_text)
+        # THE CASE THAT ACTUALLY BIT. The refusal above only fires when no report was written.
+        # RR run 119 DID write one — it reached 77 of 8,029 pages, produced 7,777 "page unreachable"
+        # findings, and was recorded `ok` because 77 is not 0. Check the crawl itself, not just
+        # whether a file exists, and refuse BEFORE importing so the false findings never land.
+        verdict = crawl_verdict(result)
+        if verdict.refuse:
+            r.status = "refused"
+            r.error_text = verdict.reason
+            session.commit()
+            return {"run_id": run_id, "status": "refused"}
+
         # Load from the REPORT ON DISK via the same function the backfill importer uses, so a run
         # made through the product is byte-for-byte the same shape as an imported one — including
         # the resolved tail, which the previous in-memory path silently dropped.
@@ -178,6 +204,106 @@ def digest_for_run(run_id: int) -> dict:
         subject, body = render_digest(brand, run, new_errors)
         sent = send(subject, body)
         return {"sent": sent, "subject": subject, "new_errors": len(new_errors)}
+
+
+# A crawl that reached almost none of the site is not a census, and must never publish as one.
+#
+# MEASURED, not chosen. Across the 106 historical run summaries on disk the fetch success rate has a
+# median of 99.7% and a 10th percentile of 90.5%. Exactly ONE run falls below 50% — RR run 119, which
+# attempted 8,029 pages, got 77 back, and was recorded `ok`. The legitimate lows sit well clear of
+# the floor: COC 58.7% (its sitemap really is ~38% dead), MHD 69% (degraded origin), DBH 75%.
+# So a 50% floor fires once in 106 runs, on the one run we know was wrong.
+CRAWL_FLOOR = 0.50
+
+# A RELATIVE test — "did this collapse from the brand's own norm" — was designed, measured, and
+# DROPPED. The idea is sound: one number cannot separate "throttled tonight" from "this brand has
+# always been at 70%". The data does not support it. Measured against the same 106 runs, refusing at
+# `rate < ratio x brand_median` costs:
+#
+#     ratio 0.50 -> 0 legitimate runs refused
+#     ratio 0.60 -> 1 refused: COC at 58.7%, a REAL run (its sitemap is ~38% dead)
+#     ratio 0.70 -> 2 refused: COC at 62.4% and 58.7%
+#
+# So 0.50 is the tightest safe ratio, and at 0.50 the relative threshold lands at ~49.9% for a brand
+# with a 99.7% median — below the hard floor, for every brand we have. It could never fire.
+# Shipping a guard that cannot trigger is worse than shipping none: it reads as protection.
+#
+# The hard floor already achieves what the relative test was for. MHD is the case that motivated it —
+# always ~69-88%, never healthy — and 50% clears MHD comfortably while catching the 1% run.
+# Revisit only with new evidence: a brand whose legitimate floor is genuinely below 50%.
+
+
+# Seconds to wait before starting a crawl when another has only just finished.
+#
+# At 05:58 on 2026-09-01 the queue started GL, RR and MHD in the 8 seconds after COC's run ended
+# with a 400-request link-probe burst. All three were rate limited, each failed enumeration in 2-3
+# seconds, and each was recorded as "the website was unreachable" — a confident statement about the
+# client's sites produced entirely by our own burst. Ten minutes later all three served 200.
+#
+# 90s is chosen to be longer than a typical rate-limit window and short enough to be invisible
+# against runs measured in hours. It is not tuned; if throttling recurs, raise it.
+COOLDOWN_SECONDS = 90
+
+
+def cooldown_seconds(seconds_since_last_run: float | None) -> float:
+    """How long to wait before hitting the network again. 0 when the last run is long past."""
+    if seconds_since_last_run is None:
+        return 0
+    remaining = COOLDOWN_SECONDS - seconds_since_last_run
+    return remaining if remaining > 0 else 0
+
+
+@dataclass
+class CrawlVerdict:
+    """Whether this run may stand as a result, and the sentence a human reads if not."""
+    refuse: bool
+    reason: str = ""
+
+
+def crawl_verdict(result: dict, history: list[float] | None = None) -> CrawlVerdict:
+    """Decide whether a finished crawl is a result or a failure to reach the site.
+
+    The old test was `pages_audited == 0`. 77 is not 0, so a run that reached 0.96% of RR was
+    recorded as a successful full census — and the 7,777 "page unreachable" findings it produced
+    read as the client's site being down. They were our throttling.
+
+    Every reason here says whose fault it is. That is the point: the previous refusal text —
+    "The website was unreachable or its page index is missing" — was a confident statement about
+    the client's site, produced by our own condition.
+    """
+    fetched = int(result.get("fetched") or 0)
+    ok = int(result.get("fetched_ok") or 0)
+    resumed = int(result.get("resumed_from_cache") or 0)
+    blocked = bool(result.get("sitemap_blocked"))
+
+    # Nothing to fetch at all: enumeration found no URLs.
+    if fetched == 0 and resumed == 0:
+        if blocked:
+            return CrawlVerdict(True, (
+                "the page index could not be read because the site BLOCKED our crawler, so nothing "
+                "was audited. This is a access problem between us and the site, not evidence that "
+                "the site is broken. Previous results are unchanged — this brand has NOT been "
+                "audited and has NOT been given a clean bill of health."))
+        return CrawlVerdict(True, (
+            "no pages could be enumerated, so nothing was audited. The site's page index is "
+            "missing or empty. Previous results are unchanged — this brand has NOT been audited "
+            "and has NOT been given a clean bill of health."))
+
+    if fetched == 0:
+        return CrawlVerdict(False)          # everything served from cache; a legitimate resume
+
+    rate = ok / fetched
+    common = (f"Previous results are unchanged — this brand has NOT been audited and has NOT been "
+              f"given a clean bill of health. Try again later, and more slowly.")
+
+    if rate < CRAWL_FLOOR:
+        return CrawlVerdict(True, (
+            f"this run reached only {ok:,} of {fetched:,} pages ({rate:.1%}). A crawl that fails "
+            f"that broadly is almost always OUR side being throttled or rate limited, not the "
+            f"site going down — pages do not stop existing all at once. Reporting it would claim "
+            f"{fetched - ok:,} of the client's pages are unreachable when they are not. {common}"))
+
+    return CrawlVerdict(False)
 
 
 def settle_abandoned_run(run: Run | None) -> str | None:

@@ -1324,3 +1324,69 @@ every brand with no code change and no visible cause.
 ships DATA — a dictionary, a metadata bundle, a parser's behaviour — is a ruleset, and every ruleset
 a check's output depends on belongs in the hash. Code we import is not automatically neutral just
 because we did not write it.
+
+---
+
+## D17. A fast negative is a suspicious negative — and our failure must never be rendered as their defect
+
+Four times this project has produced a confident statement about the client's site that was actually
+a statement about our own machinery. D14 named the shape for defects we created by altering the
+page. This is the other half: **failures of OUR access, reported as facts about THEIR site.**
+
+| # | What went wrong on our side | What we told the client | Scale |
+|---|---|---|---|
+| 1 | a child sitemap 5xx'd, so the read was partial | "~1% of this site is in the sitemap" | MHD's 15,635-URL sitemap read as 96 |
+| 2 | a stylesheet failed to fetch, so `display:none` was unknown | text findings on copy no reader can see | contained by `css_status` |
+| 3 | the GeoData bind mount was wrong, so every page threw | "The website was unreachable or its page index is missing" | every page of the run |
+| 4 | we were rate limited after a 400-request burst | "7,777 of your pages are unreachable" | 97% of RR |
+
+Instance 4 is the worst because it was the most confident. **The more of our failure there is, the
+more authoritative the wrong statement looks.** One unreachable page is a maybe; 7,777 reads as a
+site-wide outage — and the volume came entirely from the size of our own failure.
+
+### The rule
+
+> **Any check that concludes something about the client's site in less time than the work would
+> honestly take should refuse to conclude.**
+
+Enumeration cannot fetch a sitemap index and its children in two seconds. A link probe cannot check
+400 targets instantly. A crawl cannot discover that 8,000 pages died at the same moment. When the
+answer arrives faster than the question could be asked, the answer is about us.
+
+And its corollary, which instance 4 forced:
+
+> **A negative is only as strong as the evidence-gathering that produced it. Check the gathering,
+> not just the result.** `pages_audited == 0` was the entire test. 77 is not 0, so a run that
+> reached 0.96% of a site passed as a census — and 7,777 findings about the client were the output
+> of our own throttling.
+
+### What this is now, in code
+
+* **`server/jobs.py::crawl_verdict`** — refuses when the fetch success rate collapses, not only at
+  zero. The floor is 50%, and it is MEASURED: across 106 historical runs the median rate is 99.7%,
+  the 10th percentile 90.5%, and exactly one run falls below 50% — the throttled one. Legitimate
+  lows clear it (COC 58.7%, its sitemap really is ~38% dead; MHD 69%; DBH 75%).
+* **A relative "collapse from this brand's norm" test was designed, measured and dropped.** Any
+  ratio tight enough to catch a 55% run also refuses COC's real 58.7% one, and the tightest safe
+  ratio (0.50) lands below the hard floor for every brand we have — it could never fire. A guard
+  that cannot trigger is worse than none, because it reads as protection. The measurement is kept
+  in `server/jobs.py` and in a test, so anyone re-adding one confronts the numbers first.
+* **Blocked is distinguished from empty.** `sitemap_blocked` already carried the fact; the refusal
+  used to infer "the website was unreachable" from a zero count. It now says which happened.
+* **A cooldown between runs** (`COOLDOWN_SECONDS = 90`). The queue used to start the next brand's
+  enumeration the instant the previous run ended, which is how three brands landed inside one
+  400-request burst.
+* **Still owed, and batched because it is hashed:** mass fetch failure must collapse into ONE
+  run-level statement instead of one finding per page. 7,777 simultaneous unreachables is one fact
+  about our run, not 7,777 facts about their site — the same collapse discipline already applied to
+  template defects and colour pairs.
+
+### The through-line with D13, D14 and D15
+
+D13: a projection dropped a field, so absence of evidence in the database meant nothing.
+D14: our tooling altered the page, then reported the alteration.
+D15: the crawl and the database write are independent, so success in one said nothing about the other.
+D17: our access failed, and the failure was rendered as the client's defect.
+
+All four are the same mistake: **trusting the instrument's reading over the thing being measured,
+because the instrument is what is in front of you.**
