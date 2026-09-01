@@ -177,7 +177,16 @@ def _cross_page_duplicates(projections: list[PageProjection]) -> list[Finding]:
                     fingerprint=make_fingerprint(check, "dup", label, val),
                     issue=f"duplicate {label} across pages",
                     location="head" if check == "meta" else "page",
-                    snippet=val[:80], details={"count": len(urls), "pages": urls[:8]}))
+                    snippet=val[:80],
+                    # `sources` / `page_count`, NOT `pages` / `count`. The importer reads `sources`
+                    # and falls back to page_count=1 when it is missing, so the old key names meant
+                    # 591 findings spanning thousands of pages were stored as single-page — `meta`
+                    # 347 of them, `heading_structure` 244. A duplicate meta description across 102
+                    # pages was ranked on one page's traffic. `count` was right and never read.
+                    details={"page_count": len(urls),
+                             "sources": urls[:8],
+                             "sources_truncated": len(urls) > 8,
+                             "source_pattern": _source_pattern(urls, [p.url for p in projections])}))
 
     dup_by(lambda p: p.title, "title", "meta", Severity.WARNING)
     dup_by(lambda p: p.meta_description, "meta description", "meta", Severity.WARNING)
