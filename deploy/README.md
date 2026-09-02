@@ -9,7 +9,7 @@ Postgres alone costs more than this entire box) — is in
 [`docs/plans/2026-08-14-product-design.md`](../docs/plans/2026-08-14-product-design.md).
 
 **The one number that shapes every decision below: a full audit of the eight healthy brands takes
-about twelve hours** (measured 2026-08-17/20, not estimated), and **RR alone is 8,030 pages / 9.4
+about twelve hours** on an UNLOADED machine (measured 2026-08-17/20), and **RR alone is 8,029 pages** — most of the run. Hour figures depend on host load far more than on the sites: the same work took 5-10x longer on 2026-09-01/02 with the machine at load 167. Check `uptime` before planning; see the runtime section of the root README.
 hours** — it is both the biggest site and the slowest per page (14.2 pg/min against 44–70 for the
 others). MHD is on top of that and is never run in full. Nothing here may assume a short-running
 process.
@@ -247,7 +247,7 @@ remember. Passing `{"max_pages": N}` overrides it; passing nothing is the safe p
 
 That matters because its origin is genuinely fragile: concurrency is locked at 2 and throughput is
 **~2.1 pages/min measured** (the "~10 pages/min" this runbook used to claim was wrong by 5x), so a
-full 11,439-page census is ~91 hours and the 15,635-URL sitemap ~131. A 900-page sample is ~7 hours.
+full census of its **10,722-URL** sitemap is ~85 hours. A 900-page sample is ~7 hours. (The sitemap was 15,635 URLs until 2026-08-21 — figures quoted against that are ~31% high.)
 
 `deploy/nightly_enqueue.py` still refuses MHD, and should keep refusing it — not because the API
 lacks the parameter any more, but because ~7 hours of nightly traffic into a host that 503s under

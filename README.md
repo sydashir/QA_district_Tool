@@ -56,7 +56,7 @@ that is a multi-day job, so it is not what you normally want. See below.
 |---|---|---|
 | The eight brands **excluding MHD** | 15,525 | **8h20m** |
 | of which **RR alone** | 7,962 | **5h44m — 69% of the total** |
-| **MHD** | 15,635 | **~131h for a full census — not attempted; audited as a sample** |
+| **MHD** | 10,722 (was 15,635 before 2026-08-21) | **~85h for a full census — not attempted; audited as a sample** |
 
 RR is most of the run. If you only have an evening, RR is the one to leave for its own night.
 
@@ -107,7 +107,7 @@ minute is the CONSEQUENCE of that ceiling, not a separate throughput problem.** 
 speed here by waiting or retrying; the only lever is concurrency, and it is already at its safe
 maximum.
 
-At that rate a full **15,635-page** census is **~131 hours (5.5 days)**. That is why a complete MHD
+At that rate a full census of its **10,722-URL** sitemap is **~85 hours**. (It was 15,635 URLs until 2026-08-21 and ~131h; the sitemap shrank by a third, cause unknown. Any figure quoted against 15,635 is now high.) That is why a complete MHD
 audit is not attempted: what we publish is a **sample**, and the `Summary` tab labels it
 `PARTIAL SAMPLE` so nobody mistakes it for a full check.
 

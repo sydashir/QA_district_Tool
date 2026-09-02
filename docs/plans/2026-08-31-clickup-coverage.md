@@ -2,7 +2,7 @@
 
 **2026-08-31. Read-only pass over ClickUp; nothing was written there.**
 Every "covered" claim below is checked against the code or the findings database, not assumed.
-Counts are from the latest `ok` run per brand (nine brands, 325,031 findings).
+Counts are from the latest `ok` run per brand at the time of writing. **Corrected 2026-09-02:** the figure originally given here, 325,031, was the ALL-TIME row count across every run ever — the current set was 39,758. `findings` is per-run, so a total over the table counts the same defect once per run it appeared in. The per-class numbers below are current-set and stand.
 
 | # | Task | Status | Covered? |
 |---|---|---|---|

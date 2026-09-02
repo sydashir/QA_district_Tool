@@ -192,7 +192,7 @@ Sitemap URLs are **not** in the sheet; derive as WordPress/Rank Math default and
 
 | Brand | Base URL | Canonical phone(s) | Notes |
 |---|---|---|---|
-| RR (Renaissance Recovery) | https://www.renaissancerecovery.com | SEO 866-330-9449 · PPC 866-923-1867 | **~8k pages** (audit set 8,030 = 7,854 sitemap + 176 REST-only; 7,999 audited 2026-08-20). Largest site by far, and the slowest per page of the healthy brands (14.2 pg/min vs 44–70 elsewhere) — it alone is 9.4h of any full re-crawl. |
+| RR (Renaissance Recovery) | https://www.renaissancerecovery.com | SEO 866-330-9449 · PPC 866-923-1867 | **~8k pages** (run 107, 2026-08-27: audit set **8,029 = 7,854 sitemap + 175 REST-only**, **7,995 audited**). Largest site by far and the slowest per page, so it dominates any full re-crawl. **Do not quote a fixed hour figure** — throughput is set by host load, not by RR: measured between 5.8 and 14.2 pg/min across runs. See the runtime section of README.md. |
 | GL (Gratitude Lodge) | https://www.gratitudelodge.com | SEO 844-576-0144 · PPC 844-972-2859 | best ground-truth fixture (problem_sheet.csv) |
 | AH (Addiction Hotline) | https://addictionhotline.com/ | (844) 575-6602 · (855) 701-0479 | |
 | COC (Connections) | https://connectionsoc.com/ | 844-759-0999 | phone-bug motivating example |
@@ -469,9 +469,11 @@ remaining work is *operating* it, not extending it.
 2. **MHD is degraded and only ever sampled.** Its origin 503s under concurrent requests; conc 4 once
    pushed it into 500s that outlasted the run, so **max_concurrency = 2 is a locked ceiling** — the
    binding constraint is CONCURRENCY, and ~2 pg/min is its consequence (**measured 2.10 pg/min over
-   4,600 pages, 2026-08-19/20** — not an estimate). A full census is ~131h against the 15,635-URL
-   sitemap, ~91h against the 11,439-page audit set, so it is published as a labelled `PARTIAL
-   SAMPLE`. **Since 2026-08-20 this is enforced by the product, not by remembering:** MHD carries
+   4,600 pages, 2026-08-19/20** — not an estimate). A full census is impractical, and the
+   scale figure has MOVED: the sitemap was **15,635 URLs up to 2026-08-05 and has been 10,722 since
+   2026-08-21** (runs 83/84/85 vs 99/108 — it shrank by a third; cause unknown, not investigated).
+   Any hour estimate quoted against 15,635 is now ~31% high. At ~2.1 pg/min a 10,722-URL census is
+   still ~85h, so it is published as a labelled `PARTIAL SAMPLE`. **Since 2026-08-20 this is enforced by the product, not by remembering:** MHD carries
    `default_sample_size = 900`, so `POST /runs` caps it automatically with no flag. 900 is the
    largest sample MHD has ever actually published (901 on 2026-07-30; 353 twice on 08-05).
    **If enumeration returns blocked + 0 URLs, that is evidence the origin is degraded: leave it
