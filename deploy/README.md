@@ -263,10 +263,25 @@ cp /opt/auditor/deploy/auditor-nightly.timer   /etc/systemd/system/
 systemctl daemon-reload
 systemctl enable --now auditor-nightly.timer
 
+# REQUIRED, and easy to miss: say which brands the timer is allowed to queue. Every brand ships
+# with schedule_cron NULL, so until you run this the timer fires and queues nothing.
+docker compose exec -T db psql -U district -d district \
+  -c "UPDATE brands SET schedule_cron = '0 2 * * *' WHERE code <> 'MHD'"
+
 systemctl list-timers auditor-nightly.timer    # NEXT should be tomorrow 02:00 Pacific
 systemctl start auditor-nightly.service        # dry test: queues now, ignores the timer
 journalctl -u auditor-nightly -n 30
 ```
+
+**Why that UPDATE is a separate step rather than a default.** `brands.schedule_cron` is the only
+thing the dashboard reads to decide whether to tell a reader "audits run by themselves overnight".
+The importer used to stamp every non-MHD brand with `0 2 * * *` on import, so the dashboard said
+that sentence on installs where no timer existed — and a false one is worse than silence: a QA
+person who believes it does not start a run, because they think one already happened, and the sites
+go unaudited while the screen says they are covered. So the field is NULL until a timer really
+exists. `nightly_enqueue.py` fails loudly (`no brands are scheduled — nothing was queued`, exit 1)
+rather than passing quietly, so a forgotten UPDATE shows up in `systemctl status` the first night.
+MHD stays NULL on purpose — a full census is ~85h, so it is only ever a hand-started sample.
 
 The timer fires at **02:00 America/Los_Angeles** — the client's stated 2am–5am PST crawl window —
 with `Persistent=true` and up to 15 minutes of jitter. The unit files explain why it is a timer and

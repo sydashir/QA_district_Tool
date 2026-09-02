@@ -293,3 +293,31 @@ def test_pages_record_the_run_that_first_saw_them(session, brand, tmp_path):
     assert old.last_seen_run_id == run2.id
     new = pages["https://www.gratitudelodge.com/brand-new"]
     assert new.first_seen_run_id == run2.id
+
+
+def test_ensure_brands_never_claims_a_schedule(session):
+    """A brand row must not come out of an import claiming to be audited automatically.
+
+    `brands.schedule_cron` is the only thing the dashboard reads to decide whether to print "audits
+    run by themselves overnight". The importer used to stamp every non-MHD brand with `0 2 * * *`
+    on every import, so that sentence appeared on installs where no timer existed. A false one is
+    worse than silence: a QA reader who believes it does not start a run, thinking one already
+    happened, and the sites go unaudited while the screen says they are covered.
+    """
+    brands = importer.ensure_brands(session)
+    assert brands, "no brand config was loaded"
+    claimed = {code for code, b in brands.items() if b.schedule_cron}
+    assert not claimed, f"import invented a schedule for {sorted(claimed)}"
+
+
+def test_ensure_brands_does_not_wipe_a_real_schedule(session):
+    """...and once a timer genuinely exists, a later import must leave its cron alone."""
+    first = importer.ensure_brands(session)
+    session.commit()
+    code = next(iter(first))
+    session.scalar(select(Brand).where(Brand.code == code)).schedule_cron = "0 2 * * *"
+    session.commit()
+
+    importer.ensure_brands(session)
+    session.commit()
+    assert session.scalar(select(Brand).where(Brand.code == code)).schedule_cron == "0 2 * * *"

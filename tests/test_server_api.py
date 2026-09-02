@@ -120,7 +120,7 @@ def seed(sessions):
                       schedule_cron="0 2 * * *")
         gl = mk_brand(s, "GL", "Gratitude Lodge", "https://www.gratitudelodge.com",
                       schedule_cron="0 2 * * *")
-        # MHD is deliberately unscheduled: a full census is ~131h, so it is a labelled sample.
+        # MHD is deliberately unscheduled: a full census is ~85h, so it is a labelled sample.
         mhd = mk_brand(s, "MHD", "Inpatient Mental Health Finder",
                        "https://inpatientmentalhealthfinder.com", schedule_cron=None)
 

@@ -56,9 +56,8 @@ files and served alongside the API; `deploy/README.md` covers serving it.
 
 **Overview** — every brand, its open counts, and how many nobody has looked at yet. A brand that
 could not be audited says so on its own card instead of showing a low number that reads like good
-news. One caveat visible in this shot: the intro panel says audits run overnight, which is what the
-database records as *intended* — no timer is installed on this machine, so today nothing runs unless
-a person starts it. "Nothing runs it" below is the operative fact.
+news, and every card says "not scheduled" because nothing on this install runs on its own — the
+panel and the cards both say so rather than leaving a reader to assume otherwise.
 
 ![Dashboard](screenshots/dashboard.png)
 
