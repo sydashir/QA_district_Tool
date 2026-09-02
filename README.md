@@ -50,7 +50,7 @@ that is a multi-day job, so it is not what you normally want. See below.
 
 ### How long it takes — read this before you start
 
-**Measured on a real full run, 2026-08-04:**
+**Measured on a real full run, 2026-08-04, ON AN OTHERWISE IDLE MACHINE:**
 
 | Brands | Pages | Time |
 |---|---|---|
@@ -59,6 +59,43 @@ that is a multi-day job, so it is not what you normally want. See below.
 | **MHD** | 15,635 | **~131h for a full census — not attempted; audited as a sample** |
 
 RR is most of the run. If you only have an evening, RR is the one to leave for its own night.
+
+### THESE TIMES ASSUME THE MACHINE IS NOT BUSY, AND THAT IS THE BIGGEST VARIABLE
+
+Throughput is dominated by host load, not by the tool or the sites. **Measured 2026-09-01/02 on the
+same machine while Docker was saturating it:**
+
+| brand | pages | minutes | pages/min | vs its own historical median |
+|---|---|---|---|---|
+| TDRC | 19 | 2 | 9.4 | 12.3 |
+| AH | 179 | 14 | 12.8 | 33.4 |
+| AR | 474 | 109 | 4.4 | 19.6 |
+| DBH | 574 | 97 | 5.9 | 26.5 |
+| CAD | 1,239 | 198 | 6.3 | 35.5 |
+| COC | 1,458 | **873** | 1.7 | 16.8 |
+
+Six brands, 3,943 pages, **21.6 hours** — work the 2026-08-04 baseline did at roughly ten times the
+rate. **Every brand's slowest run on record is one of these**, which is what tells you it is the
+host and not any individual site.
+
+The machine at the time: **12 cores, load average 167**, `com.docker.backend` pinned at **1000% CPU**
+(ten of twelve cores), 595k pageouts, disk 95% full. The auditor's own worker was using one core.
+The same condition was recorded on 2026-08-21 at load 947 — it recurs.
+
+**So check before you plan, and do not trust either number blindly:**
+
+```bash
+uptime                                   # load should be well under the core count
+docker stats --no-stream                 # com.docker.backend must not be pinned
+df -h .                                  # a full disk makes everything worse
+```
+
+A run on a quiet machine tracks the 2026-08-04 column. A run on a machine like the one above takes
+five to ten times longer and there is nothing wrong with the tool. **Do not "fix" the documented
+times by replacing them with the slow ones** — that would record a host problem as a property of
+the auditor, and the next person would plan a week for an evening's work.
+
+COC's 873-minute run has a second cause layered on top; see the throttling note below.
 
 **MHD is a special case, and the reason is CONCURRENCY, not speed.**
 
@@ -77,6 +114,33 @@ audit is not attempted: what we publish is a **sample**, and the `Summary` tab l
 > An earlier version of this file said MHD "takes about 29 hours". **That figure was never
 > supported by any measurement** and has been removed — do not reinstate it. The measured numbers
 > are the ones above.
+
+### COC throttles too, and it is not the same thing as MHD
+
+COC's 2026-09-02 run took **873 minutes for 1,458 pages**, and the hourly page counts recorded by the
+crawl show what happened:
+
+```
+02:00  275 pages   03:00  380   04:00  350   05:00  201     <- healthy, ~5/min
+06:00    (none)
+07:00    2   08:00   2   09:00  10   10:00  13   11:00   8   <- nine hours at 2-13 pages/HOUR
+12:00   11   13:00  13   14:00   7   15:00  10
+16:00   50 and climbing                                     <- released, back to ~8-10/min
+```
+
+That is not the machine (the machine was equally busy at 03:00, when it managed 380 pages/hour) and
+it is not a stall — a stall gives zero, not two. It is the origin holding the crawler at a trickle
+and then releasing it.
+
+**It differs from MHD in the way that matters.** MHD collapses into 500s under parallel requests, so
+its ceiling is CONCURRENCY and is locked at 2. COC's pages all returned **200** — slowly. Nothing
+failed, no findings were lost, and `crawl_verdict` correctly did not refuse the run. The cost is
+wall clock only.
+
+**No concurrency change is proposed for COC on this evidence.** One observation is not a
+characterisation, and lowering concurrency on a host that answers every request successfully would
+trade certain slowness for a guess. Watch it on the next run; if the trickle recurs, measure it
+against concurrency the way MHD's ceiling was measured before changing anything.
 
 **If enumeration comes back `blocked` with 0 URLs, stop.** That state is itself evidence the origin
 is degraded, and the tool correctly refuses to publish anything from it. Leave MHD alone and try
