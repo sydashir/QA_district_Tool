@@ -300,9 +300,34 @@ auditor.example.com {
 }
 ```
 
-Same-origin, so no CORS is involved — which matters, because `server/api.py:37` allows only
-`http://localhost:5173`. Serving the SPA from a *different* origin than the API means editing that
-line as well.
+Same-origin, so no CORS is involved. If you serve the SPA from a *different* origin than the API,
+set `CORS_ORIGINS` (comma-separated) in `.env` — it defaults to `http://localhost:5173`, which is
+right for the dev server and wrong for everything else. `allow_credentials=True` means the browser
+rejects a wildcard, so the list has to name every origin explicitly.
+
+### Opening it with no data (demo, or a fresh machine)
+
+A full crawl is about twelve hours, so a new install shows nine empty cards until it finishes —
+which makes it impossible to demo and impossible to tell "correctly wired" from "no data yet".
+`scripts/seed_demo.py` fills a database with synthetic runs through the real importer:
+
+```bash
+docker compose exec -T db psql -U district -d postgres -c 'CREATE DATABASE district_demo'
+export DATABASE_URL='postgresql+psycopg://district:PASSWORD@127.0.0.1:55432/district_demo'
+python3 -m alembic upgrade head            # also the fresh-machine migration check
+python3 scripts/seed_demo.py               # 9 brands, 6 runs each, ~4,300 findings
+
+# a second API + dev server on that database, leaving the real pair alone
+python3 -m uvicorn server.api:app --host 127.0.0.1 --port 8098
+cd web && VITE_PORT=5174 VITE_API_TARGET=http://127.0.0.1:8098 npm run dev
+```
+
+Every demo URL is on `<code>.demo.invalid` — a reserved TLD that cannot resolve — so a synthetic
+row can never be mistaken for a real finding, in the UI or in an exported sheet. The script
+**refuses** to write to a database that already holds findings; that guard is the only thing
+standing between a mistyped `DATABASE_URL` and real run history, so do not reach for `--force`
+without reading what it says. Clean up with `scripts/seed_demo.py --clean` (removes `reports/_demo`)
+and `DROP DATABASE district_demo`.
 
 ---
 
