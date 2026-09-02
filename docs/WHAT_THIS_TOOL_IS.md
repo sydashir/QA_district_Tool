@@ -48,6 +48,41 @@ Findings worth naming:
 * The problems Blue Media reported by hand are now caught automatically — including the exact
   "Gratitude Lodge on the Connections site" case, and the `Inpateint` misspelling on 352 pages.
 
+## What it looks like
+
+The Google Sheet is the delivery surface, but there is also a web view of the same data — the
+screenshots below are the real thing against the real database, not mockups. It is built as static
+files and served alongside the API; `deploy/README.md` covers serving it.
+
+**Overview** — every brand, its open counts, and how many nobody has looked at yet. A brand that
+could not be audited says so on its own card instead of showing a low number that reads like good
+news. One caveat visible in this shot: the intro panel says audits run overnight, which is what the
+database records as *intended* — no timer is installed on this machine, so today nothing runs unless
+a person starts it. "Nothing runs it" below is the operative fact.
+
+![Dashboard](screenshots/dashboard.png)
+
+**Findings** — one row per defect, not per page. "on 3,346 pages" means one template fault repeated,
+so it is one fix. Filter by brand, type, severity or triage state.
+
+![Findings list](screenshots/findings.png)
+
+**One finding** — what to do about it, every affected address, the exact text found on the page, and
+the run-by-run history of whether it has ever gone away. Triage set here carries across runs, so
+nobody reads the same row twice.
+
+![Finding detail](screenshots/finding-detail.png)
+
+**What changed** — the difference between a brand's last two audits: what appeared, what went away,
+what pages are new. This is where you start after a run.
+
+![What changed](screenshots/changes.png)
+
+**Runs** — start an audit, and read the history of every pass. Runs that could not be checked or did
+not finish show a dash rather than a count, and say in words why that is not a clean result.
+
+![Run history](screenshots/runs.png)
+
 ## What it cannot see
 
 It reads the HTML a page sends; it does not open a browser. So it cannot see **anything visual**:

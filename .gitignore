@@ -32,7 +32,7 @@ spike/reports/
 data/
 .run_in_progress
 .playwright-mcp/
-dashboard.png
+/dashboard.png
 findings-loaded.md
 .backups
 
