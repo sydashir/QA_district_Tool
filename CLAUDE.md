@@ -197,11 +197,45 @@ Sitemap URLs are **not** in the sheet; derive as WordPress/Rank Math default and
 | AH (Addiction Hotline) | https://addictionhotline.com/ | (844) 575-6602 · (855) 701-0479 | |
 | COC (Connections) | https://connectionsoc.com/ | 844-759-0999 | phone-bug motivating example |
 | CAD (California Detox) | https://californiadetox.com/ | 888-995-4208 | empty-variable motivating example |
-| AR (Alliance Recovery) | https://alliancerecovery.com/ | 844-287-8506 (+844-263-5113, (877) 511-4904) | multiple numbers — confirm canonical |
+| AR (Alliance Recovery) | https://alliancerecovery.com/ | 844-287-8506 (+844-263-5113, (877) 511-4904) | multiple numbers — confirm canonical. **WE AUDIT 474 PAGES; ITS SITEMAP ADVERTISES ~11,200** — see §6a |
 | MHD (Mental Health Directory / Inpatient finder) | https://inpatientmentalhealthfinder.com/ | (888) 376-8385 | |
 | TDRC (The District Recovery Community) | https://thedistrictrecoverycommunity.com/ | (888) 871-2088 | |
 | DBH (District Behavioral Health) | **not in sheet** | 888-707-6073 | parent brand; base URL unknown |
 | SLN (Sober Living Nation) | **not live yet** | none | soberlivingnation.com when taken live |
+
+### §6a. AR is audited at 4% of what its sitemap advertises (found 2026-09-02)
+
+Every AR run since at least 2026-08-11 has enumerated **4 sitemap URLs** and reached 474 pages only
+because WP-REST supplied 470 of them. Verified in five consecutive runs (51, 90, 102, 111, 123):
+`audit_scope = {sitemap: 4, rest_only_added: 470, union: 474}`.
+
+**What the sitemap actually advertises, checked directly 2026-09-02:**
+
+| child sitemap | URLs |
+|---|---|
+| `city-data-sitemap1..5.xml` | 2,000 each |
+| `city-data-sitemap6.xml` | 746 |
+| `page-sitemap.xml` | **HTTP 500 — broken on their side** |
+| `location-sitemap.xml` | 2 |
+| | **~10,746 under `/city-data/` alone** |
+
+**None of those 10,746 URLs are in our audit set.** AR's audited pages are `/vs/`, `/adderall/`,
+`/ketamine/` and similar — not one `/city-data/` page.
+
+Two facts worth separating:
+
+* **Why we miss them:** the run records `sitemap_partial: True` with failed children, so the
+  coverage guard correctly withholds `indexable_unsitemapped` — a partial read must never produce a
+  coverage finding. The guard is right. **What is missing is that nobody was told the SCOPE was 4%.**
+  The children respond 200 today, so the failure may be transient or a size/timeout issue on
+  2,000-URL children; **cause unconfirmed, and it should not be guessed at.**
+* **What is on those URLs:** every one ends in `-2` (`east-lansing-mi-2`, `east-hartford-ct-2`) —
+  the WordPress slug-collision suffix, i.e. exactly the `meta:collision_slug` check. A spot-checked
+  URL returns **301**, and a sitemap should list canonical 200s. So AR's sitemap advertises ~10,746
+  redirecting duplicate-slug URLs, and we have never audited any of them.
+
+**This is an escalation, not a to-do:** it needs Syed to decide whether AR's real scope is 474 pages
+or ~11,000 before any AR result is quoted as coverage.
 
 PPC subdomains `help.rr` / `help.gl` / `gethelp.rr` / `gethelp.gl` are named in jake_doc but
 **absent from the sheet** (URLs unknown). All sites are behind **Cloudflare** (set up by HWA).
