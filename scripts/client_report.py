@@ -140,6 +140,32 @@ def fetch(session, brand_code: str):
 # not survive an email, and that is how these are actually delivered. 4 MB is far above the measured
 # need (~20 KB a shot, a handful of shots per brand) and exists so a pathological run cannot produce
 # a report nobody can open. A budget that is hit is ANNOUNCED, never silently applied.
+# Brands whose audit deliberately covers PART of the site. A report that silently covers 4% of a
+# site reads as a report on the site, so the scope is stated in the report itself rather than living
+# in a plan document nobody opens.
+#
+# Each note must carry its EVIDENCE and its DATE. A scope claim without either rots into an
+# assertion, and the next person cannot tell whether it is still true or how it was established.
+SCOPE_NOTES = {
+    "AR": (
+        "This audit covers <strong>474 pages</strong>. Alliance Recovery's sitemap advertises about "
+        "<strong>11,200 URLs</strong> — the other ~10,746 are <code>/city-data/</code> pages that "
+        "were deliberately left out, because they are duplicates of one another rather than "
+        "11,000 different pages. Two things establish that, both checked on 2026-09-02: every one "
+        "of those URLs ends in <code>-2</code>, which is what WordPress adds when a web address is "
+        "already taken, and the ones we followed all redirect to the Alliance Recovery homepage "
+        "rather than showing city content. Auditing 11,000 copies of the same redirect would fill "
+        "this report without telling you anything new. "
+        "<strong>They are still worth your attention as a group:</strong> a sitemap that lists "
+        "~10,746 redirecting duplicate addresses is telling search engines to crawl 11,000 pages "
+        "that do not exist as distinct content. Separately, "
+        "<code>alliancerecovery.com/page-sitemap.xml</code> returns a server error (HTTP 500) and "
+        "has done so on every run we have recorded, so the pages it should list are invisible both "
+        "to us and to search engines."
+    ),
+}
+
+
 SHOT_BUDGET_BYTES = 4 * 1024 * 1024
 
 
@@ -227,6 +253,11 @@ def render(brand_code: str, run, findings) -> str:
     # findings are not on it. Without this note the section simply vanishes and its silence reads as
     # "nothing wrong", when the truth is "nobody looked" — the same distinction the contrast
     # coverage caveat protects. Cheap to state, and it is how anyone notices the drift.
+    # Stated before everything else in this section: a reader who does not know the scope cannot
+    # interpret anything below it.
+    _sn = SCOPE_NOTES.get(brand_code.upper())
+    scope_note = (f"<p class='caveat'><strong>Scope of this audit.</strong> {_sn}</p>") if _sn else ""
+
     acc_note = ""
     if not any(f[0] == "accessibility" for f in findings):
         acc_note = ("<p class='caveat'><strong>The accessibility checks were not run against this "
@@ -286,7 +317,7 @@ footer{{margin-top:44px;color:var(--mut);font-size:13px;border-top:1px solid var
 page it was found on.</p>
 {''.join(out)}
 <section class="limits"><h2>What this audit cannot see</h2>
-{acc_note}
+{scope_note}{acc_note}
 <p class="why">Being told a category is empty is only useful alongside what was never looked at.
 The audit reads the HTML each page sends to a browser. It does not draw the page, so anything that
 only exists once the page is on a screen is invisible to it — and silence below does
