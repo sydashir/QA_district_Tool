@@ -39,14 +39,38 @@ _STYLE_ID = "qa-shot-style"
 _FLAG_ATTR = "data-qa-flag"
 
 _MARK = """([sel, pad, outline, styleId, flagAttr]) => {
-    const els = document.querySelectorAll(sel);
-    if (els.length !== 1) return {count: els.length};
-    const el = els[0];
+    const els = [...document.querySelectorAll(sel)];
+    if (els.length === 0) return {count: 0};
+
+    // MEASURED ON GL RUN 128 (2026-09-03), and it is why this branch exists at all.
+    // `display_dial_mismatch` located only 27% of 22 selectors, against a 70% floor — but 15 of
+    // the 22 misses were `many`, and in EVERY one of those the matches were byte-identical:
+    // distinct href = 1, distinct text = 1. They are the mobile and desktop copies of one anchor
+    // in a responsive layout, so the CSS path legitimately matches both. There is no "wrong
+    // element" to pick, because the candidates are the same defect rendered twice.
+    //
+    // So the refusal rule stays what it was — never guess between DIFFERENT elements — but it now
+    // asks the right question. Elements are equivalent when tag, href and trimmed text all match;
+    // if they are, photograph the first one with a box. If they genuinely differ, refuse exactly
+    // as before, because then the wrong element really is worse than none.
+    const sig = e => e.tagName + '|' + (e.getAttribute('href') || '')
+                     + '|' + (e.textContent || '').trim();
+    const equivalent = els.length === 1 || new Set(els.map(sig)).size === 1;
+    if (!equivalent) return {count: els.length};
+
+    const boxed = e => {
+        const c = window.getComputedStyle(e), r = e.getBoundingClientRect();
+        return r.width >= 1 && r.height >= 1 && c.display !== 'none' && c.visibility !== 'hidden';
+    };
+    // Among identical copies, prefer one that can actually be photographed; if none can, fall back
+    // to the first so the caller still reports `uncapturable` rather than a locator failure.
+    const el = els.find(boxed) || els[0];
+    const duplicates = els.length > 1 ? els.length : 0;
     const cs = window.getComputedStyle(el);
     const r0 = el.getBoundingClientRect();
     // An element with no box cannot be photographed, and a zero-size clip throws in Playwright.
     if (r0.width < 1 || r0.height < 1 || cs.display === 'none' || cs.visibility === 'hidden')
-        return {count: 1, invisible: true};
+        return {count: 1, invisible: true, duplicates};
 
     el.setAttribute(flagAttr, '1');
     let style = document.getElementById(styleId);
@@ -58,7 +82,7 @@ _MARK = """([sel, pad, outline, styleId, flagAttr]) => {
     }
     el.scrollIntoView({block: 'center', inline: 'center', behavior: 'instant'});
     const r = el.getBoundingClientRect();
-    return {count: 1,
+    return {count: 1, duplicates,
             x: Math.max(0, r.x - pad),
             y: Math.max(0, r.y - pad),
             width: Math.min(window.innerWidth - Math.max(0, r.x - pad), r.width + pad * 2),
@@ -94,11 +118,19 @@ class ShotTally:
     #   many         — selector matched several; refused, because the wrong element is worse
     per_class: dict[str, dict[str, int]] = field(default_factory=dict)
 
-    def record(self, cls: str, outcome: str) -> None:
+    def record(self, cls: str, outcome: str, *, duplicates: int = 0) -> None:
         d = self.per_class.setdefault(
-            cls, {"attempted": 0, "captured": 0, "uncapturable": 0, "none": 0, "many": 0})
+            cls, {"attempted": 0, "captured": 0, "uncapturable": 0, "none": 0, "many": 0,
+                  "via_duplicates": 0})
         d["attempted"] += 1
         d[outcome] = d.get(outcome, 0) + 1
+        # Counted SEPARATELY and deliberately kept out of located_rate/hit_rate, which must stay
+        # "did the selector work" and "is there a picture". This says HOW it worked: the selector
+        # matched N identical copies of one element and the marker picked one. Worth seeing,
+        # because if it ever climbs to most of a class it means the CSS path has stopped
+        # discriminating and the equivalence check is carrying the feature.
+        if duplicates > 1:
+            d["via_duplicates"] += 1
 
     def located_rate(self, cls: str) -> float:
         """Did the SELECTOR work — the question the ship floor asks."""
@@ -153,11 +185,12 @@ def capture(page, selector: str, *, tally: ShotTally | None = None, cls: str = "
         return None
 
     count = box.get("count", 0)
+    dupes = int(box.get("duplicates") or 0)
     if count == 1 and box.get("invisible"):
         # The selector WORKED. The element simply has no box at this width — a hidden ancestor or a
         # 0x0 layout. That is a fact about the page, not a failure to locate.
         if tally:
-            tally.record(cls, "uncapturable")
+            tally.record(cls, "uncapturable", duplicates=dupes)
         return None
     if count != 1:
         if tally:
@@ -181,7 +214,7 @@ def capture(page, selector: str, *, tally: ShotTally | None = None, cls: str = "
             pass
 
     if tally:
-        tally.record(cls, "captured")
+        tally.record(cls, "captured", duplicates=dupes)
     return {"data_uri": "data:image/png;base64," + base64.b64encode(raw).decode("ascii"),
             "bytes": len(raw),
             "width": round(box["width"] * 2), "height": round(box["height"] * 2)}

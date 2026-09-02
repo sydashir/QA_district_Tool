@@ -308,3 +308,89 @@ def test_the_ship_floor_is_judged_on_the_locator(page):
     assert t.located_rate("x") == pytest.approx(0.8)
     assert "x" not in t.below_floor()
     assert SHIP_FLOOR <= 0.8
+
+
+# --------------------------------------------------------------------------- identical duplicates
+# Measured on GL run 128 (2026-09-03): `display_dial_mismatch` located 27% of 22 selectors against a
+# 70% floor, and 15 of the 22 misses were `many`. Every one of those had distinct href = 1 and
+# distinct text = 1 — the mobile and desktop copies of a single anchor in a responsive layout. The
+# gate was refusing two copies of the same defect, not choosing between different elements.
+
+def _twin_page(browser, html: str):
+    p = browser.new_page(viewport={"width": 390, "height": 844}, device_scale_factor=2)
+    p.set_content(html, wait_until="domcontentloaded")
+    return p
+
+
+def test_identical_copies_of_one_element_are_photographed_not_refused(browser):
+    """Two byte-identical anchors are one defect rendered twice. There is no wrong element to pick."""
+    from render.shots import ShotTally, capture
+
+    page = _twin_page(browser, """
+        <div><a href="tel:+18445760144">800-692-9850</a></div>
+        <div><a href="tel:+18445760144">800-692-9850</a></div>""")
+    try:
+        assert page.evaluate("() => document.querySelectorAll('div > a').length") == 2
+        tally = ShotTally()
+        shot = capture(page, "div > a", tally=tally, cls="display_dial_mismatch")
+        assert shot is not None, "identical copies should resolve, not be refused as ambiguous"
+        assert tally.per_class["display_dial_mismatch"]["captured"] == 1
+        assert tally.per_class["display_dial_mismatch"]["many"] == 0
+    finally:
+        page.close()
+
+
+def test_elements_that_merely_share_a_tag_are_still_refused(browser):
+    """The original guard has to survive: a picture of the WRONG element is worse than none."""
+    from render.shots import ShotTally, capture
+
+    page = _twin_page(browser, """
+        <div><a href="tel:+18445760144">800-692-9850</a></div>
+        <div><a href="tel:+18665551212">866-555-1212</a></div>""")
+    try:
+        tally = ShotTally()
+        assert capture(page, "div > a", tally=tally, cls="display_dial_mismatch") is None
+        assert tally.per_class["display_dial_mismatch"]["many"] == 1
+    finally:
+        page.close()
+
+
+def test_the_duplicate_path_is_counted_separately_from_the_rates(browser):
+    """`via_duplicates` must not quietly inflate located_rate — it explains HOW it resolved.
+
+    If this ever becomes most of a class, the CSS path has stopped discriminating and the
+    equivalence check is carrying the feature. That has to be visible, not folded into a pass.
+    """
+    from render.shots import ShotTally, capture
+
+    page = _twin_page(browser, """
+        <div><a href="tel:+18445760144">800-692-9850</a></div>
+        <div><a href="tel:+18445760144">800-692-9850</a></div>
+        <p><span id="solo">only one of me</span></p>""")
+    try:
+        tally = ShotTally()
+        capture(page, "div > a", tally=tally, cls="display_dial_mismatch")
+        capture(page, "#solo", tally=tally, cls="display_dial_mismatch")
+        d = tally.per_class["display_dial_mismatch"]
+        assert d["attempted"] == 2 and d["captured"] == 2
+        assert d["via_duplicates"] == 1, "the duplicate resolution should be visible"
+        assert tally.located_rate("display_dial_mismatch") == pytest.approx(1.0)
+    finally:
+        page.close()
+
+
+def test_among_identical_copies_the_photographable_one_is_chosen(browser):
+    """A responsive layout hides one copy. Picking the hidden one would report `uncapturable` for a
+    defect that is plainly visible on the page."""
+    from render.shots import ShotTally, capture
+
+    page = _twin_page(browser, """
+        <div style="display:none"><a href="tel:+18445760144">800-692-9850</a></div>
+        <div><a href="tel:+18445760144">800-692-9850</a></div>""")
+    try:
+        tally = ShotTally()
+        assert capture(page, "div > a", tally=tally, cls="display_dial_mismatch") is not None
+        assert tally.per_class["display_dial_mismatch"]["captured"] == 1
+        assert tally.per_class["display_dial_mismatch"]["uncapturable"] == 0
+    finally:
+        page.close()
