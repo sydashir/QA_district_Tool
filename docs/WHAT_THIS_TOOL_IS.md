@@ -101,7 +101,7 @@ It also does not judge writing. Two attempts at automated grammar/spelling were 
 1. **Nothing runs it.** There is no schedule. It runs when a person runs it — one command, about
    twelve hours. If nobody runs it, nothing is checked.
 2. **Inpatient Mental Health Finder is only ever sampled.** Its host collapses under normal
-   crawling, so a full pass would take ~131 hours. What gets published is labelled `PARTIAL SAMPLE`.
+   crawling, so a full pass would take ~85 hours. What gets published is labelled `PARTIAL SAMPLE`.
 3. **District Behavioral Health is audited from a fixed page list**, because its new platform
    publishes no page index. **Pages added after that list was written are invisible** and will
    never be checked until someone regenerates it.

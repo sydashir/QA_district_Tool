@@ -52,7 +52,7 @@ code. One way to do each thing — no parallel implementations "just in case."
 - **`parse.py` is the highest-blast-radius file in the repo — BATCH every change to it.** It is in
   `_GLOBAL_SRC`, so *any* edit rule-changes **every check on every brand at once** and costs a full
   re-crawl of all nine — **~12 hours without MHD, of which RR alone is 9.4h**, plus MHD (see §13;
-  a full census is ~131h, which is why it is never run). A one-line addition costs exactly the
+  a full census is ~85h, which is why it is never run). A one-line addition costs exactly the
   same as ten. So before touching it, work out everything the next few checks will need from it and
   make those changes in **one** commit — never one field at a time as each check comes up. The same
   is true of `report.py`. Compare a check module: editing `checks/phone.py` rule-changes only phone
