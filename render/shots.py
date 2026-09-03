@@ -212,8 +212,28 @@ class ShotTally:
         return "; ".join(parts) + note
 
 
+# Why a finding has no picture, in words a client can read. The report MUST print one of these
+# rather than silently omitting the image: on GL only 51% of display_dial_mismatch findings yield a
+# picture, so silence would make half the feature look broken — and worse, would invite the reader
+# to think a finding without a photograph is a finding without evidence. It is not. The defect is
+# established by the page's own text and dial target; the picture is corroboration, nothing more.
+ABSENCE_REASONS = {
+    "uncapturable": "No picture: this element is a mobile/desktop duplicate that is not visible at "
+                    "the width we photograph, so there is nothing on screen to capture. The defect "
+                    "is still present in the page's code.",
+    "many": "No picture: the page contains several different elements matching this position, and "
+            "photographing the wrong one would be misleading. The defect is still present in the "
+            "page's code.",
+    "none": "No picture: the element could not be located when the page was re-opened for the "
+            "photograph, which usually means the page changed after the audit. The defect is what "
+            "the audit found in the page's code at the time.",
+    "budget": "No picture: this report reached its image limit. The defect is unaffected.",
+}
+
+
 def capture(page, selector: str, *, tally: ShotTally | None = None, cls: str = "unknown",
-            require_unique: bool = True, padding: int = PADDING_PX) -> dict | None:
+            require_unique: bool = True, padding: int = PADDING_PX,
+            outcome: list | None = None) -> dict | None:
     """Outline the element `selector` names and photograph it with context. None if not locatable.
 
     Returns {"data_uri", "bytes", "width", "height"} — a PNG data URI ready to embed, so the report
@@ -221,12 +241,20 @@ def capture(page, selector: str, *, tally: ShotTally | None = None, cls: str = "
 
     `require_unique=False` exists only for a caller that has already established uniqueness; the
     default refuses an ambiguous selector, because the wrong element is worse than none.
+
+    `outcome` is an out-parameter: pass a list and the single outcome word is appended to it. The
+    tally answers "how often does this class resolve" across a run; a REPORT needs to say why THIS
+    finding has no image, and that is per-finding information the tally cannot carry.
     """
+    def _out(word: str):
+        if outcome is not None:
+            outcome.append(word)
     try:
         box = page.evaluate(_MARK, [selector, padding, OUTLINE_CSS, _STYLE_ID, _FLAG_ATTR])
     except Exception:
         if tally:
             tally.record(cls, "none")
+        _out("none")
         return None
 
     count = box.get("count", 0)
@@ -236,10 +264,13 @@ def capture(page, selector: str, *, tally: ShotTally | None = None, cls: str = "
         # 0x0 layout. That is a fact about the page, not a failure to locate.
         if tally:
             tally.record(cls, "uncapturable", duplicates=dupes)
+        _out("uncapturable")
         return None
     if count != 1:
+        word = "many" if count > 1 else "none"
         if tally:
-            tally.record(cls, "many" if count > 1 else "none")
+            tally.record(cls, word)
+        _out(word)
         return None
     if count > 1 and not require_unique:
         pass
@@ -249,6 +280,7 @@ def capture(page, selector: str, *, tally: ShotTally | None = None, cls: str = "
     except Exception:
         if tally:
             tally.record(cls, "none")
+        _out("none")
         return None
     finally:
         # ALWAYS, even if the screenshot threw. A surviving outline would contaminate every later
@@ -260,6 +292,7 @@ def capture(page, selector: str, *, tally: ShotTally | None = None, cls: str = "
 
     if tally:
         tally.record(cls, "captured", duplicates=dupes)
+    _out("captured")
     return {"data_uri": "data:image/png;base64," + base64.b64encode(raw).decode("ascii"),
             "bytes": len(raw),
             "width": round(box["width"] * 2), "height": round(box["height"] * 2)}
@@ -307,21 +340,32 @@ def attach_shots(page, findings, *, tally: ShotTally | None = None,
     seen: set[tuple] = set()
     taken = 0
     for f in findings:
-        if taken >= max_shots:
-            break
         key = _shot_key(f)
-        if key in seen:
-            continue
         sel = _selector_for(f)
         if not sel:
+            continue                     # nothing to point a camera at; not an absence to explain
+        if taken >= max_shots:
+            # RECORD the cap rather than just breaking. A finding that lost its picture to the
+            # budget must not be indistinguishable from one whose element could not be found.
+            f.details = dict(f.details or {})
+            f.details.setdefault("shot_absent", "budget")
+            continue
+        if key in seen:
             continue
         seen.add(key)
-        shot = capture(page, sel, tally=tally, cls=f.check)
+        outcome: list[str] = []
+        shot = capture(page, sel, tally=tally, cls=f.check, outcome=outcome)
+        f.details = dict(f.details or {})
         if shot:
-            f.details = dict(f.details or {})
             f.details["shot"] = shot["data_uri"]
             f.details["shot_bytes"] = shot["bytes"]
             taken += 1
+        else:
+            # WHY there is no image, carried on the finding itself so the report can say it. Half of
+            # display_dial_mismatch resolves to an off-canvas responsive duplicate; silently
+            # omitting those makes a working feature look broken and, far worse, invites the reader
+            # to treat "no photograph" as "no evidence".
+            f.details["shot_absent"] = outcome[0] if outcome else "none"
     return taken
 
 

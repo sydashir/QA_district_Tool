@@ -73,6 +73,20 @@ code. One way to do each thing — no parallel implementations "just in case."
   suite said green. When a live run finds a bug the fake missed, fix the FAKE first, watch the tests
   go red, then fix the code.
 
+- **RUN EVERY NEW TEST AGAINST THE UNFIXED CODE FIRST. A test that cannot fail on the bug it was
+  written for is not a test.** Same family as the rule above and as the D-series: verify the
+  instrument before trusting what it tells you. Write the fix, then `git show HEAD:<file> > <file>`,
+  run the new tests, and **watch them fail for the right reason** before restoring. Two of these
+  were caught exactly this way: `test_an_off_canvas_twin_is_never_the_one_photographed` passed
+  against the buggy code because it only asserted "a shot came back" — the bug returns a perfectly
+  good PNG of the wrong place — and had to be rewritten to assert WHICH element was flagged; and
+  `test_demo_run_timestamps_are_utc_and_never_in_the_future` passed at 17:00 and failed at 03:00,
+  so it only caught the defect inside the 2a-5a crawl window, which is precisely when someone would
+  hit it. A test that passes both ways is worse than no test: it is a green light nobody re-checks.
+  The same applies to a MEASUREMENT: `locator_measure.py` reported n=22 when the report held 70,
+  because a silent `continue` dropped every occurrence-suffixed class, and the number was quoted as
+  a result before anyone checked the denominator. Print what you excluded, always.
+
 Corollaries: never invent a URL, config shape, or library API surface. If it isn't in this file,
 `SESSION_STATE.md`, or the existing code, stop and ask. When crawl access or any external
 dependency blocks you, stop and report immediately — do not silently work around it.

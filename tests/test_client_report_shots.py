@@ -47,9 +47,41 @@ def test_the_budget_is_generous_enough_for_real_reports():
 
 def test_an_oversized_shot_is_dropped_rather_than_breaking_the_report():
     budget, omitted = [100], [0]
-    assert _shot_html(PNG, budget, omitted) == ""
+    out = _shot_html(PNG, budget, omitted)
+    assert "<img" not in out, "the image itself must not be embedded"
     assert omitted[0] == 1
     assert budget[0] == 100, "a dropped image must not be charged to the budget"
+    # ...but it must SAY it was dropped. Silence would leave the reader unable to tell a finding
+    # whose picture did not fit from one whose element could not be found — and, worse, invite them
+    # to read "no picture" as "no evidence".
+    assert "image limit" in out
+    assert "defect is unaffected" in out
+
+
+def test_a_missing_shot_explains_itself_rather_than_vanishing():
+    """Measured on GL: the locator resolves 99% of display_dial_mismatch but only 51% yield a
+    picture, the rest being mobile/desktop duplicates that are not visible at the width we
+    photograph. Half the class rendering as a blank would look like a broken feature."""
+    out = _shot_html(None, [SHOT_BUDGET_BYTES], [0], "uncapturable")
+    assert "<img" not in out
+    assert "mobile/desktop duplicate" in out
+    assert "still present in the page" in out, "must not imply the defect is in doubt"
+
+
+def test_every_absence_reason_says_the_defect_still_stands():
+    """The one sentence that must survive every future edit to this wording."""
+    from render.shots import ABSENCE_REASONS
+    for key, text in ABSENCE_REASONS.items():
+        rendered = _shot_html(None, [SHOT_BUDGET_BYTES], [0], key)
+        assert rendered, f"{key} rendered nothing"
+        assert ("still present" in text or "unaffected" in text
+                or "what the audit found" in text), f"{key} does not defend the finding: {text}"
+
+
+def test_a_finding_with_no_selector_at_all_stays_silent():
+    """Not every finding has an element — a missing meta description has nowhere to point a camera.
+    Explaining an absence nobody expected would be noise."""
+    assert _shot_html(None, [SHOT_BUDGET_BYTES], [0], None) == ""
 
 
 def test_each_embedded_shot_is_charged_to_the_budget():

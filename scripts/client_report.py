@@ -128,7 +128,7 @@ def fetch(session, brand_code: str):
     findings = session.execute(sql("""
         SELECT f.check, f.details->>'class' AS cls, f.severity, f.issue, f.url,
                f.snippet, f.suggestion, COALESCE(f.page_count, 1) AS pages, f.first_seen,
-               f.details->>'shot' AS shot
+               f.details->>'shot' AS shot, f.details->>'shot_absent' AS shot_absent
         FROM findings f
         WHERE f.run_id = :r AND f.status IN ('new','persisting')
         ORDER BY f.severity, COALESCE(f.page_count,1) DESC"""), {"r": row[0]}).fetchall()
@@ -166,17 +166,38 @@ SCOPE_NOTES = {
 }
 
 
+# The single source of truth for "why is there no picture", imported rather than re-typed: the
+# capture layer decides the reason and this report prints it, and two copies of that wording would
+# drift the moment one side gained a case. render/shots.py imports only stdlib, so this does not
+# drag playwright into a report that has to render on a laptop with no browser installed.
+from render.shots import ABSENCE_REASONS                              # noqa: E402
+
 SHOT_BUDGET_BYTES = 4 * 1024 * 1024
 
 
-def _shot_html(shot: str | None, budget: list[int], omitted: list[int]) -> str:
-    """One <img>, if it fits. `budget` and `omitted` are single-element lists used as counters."""
+def _shot_html(shot: str | None, budget: list[int], omitted: list[int],
+               absent: str | None = None) -> str:
+    """One <img>, if it fits — otherwise a sentence saying why there is none.
+
+    Silence is not an option here and this is the whole point of the parameter. Only about half of
+    the `display_dial_mismatch` findings on a brand yield a picture (measured on GL: the locator
+    resolves 99% of them, but 51% produce an image; the rest are mobile/desktop duplicates that are
+    not visible at the width we photograph). If those simply had no image and no explanation, a
+    reader would conclude either that the feature is broken or — far worse — that a finding without
+    a photograph is a finding without evidence.
+
+    So every branch below ends by saying the same thing in different words: the defect is what the
+    audit read in the page's own code. The picture is corroboration, never the proof.
+    """
     if not shot:
-        return ""
+        why = ABSENCE_REASONS.get(absent or "")
+        if not why:
+            return ""
+        return f"<div class='noshot'>{html.escape(why)}</div>"
     cost = len(shot)
     if cost > budget[0]:
         omitted[0] += 1
-        return ""
+        return (f"<div class='noshot'>{html.escape(ABSENCE_REASONS['budget'])}</div>")
     budget[0] -= cost
     # No lazy-loading and no external anything: this has to render offline, from a file on a laptop
     # with the network off, which is the situation a forwarded report is opened in.
@@ -224,7 +245,8 @@ def render(brand_code: str, run, findings) -> str:
                 + (f"<div class='snippet'>{snippet}</div>" if snippet else "")
                 + f"<div class='where'><a href='{html.escape(f[4])}'>{html.escape(f[4][:96])}</a></div>"
                 + (f"<div class='fix'>{html.escape(_trim(f[6] or ''))}</div>" if f[6] else "")
-                + _shot_html(f[9] if len(f) > 9 else None, _shot_budget, _shots_omitted)
+                + _shot_html(f[9] if len(f) > 9 else None, _shot_budget, _shots_omitted,
+                             f[10] if len(f) > 10 else None)
                 + "</li>")
         more = ""
         if len(rows) > TOP_N:
@@ -241,6 +263,22 @@ def render(brand_code: str, run, findings) -> str:
     # A budget that was hit must SAY so. A report quietly missing half its pictures reads as a
     # report about findings that happen not to have any — the same silent-cap failure the project
     # rules out everywhere else.
+    # Said ONCE, plainly, wherever any finding lacks an image. Without it a reader compares two
+    # findings — one with a photograph, one without — and silently ranks the second as less real.
+    no_image_note = ""
+    if any((f[10] if len(f) > 10 else None) for f in findings):
+        no_image_note = (
+            "<section><p class='caveat'><strong>Some findings have no picture, and that does not "
+            "make them less certain.</strong> Every finding in this report was established by "
+            "reading the page's own code — the text it displays and the number it dials. A "
+            "photograph is corroboration for a human skimming the report, never the proof. Where "
+            "one is missing, the reason is printed under the finding; the commonest is that the "
+            "element is a mobile/desktop duplicate that is not visible at the width we "
+            "photograph.</p></section>")
+
+    if no_image_note:
+        out.append(no_image_note)
+
     if _shots_omitted[0]:
         out.append(
             f"<section><p class='caveat'>{_shots_omitted[0]:,} screenshot(s) were left out of this "
@@ -295,6 +333,10 @@ li.error{{border-left-color:var(--err)}} li.warning{{border-left-color:var(--war
 .where a{{color:var(--mut);font-size:13px;word-break:break-all}}
 .fix{{font-size:14px;color:var(--mut);margin-top:6px}}
 .shot{{margin-top:10px}}
+/* Deliberately quiet, and deliberately NOT styled as a warning. A missing picture is a fact about
+   the photograph, not about the defect, and colouring it like a caveat would imply the finding is
+   weaker than the ones that happen to have an image. */
+.noshot{{margin-top:8px;font-size:13px;color:var(--mut);font-style:italic}}
 /* max-width, never a fixed width: these are 2x-scale crops of a 390px mobile viewport, so they must
    shrink on a phone and never force the page to scroll sideways. */
 .shot img{{max-width:100%;height:auto;border:1px solid var(--bd);border-radius:6px;display:block}}
