@@ -70,6 +70,13 @@ so it is one fix. Filter by brand, type, severity or triage state.
 the run-by-run history of whether it has ever gone away. Triage set here carries across runs, so
 nobody reads the same row twice.
 
+The per-brand HTML reports now carry **a photograph of the element each finding is about**, outlined
+on the page as a visitor sees it — so "shows 949-676-9364 but dials +18445760144" arrives with a
+picture of that button. Where there is no photograph the report says why in a sentence, because
+about half of these elements are mobile/desktop duplicates that are not visible at the width we
+photograph. A missing picture never means a missing defect: every finding is established by reading
+the page's own code, and the picture is corroboration.
+
 ![Finding detail](screenshots/finding-detail.png)
 
 **What changed** — the difference between a brand's last two audits: what appeared, what went away,

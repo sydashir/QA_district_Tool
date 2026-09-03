@@ -462,7 +462,7 @@ ever. This is client work under Syed's name.
 
 ---
 
-## 13. HANDOVER — state as of 2026-08-12 (read this first if you are new)
+## 13. HANDOVER — state as of 2026-09-04 (read this first if you are new)
 
 **The deterministic tool is COMPLETE. Do not build more checks.** Every row of the client-defect
 coverage table (`docs/plans/2026-08-06-client-reported-defect-coverage.md`) is closed: sections A
@@ -475,7 +475,23 @@ remaining work is *operating* it, not extending it.
 * Reports land in `reports/<brand>/<stamp>/` (gitignored) and are published to the Google Sheet
   `1QnKHZBnEoxW2gIcOdDz6Ac2WjUbAa94Te_KR-7r2m-E` — **that sheet only, never anything else in Drive**.
 * `scripts/post_run_report.py` answers "what did this run change" after a full run.
-* Two-minute overview for a human: `docs/WHAT_THIS_TOOL_IS.md`.
+* Two-minute overview for a human: `docs/WHAT_THIS_TOOL_IS.md`, with screenshots of all five product
+  screens in `docs/screenshots/`.
+* **Per-brand client reports** — `python3 scripts/client_report.py` writes nine HTML files to
+  `reports/_client/`. Each shows the top findings per harm section, with **a photograph of the
+  element**, or a sentence saying why there is none.
+* **The passes that run OUTSIDE the crawl**, all host-only (they need a browser, and `render/` is
+  deliberately not in the image so it stays out of `checks_version`):
+  - `scripts/accessibility_pass.py --all --status` — says which brands' accessibility findings are
+    stale; `--all` refreshes them. Markup-only: the HTML is fetched with httpx and analysed in a
+    browser with EVERY request blocked and the block proven by a canary.
+  - `scripts/shot_pass.py --all` — photographs the elements. **It asks `client_report` which
+    findings the client will see and shoots exactly those.** Never invert that: the first version
+    photographed anything with a selector, and on GL wrote 61 pictures of which the report showed 0.
+  - `scripts/locator_measure.py <brand>` — the acceptance test for the above, per finding class,
+    against a 70% floor. Refuses a verdict below n=10.
+* `scripts/seed_demo.py` fills an EMPTY database so the product opens without a 12-hour crawl. Every
+  URL is on `*.demo.invalid`; it refuses a database holding real findings, runs, pages or traffic.
 
 ### Known-broken / permanent limitations — state these, never paper over them
 1. **Nothing schedules it.** The VM was dropped by decision. If nobody runs the command, nothing is
@@ -504,6 +520,46 @@ remaining work is *operating* it, not extending it.
    run for real, but a *running* one keeps fetching until it finishes or the worker stops; the API
    says so plainly rather than pretending. A true abort would mean polling a flag inside
    `run_audit` — an `auditor/` edit, so a full cache invalidation. Deliberately not built.
+7. **A REFUSED OR SHORT RUN POISONS THE DIFF BASELINE — batch item 0, NOT yet fixed.**
+   `run_audit` writes history BEFORE `server/jobs.py` applies the crawl verdict, so a run that is
+   later refused has already replaced the baseline. RR run 119 was throttled to 77 of 8,029 pages,
+   was correctly refused for reporting, and still left a 77-page baseline: run 129 then reported
+   **11,259 new** against a real **128**. COC took the same damage from a run that did NOT fail —
+   run 114 was `ok` at 886 pages against a normal 1,505, inflating the next run to 1,334 against a
+   real 52. So the rule is about COVERAGE, not status. It recurs every time the crawl-floor guard
+   fires. **Mitigated, not fixed:** `client_report.poisoned_baseline` detects it from run history
+   and prints "Ignore the new since last time figure on this report" on exactly the affected
+   brands. The open counts are always correct; only the new/old split is wrong, and it self-heals
+   on the next full run. Fix is in `auditor/audit.py` (HASHED) — see the batch list.
+8. **MHD's last attempt (run 130, 2026-09-03) was REFUSED** — it reached only 334 of 900 pages
+   (37.1%), below the 50% crawl floor, so it produced nothing rather than 566 false "unreachable"
+   findings about the client's pages. That is the guard working. MHD's published results are from
+   **run 108 (2026-08-28)**. Do not retry into a throttling origin.
+9. **AR is audited at 4% of its advertised scope** — 474 pages against a sitemap advertising
+   ~11,200. Fully written up in section 6a; the report now states this to the client. **This needs
+   Syed to decide** whether AR's real scope is 474 or ~11,000 before any AR coverage number is
+   quoted.
+10. **GL's resume cache was lost on 2026-09-03 and the cause was never established.**
+   `cache/gl/pages.json` (55 MB) and `resume.done.jsonl` (75 MB) were present at 03:00, run 128
+   completed at 04:09, and the directory was modified at 04:43 with both files gone. Ruled out by
+   checking: disk space (127 GB free), the other eight brands (all intact), the auditor's own logic
+   (only tmp+`os.replace`; the sole `unlink` is the non-resume start path, and there has been no
+   later GL run), and the test suite (`CACHE_DIR` is monkeypatched to `tmp_path`). **Do not invent a
+   cause.** Consequence: the next GL run re-crawls all 3,594 pages. The accessibility pass now falls
+   back to the newest report's URLs, so a lost cache can no longer make a brand silently skip its
+   checks — that fallback exists because of this incident.
+
+### What needs SYED, not an engineer
+Nothing below is a coding task. Each is a decision only he can make.
+1. **AR's real scope** — 474 pages or ~11,000? Until answered, no AR coverage figure means anything.
+2. **Whether to pay a full re-crawl for batch item 0** (the poisoned baseline). It is mitigated in
+   the report today; fixing it properly invalidates every brand's cache.
+3. **Whether anything should schedule the tool.** The VM was dropped by decision, so today a human
+   runs it or nothing is audited. `brands.schedule_cron` is NULL for all nine ON PURPOSE, so the
+   dashboard cannot claim audits run overnight when nothing runs them; installing a timer means
+   setting those crons — the step is written into `deploy/README.md` section 5.
+4. **Traffic ranking** is designed and built to the CSV stage, waiting on his nine Google Search
+   Console exports. `page_traffic` currently holds 0 rows.
 
 ### Three DOCUMENTED NEGATIVE RESULTS — do not re-litigate without new evidence
 * **D9 (ARCHITECTURE.md) — AI grammar/spelling.** An LLM pass editorialised about word choice.
