@@ -58,6 +58,16 @@ except ModuleNotFoundError as exc:  # pragma: no cover - container-only path
 from sqlalchemy import select                                          # noqa: E402
 
 from auditor.config import load_brand                                  # noqa: E402
+
+# Imported from the REPORT on purpose: it owns the decision about what the client sees, and this
+# pass exists only to photograph that. Importing a script is unusual; duplicating the selection
+# logic would be worse, because the copies would drift and the drift would be invisible.
+import importlib.util as _ilu                                          # noqa: E402
+
+_spec = _ilu.spec_from_file_location("_client_report", ROOT / "scripts" / "client_report.py")
+_cr = _ilu.module_from_spec(_spec)
+_spec.loader.exec_module(_cr)
+selected_fingerprints = _cr.selected_fingerprints
 from server.db import SessionLocal                                     # noqa: E402
 from server.models import Brand, Finding, Run                          # noqa: E402
 
@@ -81,11 +91,22 @@ def latest_ok_run(session, code: str) -> Run | None:
         .order_by(Run.started_at.desc()).limit(1)).first()
 
 
-def targets(session, run: Run) -> dict[str, list[Finding]]:
-    """Findings of this run that name an element, grouped by the page they are on."""
+def targets(session, code: str, run: Run) -> dict[str, list[Finding]]:
+    """The findings THE REPORT WILL SHOW, grouped by the page they are on.
+
+    THE REPORT DECIDES; THIS PASS FOLLOWS. The first version photographed anything carrying a
+    selector and hoped it overlapped what the client sees. It did not: on GL the shot pass wrote 61
+    pictures and the report displayed ZERO, because the report shows the top rows per section and
+    those were a different population entirely. Asking `client_report` for its own selection makes
+    the two impossible to drift apart — there is one piece of code deciding what the client sees,
+    and this reads it rather than guessing at it.
+    """
+    wanted = set(selected_fingerprints(session, code))
+    if not wanted:
+        return {}
     rows = session.scalars(
         select(Finding).where(Finding.run_id == run.id,
-                              Finding.status.in_(("new", "persisting")))).all()
+                              Finding.fingerprint.in_(wanted))).all()
     by_url: dict[str, list[Finding]] = defaultdict(list)
     for f in rows:
         # `_selector_for` also derives one for broken images from their src, so ask the real
@@ -103,9 +124,9 @@ def run_brand(session, browser, code: str, max_pages: int, dry_run: bool,
         print(f"  {code.upper():5s} no completed run — nothing to photograph")
         return {"pages": 0, "shots": 0, "absent": 0}
 
-    by_url = targets(session, run)
+    by_url = targets(session, code, run)
     if not by_url:
-        print(f"  {code.upper():5s} run {run.id}: no finding names an element")
+        print(f"  {code.upper():5s} run {run.id}: nothing the report shows names an element")
         return {"pages": 0, "shots": 0, "absent": 0}
 
     cfg = load_brand(code)
@@ -113,7 +134,8 @@ def run_brand(session, browser, code: str, max_pages: int, dry_run: bool,
     dropped = max(0, len(urls) - max_pages)
     urls = urls[:max_pages]
     n_findings = sum(len(by_url[u]) for u in urls)
-    print(f"  {code.upper():5s} run {run.id}: {n_findings} findings on {len(urls)} pages"
+    print(f"  {code.upper():5s} run {run.id}: {n_findings} findings the report shows, "
+          f"on {len(urls)} pages"
           + (f"  (CAPPED: {dropped} more pages not visited)" if dropped else ""))
     # A cap that is hit is REPORTED, never silently applied.
 

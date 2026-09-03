@@ -14,6 +14,7 @@ and an honest count of the rest, because a report nobody finishes is a report th
 from __future__ import annotations
 
 import html
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -26,9 +27,16 @@ from sqlalchemy import text as sql
 # Harm order. Each entry: (heading, plain-English why it matters, [check/class keys]).
 SECTIONS: list[tuple[str, str, list[str]]] = [
     ("Someone could be sent to the wrong company",
-     "A visitor calls, or a search engine lists, a number or a page belonging to a different brand.",
+     "A visitor calls, or a search engine lists, a number or a page belonging to a different brand. "
+     "This also covers a page that PRINTS one number but DIALS another, so a visitor who taps it "
+     "reaches somewhere other than the number they read.",
+     # `display_dial_mismatch` belongs here and its absence was an oversight, not a decision: it is
+     # the COC defect that opened the ticket — the facility page shipped with a phone link that
+     # dialled a different number from the one printed beside it, and neither manual QA nor the old
+     # tool caught it. It is the flagship check, and until 2026-09-03 it reached the sheet and the
+     # database but never the client report. Added on Syed's explicit approval.
      ["phone:cross_brand_dial", "schema:phone_cross_brand", "phone:dials_retired",
-      "phone:stale_retired", "brands:sister_brand"]),
+      "phone:stale_retired", "brands:sister_brand", "phone:display_dial_mismatch"]),
     ("A visitor cannot get through",
      "A button that leads nowhere, a broken link, or a click-to-call nobody can identify.",
      ["actions:dead_cta", "broken_links:broken", "actions:social_misrouted",
@@ -87,10 +95,18 @@ STALE_CAVEATS = [
 ]
 
 
+# The checks append their own page count to the issue text ("... — on 1343 pages") because the
+# spreadsheet has no separate column for it. The report DOES have one, and printing both gives
+# `button goes nowhere: "View All" — on 1343 pages on 1,343 pages`. Strip the check's copy and let
+# the report's own formatted count stand: it is the one that gets thousands separators, and it is
+# the one that stays right after grouping merges several rows into a larger span.
+_INLINE_PAGE_COUNT = re.compile(r"\s*[—-]\s*on\s+[\d,]+\s+pages?\s*$", re.I)
+
+
 def _clean(text: str) -> str:
     for old, new in STALE_CAVEATS:
         text = text.replace(old, new)
-    return text
+    return _INLINE_PAGE_COUNT.sub("", text)
 
 
 def _trim(text: str, limit: int = 400) -> str:
@@ -117,6 +133,42 @@ def _matches(check: str, cls: str | None, keys: list[str]) -> bool:
     return False
 
 
+# A baseline covering this fraction of the current run is treated as sound. Below it, "new since
+# last time" is measuring the gap in COVERAGE, not a change on the site.
+BASELINE_FLOOR = 0.70
+
+
+def poisoned_baseline(session, brand_code: str, run_id: int, pages: int) -> str | None:
+    """Was this run's "new since last time" measured against a baseline that saw far less?
+
+    Two real cases, and the rule has to cover both — which is why it is about PAGES, not status:
+      * RR run 119 was throttled to 77 of 8,029 pages. It was correctly refused for reporting, but
+        `run_audit` writes history BEFORE `server/jobs.py` applies the crawl verdict, so a 77-page
+        baseline survived. The next good run reported **11,259 new**; the real figure was 128.
+      * COC run 114 was a perfectly successful run that happened to cover 886 pages against a
+        normal 1,505. Nothing failed, and it still inflated the next run to **1,334 new** against a
+        real 52.
+    GL is the control: its run 127 died at a reboot with 0 pages and NO report, so it never wrote a
+    baseline at all and GL's numbers are sound. Hence `report_dir IS NOT NULL` — a run that wrote no
+    report wrote no history either.
+
+    Detected, never hardcoded, so it clears itself on the next comparable run.
+    """
+    prev = session.execute(sql("""
+        SELECT r.pages_audited, r.status FROM runs r JOIN brands b ON b.id = r.brand_id
+        WHERE b.code = :c AND r.id < :r AND r.report_dir IS NOT NULL
+        ORDER BY r.started_at DESC LIMIT 1"""), {"c": brand_code.upper(), "r": run_id}).first()
+    if not prev or not pages or not prev[0]:
+        return None
+    if prev[0] >= pages * BASELINE_FLOOR:
+        return None
+    return (f"<strong>Ignore the &ldquo;new since last time&rdquo; figure on this report.</strong> "
+            f"The audit it is compared against covered only {prev[0]:,} pages, where this one "
+            f"covered {pages:,} — so most items counted as new were already there and already "
+            f"reported. The list of problems below is correct; it is only the new-versus-old split "
+            f"that is wrong, and it corrects itself on the next full audit.")
+
+
 def fetch(session, brand_code: str):
     row = session.execute(sql("""
         SELECT r.id, r.started_at, r.pages_audited, r.partial_sample, b.name, b.base_url
@@ -128,7 +180,8 @@ def fetch(session, brand_code: str):
     findings = session.execute(sql("""
         SELECT f.check, f.details->>'class' AS cls, f.severity, f.issue, f.url,
                f.snippet, f.suggestion, COALESCE(f.page_count, 1) AS pages, f.first_seen,
-               f.details->>'shot' AS shot, f.details->>'shot_absent' AS shot_absent
+               f.details->>'shot' AS shot, f.details->>'shot_absent' AS shot_absent,
+               f.fingerprint AS fp
         FROM findings f
         WHERE f.run_id = :r AND f.status IN ('new','persisting')
         ORDER BY f.severity, COALESCE(f.page_count,1) DESC"""), {"r": row[0]}).fetchall()
@@ -175,6 +228,51 @@ from render.shots import ABSENCE_REASONS                              # noqa: E4
 SHOT_BUDGET_BYTES = 4 * 1024 * 1024
 
 
+def select_shown(rows: list, n: int) -> list:
+    """Choose the n findings a section actually shows: every CLASS gets a slot before any class
+    gets a second.
+
+    Sorting purely by (severity, page_count) is right for the DATA and wrong for the READER. A dead
+    "Verify Insurance" button on one page matters more than a footer link repeated across 3,000, but
+    page_count puts the footer first by construction — so per-page classes lost every slot. On GL,
+    `actions:dead_cta` had 41 findings and 25 photographs and appeared ZERO times, because collapsed
+    link findings covering thousands of pages filled all eight slots.
+
+    So: rank the classes by their own best row, then deal one slot to each in turn. Severity still
+    leads — an error class is dealt before a warning class — but a class present in the section can
+    no longer be shut out by another class's page counts. What is left over is still counted in the
+    "and N more of this kind" line, never silently dropped.
+    """
+    if len(rows) <= n:
+        return list(rows)
+
+    # WITHIN A SEVERITY TIER, never across it. The first version of this dealt round-robin over all
+    # classes at once and pushed an ERROR below two warnings on GL — a harm-ordered report cannot
+    # invert severity to make room for variety. So: exhaust the error classes, then the warnings,
+    # then info. Representation is guaranteed inside each tier, which is where the unfairness was.
+    rank = {"error": 0, "warning": 1, "info": 2}
+    shown: list = []
+    for tier in (0, 1, 2):
+        if len(shown) >= n:
+            break
+        tier_rows = [f for f in rows if rank.get(f[2], 3) == tier]
+        if not tier_rows:
+            continue
+        by_class: dict[str, list] = {}
+        for f in tier_rows:
+            by_class.setdefault(f"{f[0]}:{f[1]}", []).append(f)
+        # `rows` arrives sorted by (severity, -page_count), so each class list is too, and the class
+        # order inherits that ranking from its own best row.
+        order = sorted(by_class, key=lambda k: tier_rows.index(by_class[k][0]))
+        while len(shown) < n and any(by_class[k] for k in order):
+            for k in order:
+                if len(shown) >= n:
+                    break
+                if by_class[k]:
+                    shown.append(by_class[k].pop(0))
+    return shown
+
+
 def _shot_html(shot: str | None, budget: list[int], omitted: list[int],
                absent: str | None = None) -> str:
     """One <img>, if it fits — otherwise a sentence saying why there is none.
@@ -205,7 +303,53 @@ def _shot_html(shot: str | None, budget: list[int], omitted: list[int],
             f"src='{html.escape(shot, quote=True)}'></div>")
 
 
-def render(brand_code: str, run, findings) -> str:
+def section_rows(findings: list, keys: list[str], top_n: int = None) -> tuple[list, list]:
+    """(all merged rows for this section, the ones it will show).
+
+    Extracted so that ONE piece of code decides what the client sees. The shot pass used to
+    photograph any finding carrying a selector and hope it overlapped this selection; on GL the two
+    populations barely intersected and not one picture reached a report. The report's choice is
+    authoritative — so it is made here, once, and the shot pass reads it.
+    """
+    rank = {"error": 0, "warning": 1, "info": 2}
+    rows = [f for f in findings if _matches(f[0], f[1], keys)]
+    if not rows:
+        return [], []
+    # Group identical findings before showing them. DBH's cross-brand dial is the same defect on 17
+    # pages; listed one per URL it filled the most important section with eight copies of one
+    # sentence. The engine collapses TEMPLATE-wide findings, but a per-page finding repeated across
+    # pages still arrives as many rows.
+    grouped: dict[tuple, list] = {}
+    for f in rows:
+        key = (f[0], f[1], f[3], f[5])
+        if f"{f[0]}:{f[1]}" in URL_LIST_CLASSES:
+            key = (f[0], f[1], "", "")      # one row for the whole class
+        grouped.setdefault(key, []).append(f)
+    merged = []
+    for (_c, _cls, _issue, _snip), g in grouped.items():
+        first = g[0]
+        span = max(sum(x[7] for x in g), len(g))
+        merged.append(tuple(first[:7]) + (span,) + tuple(first[8:]))
+    merged.sort(key=lambda f: (rank.get(f[2], 3), -f[7]))
+    return merged, select_shown(merged, TOP_N if top_n is None else top_n)
+
+
+def selected_fingerprints(session, brand_code: str) -> list[str]:
+    """Exactly the findings this brand's report will display, as fingerprints.
+
+    The shot pass photographs these and nothing else.
+    """
+    run, findings = fetch(session, brand_code)
+    if not run:
+        return []
+    out: list[str] = []
+    for _heading, _why, keys in SECTIONS:
+        _all, shown = section_rows(findings, keys)
+        out.extend(f[11] for f in shown if len(f) > 11 and f[11])
+    return out
+
+
+def render(brand_code: str, run, findings, _baseline_warning: str | None = None) -> str:
     _, started, pages, partial, name, base_url = run
     sev_rank = {"error": 0, "warning": 1, "info": 2}
     _shot_budget = [SHOT_BUDGET_BYTES]
@@ -214,29 +358,11 @@ def render(brand_code: str, run, findings) -> str:
     total = len(findings)
 
     for heading, why, keys in SECTIONS:
-        rows = [f for f in findings if _matches(f[0], f[1], keys)]
+        rows, shown = section_rows(findings, keys)
         if not rows:
             continue
-        # Group identical findings before showing them. DBH's cross-brand dial is the same defect
-        # on 17 pages; listed one per URL it filled the most important section with eight copies of
-        # one sentence and pushed everything else off the page. The engine collapses TEMPLATE-wide
-        # findings, but a per-page finding repeated across pages still arrives as many rows.
-        grouped: dict[tuple, list] = {}
-        for f in rows:
-            key = (f[0], f[1], f[3], f[5])
-            if f"{f[0]}:{f[1]}" in URL_LIST_CLASSES:
-                key = (f[0], f[1], "", "")      # one row for the whole class
-            grouped.setdefault(key, []).append(f)
-        merged = []
-        for (_c, _cls, _issue, _snip), g in grouped.items():
-            first = g[0]
-            span = max(sum(x[7] for x in g), len(g))
-            merged.append(tuple(first[:7]) + (span,) + tuple(first[8:]))
-        merged.sort(key=lambda f: (sev_rank.get(f[2], 3), -f[7]))
-        rows = merged
-
         items = []
-        for f in rows[:TOP_N]:
+        for f in shown:
             pages_txt = (f"<span class='pages'>on {f[7]:,} pages</span>" if f[7] > 1 else "")
             snippet = html.escape(_trim(f[5] or "", 220))
             items.append(
@@ -249,8 +375,8 @@ def render(brand_code: str, run, findings) -> str:
                              f[10] if len(f) > 10 else None)
                 + "</li>")
         more = ""
-        if len(rows) > TOP_N:
-            more = (f"<p class='more'>and {len(rows) - TOP_N:,} more of this kind. "
+        if len(rows) > len(shown):
+            more = (f"<p class='more'>and {len(rows) - len(shown):,} more of this kind. "
                     f"The complete list for every category is in the audit spreadsheet — ask "
                     f"Syed Ashir for access if you do not already have it.</p>")
         errs = sum(1 for f in rows if f[2] == "error")
@@ -293,6 +419,10 @@ def render(brand_code: str, run, findings) -> str:
     # coverage caveat protects. Cheap to state, and it is how anyone notices the drift.
     # Stated before everything else in this section: a reader who does not know the scope cannot
     # interpret anything below it.
+    # Stated with the scope caveats, above the findings: a reader who takes the new-count at face
+    # value has already misread the report by the time they reach the list.
+    baseline_note = (f"<p class='caveat'>{_baseline_warning}</p>") if _baseline_warning else ""
+
     _sn = SCOPE_NOTES.get(brand_code.upper())
     scope_note = (f"<p class='caveat'><strong>Scope of this audit.</strong> {_sn}</p>") if _sn else ""
 
@@ -359,7 +489,7 @@ footer{{margin-top:44px;color:var(--mut);font-size:13px;border-top:1px solid var
 page it was found on.</p>
 {''.join(out)}
 <section class="limits"><h2>What this audit cannot see</h2>
-{scope_note}{acc_note}
+{baseline_note}{scope_note}{acc_note}
 <p class="why">Being told a category is empty is only useful alongside what was never looked at.
 The audit reads the HTML each page sends to a browser. It does not draw the page, so anything that
 only exists once the page is on a screen is invisible to it — and silence below does
@@ -397,7 +527,8 @@ def main(brands: list[str], out_dir: Path) -> None:
                 print(f"  {code.upper():<5} no completed run — skipped")
                 continue
             path = out_dir / f"{code.lower()}-audit.html"
-            path.write_text(render(code, run, findings), encoding="utf-8")
+            warn = poisoned_baseline(s, code, run[0], run[2])
+            path.write_text(render(code, run, findings, warn), encoding="utf-8")
             print(f"  {code.upper():<5} {len(findings):>6,} findings -> {path.name} "
                   f"({path.stat().st_size/1024:.0f} KB)")
 
