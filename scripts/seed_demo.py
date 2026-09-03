@@ -37,7 +37,7 @@ import os
 import random
 import shutil
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -48,7 +48,7 @@ from sqlalchemy.orm import Session                                     # noqa: E
 
 from server.db import SessionLocal                                     # noqa: E402
 from server.importer import ensure_brands, import_run, upsert_pages    # noqa: E402
-from server.models import Finding, Run                                 # noqa: E402
+from server.models import Finding, Page, PageTraffic, Run                                 # noqa: E402
 
 # Reports go under reports/_demo/ rather than reports/<code>/, and that is load-bearing: the
 # backfill importer scans reports/<code>/ for every brand code, so a demo directory sitting there
@@ -282,6 +282,11 @@ def _findings_for_run(code: str, host: str, rng: random.Random, run_index: int, 
     # The two dropped items come back as resolved rows in the run that dropped them, because that
     # is how the real diff writes them — a resolved finding is IN the report, tagged, not absent.
     for n, item in enumerate(pick[:2]):
+        # `>= 1` because a "fixed" row is only meaningful if the finding was OPEN in an earlier
+        # run. With runs<=2 the drop window and this tail collapse onto run 0, and the first-ever
+        # run would report a repair for something no run ever observed as open.
+        if run_index < 1:
+            continue
         if (n == 0 and run_index == last_index) or (n == 1 and run_index == last_index - 1):
             if item.get("per_page"):
                 spread = max(1, min(item["spread"], DEMO_PAGES[code], len(paths)))
@@ -289,11 +294,18 @@ def _findings_for_run(code: str, host: str, rng: random.Random, run_index: int, 
                         for i in range(spread)]
             else:
                 gone = [(url_at(n * 3), _fingerprint(item, host, n))]
+            # Substitute the host here TOO. The open-finding loop above does it; this tail did
+            # not, so two catalogue entries carrying %(host)s wrote a literal unsubstituted token
+            # into a resolved row — demo content that is itself an example of the `empty_slot`
+            # defect this product exists to flag, on a URL that is not *.demo.invalid.
+            gone_snippet = item["snippet"]
+            if gone_snippet and "%(host)s" in gone_snippet:
+                gone_snippet = gone_snippet % {"host": host}
             for url, fp in gone:
                 rows.append({
                     "url": url, "check": item["check"], "fingerprint": fp,
                     "severity": item["severity"], "issue": item["issue"],
-                    "location": item["location"], "snippet": item["snippet"],
+                    "location": item["location"], "snippet": gone_snippet,
                     "suggestion": item["suggestion"], "details": {},
                     "first_seen": first_stamp, "last_seen": stamp, "status": "resolved",
                 })
@@ -347,6 +359,12 @@ def write_report(code: str, when: datetime, run_index: int, last_index: int,
 
 
 def seed(session: Session, runs: int, anchor: datetime, echo=print) -> dict:
+    # NAIVE UTC, deliberately. Report timestamps on disk are naive strings and `importer` stamps
+    # them `tzinfo=UTC` when it reads them back, so the whole pipeline already treats naive as UTC.
+    # Using naive LOCAL here and labelling it UTC would shift every demo run by the machine's offset
+    # (+5h on this box) and put the newest ones in the future — which is the bug this clamp exists
+    # to prevent, reintroduced one line further down.
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     brands = ensure_brands(session)
     session.commit()
     stats = {"brands": len(brands), "runs": 0, "findings": 0, "pages": 0}
@@ -365,7 +383,15 @@ def seed(session: Session, runs: int, anchor: datetime, echo=print) -> dict:
             run, n = import_run(session, brand, d)
             if run is not None:
                 run.pages_audited = DEMO_PAGES[code]
-                run.finished_at = when + timedelta(minutes=20 + DEMO_PAGES[code] // 8)
+                # Clamped to `now` and stamped UTC. Two separate problems, both real:
+                # the duration pushes a big brand's newest run PAST the anchor (MHD finishes at
+                # anchor+2h12m), and `server/jobs.py` computes the cooldown as now() - finished_at,
+                # so a future timestamp makes the next real audit sleep for hours before touching
+                # the network. Everything else that writes these columns writes tz-aware UTC, so a
+                # naive value also mixes two conventions in one column.
+                done = min(when + timedelta(minutes=20 + DEMO_PAGES[code] // 8), now)
+                run.started_at = when.replace(tzinfo=timezone.utc)
+                run.finished_at = done.replace(tzinfo=timezone.utc)
                 if code == "mhd":
                     run.max_pages = 900
                     run.partial_sample = True
@@ -390,7 +416,8 @@ def seed(session: Session, runs: int, anchor: datetime, echo=print) -> dict:
         if brand is None:
             continue
         when = anchor - timedelta(days=2, hours=6)
-        session.add(Run(brand_id=brand.id, started_at=when, finished_at=when + timedelta(minutes=3),
+        session.add(Run(brand_id=brand.id, started_at=when.replace(tzinfo=timezone.utc),
+                        finished_at=(when + timedelta(minutes=3)).replace(tzinfo=timezone.utc),
                         status=status, error_text=err, pages_audited=0, pages_enumerated=0))
         stats["runs"] += 1
     session.commit()
@@ -418,7 +445,8 @@ def main() -> int:
         return 0
 
     anchor = (datetime.strptime(args.anchor, "%Y-%m-%d") if args.anchor
-              else datetime.now().replace(hour=2, minute=10, second=0, microsecond=0))
+              else datetime.now(timezone.utc).replace(tzinfo=None, hour=2, minute=10,
+                                                      second=0, microsecond=0))
 
     dsn = os.environ.get("DATABASE_URL", "(DATABASE_URL unset — server/db.py default)")
     # Print it before writing anything. Seeding the wrong database is the one unrecoverable
@@ -426,15 +454,31 @@ def main() -> int:
     print(f"target database: {dsn.split('@')[-1] if '@' in dsn else dsn}")
 
     with SessionLocal() as session:
-        existing = session.scalar(select(func.count()).select_from(Finding)) or 0
-        if existing and not args.force:
-            print(f"REFUSED: this database already holds {existing:,} findings. Seeding would mix "
-                  f"synthetic rows into real run history.\n"
+        # COUNT EVERY TABLE THAT HOLDS REAL WORK, not just findings. Counting findings alone looked
+        # sufficient and is not: `server/api.py` commits the Run row at POST time and findings are
+        # only inserted when the crawl finishes, so for the whole ~10h of a first RR crawl the
+        # database holds real runs and ZERO findings. `failed` and `refused` runs stay that way
+        # permanently. `page_traffic` is imported from GSC exports with no run at all. Any of those
+        # would have let the guard wave the seed through onto real data — and `seed()` is not
+        # additive: `ensure_brands` rewrites brand rows and resets MHD's 900-page cap to None.
+        counts = {
+            "findings": session.scalar(select(func.count()).select_from(Finding)) or 0,
+            "runs": session.scalar(select(func.count()).select_from(Run)) or 0,
+            "pages": session.scalar(select(func.count()).select_from(Page)) or 0,
+            "traffic": session.scalar(select(func.count()).select_from(PageTraffic)) or 0,
+        }
+        occupied = {k: v for k, v in counts.items() if v}
+        if occupied and not args.force:
+            detail = ", ".join(f"{v:,} {k}" for k, v in occupied.items())
+            print(f"REFUSED: this database already holds {detail}. Seeding would mix synthetic rows "
+                  f"into real history, and it is not additive — it also rewrites brand rows, "
+                  f"including MHD's 900-page sample cap.\n"
                   f"         Point DATABASE_URL at a scratch database, or pass --force if you are "
                   f"certain this one is disposable.", file=sys.stderr)
             return 1
-        if existing:
-            print(f"--force: writing demo rows alongside {existing:,} existing findings")
+        if occupied:
+            print("--force: writing demo rows alongside "
+                  + ", ".join(f"{v:,} existing {k}" for k, v in occupied.items()))
 
         print(f"seeding {args.runs} runs per brand, newest {anchor:%Y-%m-%d}")
         stats = seed(session, args.runs, anchor)

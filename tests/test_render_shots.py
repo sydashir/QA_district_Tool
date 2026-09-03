@@ -394,3 +394,63 @@ def test_among_identical_copies_the_photographable_one_is_chosen(browser):
         assert tally.per_class["display_dial_mismatch"]["uncapturable"] == 0
     finally:
         page.close()
+
+
+# --------------------------------------------------------------- off-canvas duplicates (reviewed)
+# Found by adversarial review of 44a1735 and REPRODUCED against real Chromium: `boxed` tested only
+# size and display/visibility, so an off-canvas copy passed it. Off-canvas drawer markup usually
+# precedes the desktop header in the DOM, so `find` picked the wrong twin; scrollIntoView cannot pull
+# a position:fixed element into view; and the clip is clamped to the viewport. The result was a valid
+# PNG of an unrelated region, scored `captured` — confident-looking evidence for something we never
+# photographed. That is strictly worse than refusing.
+
+@pytest.mark.parametrize("hider", [
+    "position:fixed;top:100px;left:0;transform:translateX(-100%)",
+    "position:absolute;left:-9999px;top:0",
+    "position:absolute;width:1px;height:1px;clip:rect(0,0,0,0);overflow:hidden",
+])
+def test_an_off_canvas_twin_is_never_the_one_photographed(browser, hider):
+    """The visible copy must win, whatever CSS parked the other one off-screen.
+
+    Asserted on WHICH element the marker flagged, not merely that a shot came back — the first
+    version of this test checked `shot is not None` and passed against the buggy code, because the
+    bug returns a perfectly good PNG of the wrong place.
+    """
+    from render.shots import _FLAG_ATTR, _MARK, _STYLE_ID, _UNMARK, OUTLINE_CSS, PADDING_PX
+
+    page = _twin_page(browser, f"""
+        <div style="{hider}"><a href="tel:+18445760144">800-692-9850</a></div>
+        <div style="margin-top:40px"><a href="tel:+18445760144">800-692-9850</a></div>""")
+    try:
+        box = page.evaluate(_MARK, ["div > a", PADDING_PX, OUTLINE_CSS, _STYLE_ID, _FLAG_ATTR])
+        assert box.get("count") == 1 and box.get("duplicates") == 2
+        flagged = page.evaluate(
+            f"() => [...document.querySelectorAll('div > a')]"
+            f".findIndex(e => e.hasAttribute('{_FLAG_ATTR}'))")
+        assert flagged == 1, "the OFF-CANVAS twin was photographed instead of the visible one"
+        assert box.get("covered", 0) >= 0.5, "the clip does not actually contain the element"
+    finally:
+        page.evaluate(_UNMARK, [_STYLE_ID, _FLAG_ATTR])
+        page.close()
+
+
+def test_an_element_outside_the_clip_is_not_reported_as_photographed(browser):
+    """If the only copy cannot be brought into the clip, say `uncapturable` — never `captured`.
+
+    The clip is clamped to the viewport and scrollIntoView cannot move a position:fixed element, so
+    without the coverage check capture() would hand back a PNG of whatever happened to be at those
+    coordinates and the tally would count it as a hit.
+    """
+    from render.shots import ShotTally, capture
+
+    page = _twin_page(browser, """
+        <a id="gone" style="position:fixed;top:50px;left:0;transform:translateX(-300%)"
+           href="tel:+18445760144">800-692-9850</a>""")
+    try:
+        tally = ShotTally()
+        assert capture(page, "#gone", tally=tally, cls="display_dial_mismatch") is None
+        d = tally.per_class["display_dial_mismatch"]
+        assert d["captured"] == 0, "a PNG of an unrelated region is not a capture"
+        assert d["uncapturable"] == 1, "the selector worked; the element just cannot be shown"
+    finally:
+        page.close()

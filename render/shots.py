@@ -38,7 +38,7 @@ SHIP_FLOOR = 0.70
 _STYLE_ID = "qa-shot-style"
 _FLAG_ATTR = "data-qa-flag"
 
-_MARK = """([sel, pad, outline, styleId, flagAttr]) => {
+_MARK = r"""([sel, pad, outline, styleId, flagAttr]) => {
     const els = [...document.querySelectorAll(sel)];
     if (els.length === 0) return {count: 0};
 
@@ -58,9 +58,40 @@ _MARK = """([sel, pad, outline, styleId, flagAttr]) => {
     const equivalent = els.length === 1 || new Set(els.map(sig)).size === 1;
     if (!equivalent) return {count: els.length};
 
+    // `boxed` has to mean "a picture of this would SHOW it", not merely "it has a box". An earlier
+    // version tested only size and display/visibility, and off-canvas copies pass all three:
+    // position:fixed + translateX(-100%), left:-9999px, and the .sr-only clip pattern are the
+    // ordinary ways a responsive layout hides the duplicate. Since off-canvas drawer markup usually
+    // precedes the desktop header in the DOM, `find` picked exactly the wrong one; scrollIntoView
+    // cannot pull a fixed or negatively-positioned element into view, and the clip below is clamped
+    // to the viewport — so the outline landed off-screen and the screenshot was a valid PNG of an
+    // unrelated region, scored `captured`. That is worse than refusing: it is confident-looking
+    // evidence for something we did not photograph.
     const boxed = e => {
         const c = window.getComputedStyle(e), r = e.getBoundingClientRect();
-        return r.width >= 1 && r.height >= 1 && c.display !== 'none' && c.visibility !== 'hidden';
+        if (r.width < 1 || r.height < 1 || c.display === 'none' || c.visibility === 'hidden')
+            return false;
+        if (parseFloat(c.opacity || '1') === 0) return false;
+        if (r.width < 2 || r.height < 2) return false;
+        // The screen-reader-only pattern hides the element from an ANCESTOR, not from itself: the
+        // anchor measures a perfectly ordinary 8x18 while a parent carries
+        // `width:1px;height:1px;clip:rect(0,0,0,0);overflow:hidden`. Reading only the element's own
+        // computed style misses it entirely — the same mistake that once made a 0x0 probe report
+        // 224.9 findings per page until it was made ancestor-aware. So walk up.
+        for (let a = e; a && a !== document.documentElement; a = a.parentElement) {
+            const ac = window.getComputedStyle(a), ar = a.getBoundingClientRect();
+            if (ac.display === 'none' || ac.visibility === 'hidden') return false;
+            if (ac.clip && ac.clip !== 'auto' && /rect\(\s*0/.test(ac.clip)) return false;
+            if (ac.clipPath && /inset\(\s*(50|100)%/.test(ac.clipPath)) return false;
+            // A tiny ancestor with overflow hidden cannot show a child bigger than itself.
+            if (ac.overflow !== 'visible' && (ar.width < 2 || ar.height < 2)) return false;
+        }
+        // Must overlap the scrollable document, not sit outside it. Coordinates here are viewport
+        // relative, so add the scroll offset to get document coordinates.
+        const dx = r.x + window.scrollX, dy = r.y + window.scrollY;
+        const docW = Math.max(document.documentElement.scrollWidth, window.innerWidth);
+        const docH = Math.max(document.documentElement.scrollHeight, window.innerHeight);
+        return dx + r.width > 0 && dy + r.height > 0 && dx < docW && dy < docH;
     };
     // Among identical copies, prefer one that can actually be photographed; if none can, fall back
     // to the first so the caller still reports `uncapturable` rather than a locator failure.
@@ -82,11 +113,25 @@ _MARK = """([sel, pad, outline, styleId, flagAttr]) => {
     }
     el.scrollIntoView({block: 'center', inline: 'center', behavior: 'instant'});
     const r = el.getBoundingClientRect();
-    return {count: 1, duplicates,
-            x: Math.max(0, r.x - pad),
-            y: Math.max(0, r.y - pad),
-            width: Math.min(window.innerWidth - Math.max(0, r.x - pad), r.width + pad * 2),
-            height: Math.min(window.innerHeight - Math.max(0, r.y - pad), r.height + pad * 2)};
+    const clip = {x: Math.max(0, r.x - pad),
+                  y: Math.max(0, r.y - pad),
+                  width: Math.min(window.innerWidth - Math.max(0, r.x - pad), r.width + pad * 2),
+                  height: Math.min(window.innerHeight - Math.max(0, r.y - pad), r.height + pad * 2)};
+
+    // LAST GUARD, and the one that actually matters: the clip is clamped to the viewport, and
+    // scrollIntoView cannot move a position:fixed or off-canvas element into it. So prove the
+    // element is really inside the rectangle we are about to photograph. Without this the function
+    // can return a perfectly valid PNG of an unrelated region and the caller scores it `captured` —
+    // and nothing downstream ever looks at the pixels, so the ship gate would be measuring "a PNG
+    // came back" rather than "the element is in it".
+    const ix = Math.max(clip.x, r.x), iy = Math.max(clip.y, r.y);
+    const iw = Math.min(clip.x + clip.width, r.x + r.width) - ix;
+    const ih = Math.min(clip.y + clip.height, r.y + r.height) - iy;
+    const covered = (iw > 0 && ih > 0) ? (iw * ih) / (r.width * r.height) : 0;
+    if (clip.width < 1 || clip.height < 1 || covered < 0.5)
+        return {count: 1, invisible: true, duplicates, covered};
+
+    return Object.assign({count: 1, duplicates, covered}, clip);
 }"""
 
 _UNMARK = """([styleId, flagAttr]) => {

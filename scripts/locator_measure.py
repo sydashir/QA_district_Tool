@@ -97,7 +97,15 @@ def load_targets(report: Path, classes: tuple[str, ...]) -> dict[str, list[tuple
             if r.get("status") in ("resolved", "rule_changed", "page_removed"):
                 continue
             fp = r.get("fingerprint") or ""
+            # The second field is the class, but BOTH checks that emit a selector suffix it for
+            # repeat occurrences on one page: phone.py builds "display_dial_mismatch#1", "#2", ...
+            # for the 2nd+ (class, tel, displayed) pair on a URL, and actions.py does the same for
+            # dead_cta. Splitting on ":" alone yields "display_dial_mismatch#1", which failed the
+            # membership test and was dropped WITH NO MESSAGE. On GL run 128 that silently measured
+            # 22 of 70 display_dial_mismatch findings and 29 of 41 dead_cta — the first anchor on
+            # each page only, which is not a random subset of anything.
             cls = fp.split(":")[1] if ":" in fp else ""
+            cls = cls.split("#")[0]
             if cls not in classes:
                 continue
             sel = (r.get("details") or {}).get("selector")
@@ -112,7 +120,8 @@ def load_targets(report: Path, classes: tuple[str, ...]) -> dict[str, list[tuple
     return by_url
 
 
-def measure(brand: str, report: Path, classes: tuple[str, ...], max_pages: int) -> ShotTally:
+def measure(brand: str, report: Path, classes: tuple[str, ...],
+            max_pages: int) -> tuple[ShotTally, dict[str, int]]:
     cfg = load_brand(brand)
     by_url = load_targets(report, classes)
     if not by_url:
@@ -127,6 +136,14 @@ def measure(brand: str, report: Path, classes: tuple[str, ...], max_pages: int) 
           + (f"  (CAPPED: {dropped} further pages not measured)" if dropped else ""))
     # A cap that is hit is REPORTED, never silently applied — the project's standing rule on
     # sampling. Silence here would read as full coverage.
+
+    # What we INTENDED to measure, per class, before anything could fail. Without this a class
+    # whose every page times out simply vanishes from the table and the run exits 0 — a silent pass
+    # for something that was never tested.
+    intended: dict[str, int] = {}
+    for u in urls:
+        for cls, _ in by_url[u]:
+            intended[cls] = intended.get(cls, 0) + 1
 
     tally = ShotTally()
     errors = 0
@@ -155,15 +172,22 @@ def measure(brand: str, report: Path, classes: tuple[str, ...], max_pages: int) 
     if errors:
         print(f"  {errors} page(s) could not be fetched — excluded from the rates, not counted "
               f"as misses")
-    return tally
+    return tally, intended
 
 
-def report_tally(tally: ShotTally) -> int:
+def report_tally(tally: ShotTally, intended: dict[str, int]) -> int:
     print()
     print(f"  {'class':26s} {'n':>4s} {'captured':>9s} {'0x0':>5s} {'none':>5s} {'many':>5s} "
           f"{'dup':>5s} {'located':>8s} {'hit':>7s}  verdict")
     worst_ok = True
-    for cls in sorted(tally.per_class):
+    for cls in sorted(set(tally.per_class) | set(intended)):
+        if cls not in tally.per_class:
+            # Requested, present in the report, and never actually attempted — every page carrying
+            # it failed to load. Silence here would read as a pass, so it fails loudly instead.
+            print(f"  {cls:26s} {intended.get(cls, 0):4d} {'-':>9s} {'-':>5s} {'-':>5s} {'-':>5s} "
+                  f"{'-':>5s} {'-':>7s} {'-':>6s}  NOT MEASURED")
+            worst_ok = False
+            continue
         d = tally.per_class[cls]
         loc, hit = tally.located_rate(cls), tally.hit_rate(cls)
         ok = loc >= SHIP_FLOOR
@@ -180,6 +204,17 @@ def report_tally(tally: ShotTally) -> int:
     below = tally.below_floor()
     if below:
         print(f"  BELOW FLOOR, do not ship pictures for: {', '.join(below)}")
+    missed = sorted(c for c in intended if c not in tally.per_class)
+    if missed:
+        print(f"  NOT MEASURED AT ALL (every page carrying them failed to load): {', '.join(missed)}"
+              f"\n     That is not a pass. Re-run before reading anything into the table above.")
+    # Also flag a class measured on materially fewer selectors than the report holds — a partial
+    # denominator produces a rate that looks like coverage and is not.
+    for cls in sorted(tally.per_class):
+        got, want = tally.per_class[cls]["attempted"], intended.get(cls, 0)
+        if want and got < want:
+            print(f"  PARTIAL: {cls} measured {got} of {want} selectors "
+                  f"({want - got} lost to failed pages)")
     return 0 if worst_ok else 1
 
 
@@ -197,8 +232,8 @@ def main() -> int:
                          "far more requests than a text fetch. Not worth degrading a live site.")
 
     report = Path(args.report) if args.report else newest_report(args.brand)
-    tally = measure(args.brand, report, tuple(args.classes), args.max_pages)
-    return report_tally(tally)
+    tally, intended = measure(args.brand, report, tuple(args.classes), args.max_pages)
+    return report_tally(tally, intended)
 
 
 if __name__ == "__main__":
