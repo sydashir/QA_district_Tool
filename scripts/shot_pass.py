@@ -1,0 +1,192 @@
+#!/usr/bin/env python3
+"""Photograph the element behind each stored finding, and write the picture into the database.
+
+WHY THIS EXISTS AS ITS OWN PASS. `render/shots.py` has been built, measured and tested, and **not
+one picture had ever reached the database** — `details ? 'shot'` matched 0 of 376,370 rows. The two
+callers of `attach_shots` are `scripts/render_measure.py`, which writes JSON to a file and never
+touches Postgres, and the test suite. So the report's image markup, the absence wording and the
+99%/82% locator measurement all described a feature that nothing in the product ever ran.
+
+**IT IS NOT THE ACCESSIBILITY PASS, and it cannot be.** `scripts/accessibility_pass.py` analyses
+markup: `render/markup.py` calls `page.route("**/*", block)` -> `route.abort("blockedbyclient")` and
+injects the HTML with `set_content`, so nothing leaves that browser, ever. That is deliberate and
+correct for markup analysis — the client's servers never see a browser. But it means the page has no
+stylesheet, no images and no fonts, and a screenshot of it would be unstyled black-on-white text
+that looks nothing like what a visitor sees. Shipping that to a client as "the element this finding
+is about" would be worse than shipping no picture: it would read as evidence the site is broken.
+
+So this pass loads the page FIRST-PARTY, the same way `scripts/locator_measure.py` does — the guard
+in `render/safety.py` blocks third parties and trackers and proves the block with a canary on every
+page, while the brand's own CSS and images load. What is photographed is what a visitor sees.
+
+Writes `details.shot` (a PNG data URI) or `details.shot_absent` (a reason word that
+`scripts/client_report.py` renders as a sentence) onto findings of the brand's LATEST OK RUN.
+
+DELIBERATELY NOT MHD: its origin 503s under concurrency, a render costs far more requests than a
+text fetch, and run 130 was refused for reaching only 37.1% of its pages. Nothing here is worth
+degrading a live site.
+
+Usage:
+    python3 scripts/shot_pass.py gl                 # latest ok run for GL
+    python3 scripts/shot_pass.py --all
+    python3 scripts/shot_pass.py gl --max-pages 40 --dry-run
+"""
+from __future__ import annotations
+
+import argparse
+import sys
+import time
+from collections import defaultdict
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+
+# HOST-ONLY: `render/` is deliberately not copied into the image (that is what keeps it out of
+# checks_version) and playwright is in neither requirements file.
+try:
+    from playwright.sync_api import sync_playwright
+
+    from render.safety import SafetyLedger, install, prove_attached
+    from render.shots import ShotTally, attach_shots
+except ModuleNotFoundError as exc:  # pragma: no cover - container-only path
+    raise SystemExit(
+        f"{exc.name} is not available, so this pass cannot run here.\n"
+        f"scripts/shot_pass.py is a HOST-ONLY tool: the container ships neither the render/ package "
+        f"nor playwright. Run it on the host, from the repo root.") from exc
+
+from sqlalchemy import select                                          # noqa: E402
+
+from auditor.config import load_brand                                  # noqa: E402
+from server.db import SessionLocal                                     # noqa: E402
+from server.models import Brand, Finding, Run                          # noqa: E402
+
+VIEWPORT = {"width": 1280, "height": 900}
+
+# Politeness. This re-fetches live client pages and is not covered by the crawler's own rate limit.
+DELAY_S = 1.0
+
+# Per-page cap inside attach_shots; a pathological page cannot dominate a brand.
+MAX_SHOTS_PER_PAGE = 20
+
+SKIP = {"MHD"}
+
+
+def latest_ok_run(session, code: str) -> Run | None:
+    brand = session.scalar(select(Brand).where(Brand.code == code.upper()))
+    if brand is None:
+        return None
+    return session.scalars(
+        select(Run).where(Run.brand_id == brand.id, Run.status == "ok")
+        .order_by(Run.started_at.desc()).limit(1)).first()
+
+
+def targets(session, run: Run) -> dict[str, list[Finding]]:
+    """Findings of this run that name an element, grouped by the page they are on."""
+    rows = session.scalars(
+        select(Finding).where(Finding.run_id == run.id,
+                              Finding.status.in_(("new", "persisting")))).all()
+    by_url: dict[str, list[Finding]] = defaultdict(list)
+    for f in rows:
+        # `_selector_for` also derives one for broken images from their src, so ask the real
+        # function rather than testing for details.selector and quietly missing that class.
+        from render.shots import _selector_for
+        if _selector_for(f):
+            by_url[f.url].append(f)
+    return by_url
+
+
+def run_brand(session, browser, code: str, max_pages: int, dry_run: bool,
+              tally: ShotTally) -> dict:
+    run = latest_ok_run(session, code)
+    if run is None:
+        print(f"  {code.upper():5s} no completed run — nothing to photograph")
+        return {"pages": 0, "shots": 0, "absent": 0}
+
+    by_url = targets(session, run)
+    if not by_url:
+        print(f"  {code.upper():5s} run {run.id}: no finding names an element")
+        return {"pages": 0, "shots": 0, "absent": 0}
+
+    cfg = load_brand(code)
+    urls = sorted(by_url)
+    dropped = max(0, len(urls) - max_pages)
+    urls = urls[:max_pages]
+    n_findings = sum(len(by_url[u]) for u in urls)
+    print(f"  {code.upper():5s} run {run.id}: {n_findings} findings on {len(urls)} pages"
+          + (f"  (CAPPED: {dropped} more pages not visited)" if dropped else ""))
+    # A cap that is hit is REPORTED, never silently applied.
+
+    shots = errors = 0
+    for i, url in enumerate(urls, 1):
+        led = SafetyLedger()
+        page = browser.new_page(viewport=VIEWPORT)
+        try:
+            install(page, cfg.base_url, led)
+            prove_attached(page, led)       # the canary, every page, no exceptions
+            page.goto(url, wait_until="domcontentloaded", timeout=45000)
+            page.wait_for_timeout(700)
+            shots += attach_shots(page, by_url[url], tally=tally,
+                                  max_shots=MAX_SHOTS_PER_PAGE)
+        except Exception as e:                                          # noqa: BLE001
+            # A page that will not load is not a locator failure. Say so on the findings rather
+            # than leaving them silently blank, which the report would have nothing to explain.
+            errors += 1
+            for f in by_url[url]:
+                f.details = dict(f.details or {})
+                f.details.setdefault("shot_absent", "none")
+            print(f"    [{i}/{len(urls)}] page did not load: {url[:90]} — {type(e).__name__}")
+        finally:
+            page.close()
+        time.sleep(DELAY_S)
+
+    absent = sum(1 for u in urls for f in by_url[u] if (f.details or {}).get("shot_absent"))
+    if dry_run:
+        session.rollback()
+        print(f"    dry run — {shots} shot(s), {absent} explained absence(s), nothing written")
+    else:
+        session.commit()
+        print(f"    wrote {shots} picture(s) and {absent} explained absence(s)"
+              + (f"; {errors} page(s) failed to load" if errors else ""))
+    return {"pages": len(urls), "shots": shots, "absent": absent}
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("brands", nargs="*")
+    ap.add_argument("--all", action="store_true")
+    ap.add_argument("--max-pages", type=int, default=60)
+    ap.add_argument("--dry-run", action="store_true",
+                    help="photograph but write nothing, to see the counts first")
+    args = ap.parse_args()
+
+    codes = ([b.code for b in SessionLocal().scalars(select(Brand).order_by(Brand.code)).all()]
+             if args.all else [c.upper() for c in args.brands])
+    codes = [c for c in codes if c not in SKIP]
+    if not codes:
+        raise SystemExit("name at least one brand, or pass --all (MHD is always excluded)")
+
+    tally = ShotTally()
+    totals = {"pages": 0, "shots": 0, "absent": 0}
+    with SessionLocal() as session, sync_playwright() as p:
+        browser = p.chromium.launch()
+        try:
+            for code in codes:
+                got = run_brand(session, browser, code, args.max_pages, args.dry_run, tally)
+                for k in totals:
+                    totals[k] += got[k]
+        finally:
+            browser.close()
+
+    print(f"\n{totals['shots']:,} picture(s), {totals['absent']:,} explained absence(s), "
+          f"{totals['pages']:,} page(s) visited")
+    print(f"locator: {tally.summary()}")
+    if tally.below_floor():
+        print("  A class below the floor still gets its ABSENCE explained in the report — the "
+              "finding stands on the page's text either way.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

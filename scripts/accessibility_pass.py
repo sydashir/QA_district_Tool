@@ -56,27 +56,14 @@ def _family(url: str) -> str:
     return segs[0] if segs else "(home)"
 
 
-def sample_urls(brand: str, n: int) -> list[str]:
-    """Audited URLs from the resume cache, spread across template families.
+def _spread(urls: list[str], n: int) -> list[str]:
+    """Pick n URLs spread across template families, round-robin from the biggest family down.
 
     Spread matters more here than anywhere else: these findings are collapsed per TEMPLATE, so a
     sample concentrated in one template reports that template's problems as the site's.
     """
-    cache = ROOT / "cache" / brand / "resume.done.jsonl"
-    if not cache.exists():
-        return []
-    urls = []
-    with open(cache) as fh:
-        for i, line in enumerate(fh):
-            if i > 4000:
-                break
-            try:
-                row = json.loads(line)
-            except Exception:
-                continue
-            if row.get("status") == 200 and row.get("url"):
-                urls.append(row["url"])
     rng = random.Random(31)
+    urls = list(urls)
     rng.shuffle(urls)
     buckets: dict[str, list[str]] = {}
     for u in urls:
@@ -88,6 +75,70 @@ def sample_urls(brand: str, n: int) -> list[str]:
             if buckets[k] and len(out) < n:
                 out.append(buckets[k].pop())
     return out
+
+
+def _urls_from_report(brand: str, n: int) -> list[str]:
+    """Distinct audited URLs from the brand's newest report, spread the same way."""
+    base = ROOT / "reports" / brand.lower()
+    dirs = [d for d in base.iterdir()
+            if d.is_dir() and (d / "findings.jsonl").is_file()] if base.is_dir() else []
+    if not dirs:
+        return []
+    # Ordered by the run's OWN timestamp, never directory name — a clock skew on 2026-08-10
+    # produced names that sort before older runs.
+    def key(d):
+        try:
+            return json.loads((d / "summary.json").read_text()).get("run_at", "")
+        except (OSError, ValueError):
+            return ""
+    newest = sorted(dirs, key=key)[-1]
+    seen: list[str] = []
+    known: set[str] = set()
+    with (newest / "findings.jsonl").open(encoding="utf-8") as fh:
+        for i, line in enumerate(fh):
+            if i > 60000:
+                break
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                u = json.loads(line).get("url")
+            except ValueError:
+                continue
+            if u and u not in known:
+                known.add(u)
+                seen.append(u)
+    print(f"  {brand.upper():<5} resume cache missing — sampling from report {newest.name}")
+    return _spread(seen, n)
+
+
+def sample_urls(brand: str, n: int) -> list[str]:
+    """Audited URLs from the resume cache, spread across template families.
+
+    Spread matters more here than anywhere else: these findings are collapsed per TEMPLATE, so a
+    sample concentrated in one template reports that template's problems as the site's.
+    """
+    cache = ROOT / "cache" / brand / "resume.done.jsonl"
+    if not cache.exists():
+        # FALL BACK TO THE REPORT. The resume cache is a crawl artefact and can go missing — GL's
+        # pages.json and resume.done.jsonl both vanished between 04:09 and 04:43 on 2026-09-03,
+        # cause never established, while its run 128 report sat complete on disk. Without a
+        # fallback this pass printed "no cached URLs — run an audit first" at a brand that had just
+        # been audited, and the brand silently stayed STALE. The report is the durable record (D15:
+        # the disk is the record), so read the URLs from it.
+        return _urls_from_report(brand, n)
+    urls = []
+    with open(cache) as fh:
+        for i, line in enumerate(fh):
+            if i > 4000:
+                break
+            try:
+                row = json.loads(line)
+            except Exception:
+                continue
+            if row.get("status") == 200 and row.get("url"):
+                urls.append(row["url"])
+    return _spread(urls, n)
 
 
 def fetch_pages(urls: list[str], base_url: str) -> tuple[list[tuple[str, str]], int]:
