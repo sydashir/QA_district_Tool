@@ -61,6 +61,13 @@ DEFAULT_CLASSES = ("dead_cta", "display_dial_mismatch", "cross_brand_dial")
 # tool is not covered by.
 DELAY_S = 1.0
 
+# Below this many selectors a rate is not a measurement and must not be printed as a verdict. At
+# n=10 the 70% floor means three misses; at n=1 a single element's layout decides the answer, and
+# RR really did produce `cross_brand_dial n=1 -> 0% -> BELOW FLOOR`, which reads like a finding
+# about the locator and is nothing of the kind. Reported as "no verdict" and exits non-zero,
+# because the question asked was "does this ship" and "we do not know" is not a yes.
+MIN_N_FOR_VERDICT = 10
+
 
 def newest_report(brand: str) -> Path:
     base = ROOT / "reports" / brand.lower()
@@ -180,6 +187,7 @@ def report_tally(tally: ShotTally, intended: dict[str, int]) -> int:
     print(f"  {'class':26s} {'n':>4s} {'captured':>9s} {'0x0':>5s} {'none':>5s} {'many':>5s} "
           f"{'dup':>5s} {'located':>8s} {'hit':>7s}  verdict")
     worst_ok = True
+    unjudged: list[str] = []
     for cls in sorted(set(tally.per_class) | set(intended)):
         if cls not in tally.per_class:
             # Requested, present in the report, and never actually attempted — every page carrying
@@ -190,18 +198,27 @@ def report_tally(tally: ShotTally, intended: dict[str, int]) -> int:
             continue
         d = tally.per_class[cls]
         loc, hit = tally.located_rate(cls), tally.hit_rate(cls)
-        ok = loc >= SHIP_FLOOR
+        if d["attempted"] < MIN_N_FOR_VERDICT:
+            verdict, ok = f"NO VERDICT (n<{MIN_N_FOR_VERDICT})", False
+            unjudged.append(cls)
+        else:
+            ok = loc >= SHIP_FLOOR
+            verdict = "SHIPS" if ok else "BELOW FLOOR"
         worst_ok &= ok
         print(f"  {cls:26s} {d['attempted']:4d} {d['captured']:9d} {d['uncapturable']:5d} "
               f"{d['none']:5d} {d['many']:5d} {d.get('via_duplicates', 0):5d} "
-              f"{loc:7.0%} {hit:6.0%}  {'SHIPS' if ok else 'BELOW FLOOR'}")
+              f"{loc:7.0%} {hit:6.0%}  {verdict}")
     print(f"\n  floor is {SHIP_FLOOR:.0%} on the LOCATED rate (an element with no box is the "
           f"page's layout, not a locator failure).")
     print(f"  `dup` = resolved because the selector matched several BYTE-IDENTICAL copies of one "
           f"element\n     (same tag, href and text) and the marker picked the visible one. Counted "
           f"apart from the rates\n     on purpose: if it ever becomes most of a class, the CSS path "
           f"has stopped discriminating.")
-    below = tally.below_floor()
+    if unjudged:
+        print(f"  NO VERDICT on {', '.join(unjudged)} — fewer than {MIN_N_FOR_VERDICT} selectors, so "
+              f"the rate is one or two elements' worth of\n     luck either way. Do NOT ship "
+              f"pictures for these on this evidence; measure them on a brand that has more.")
+    below = [c for c in tally.below_floor() if c not in unjudged]
     if below:
         print(f"  BELOW FLOOR, do not ship pictures for: {', '.join(below)}")
     missed = sorted(c for c in intended if c not in tally.per_class)
