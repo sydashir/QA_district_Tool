@@ -490,6 +490,10 @@ remaining work is *operating* it, not extending it.
     photographed anything with a selector, and on GL wrote 61 pictures of which the report showed 0.
   - `scripts/locator_measure.py <brand>` — the acceptance test for the above, per finding class,
     against a 70% floor. Refuses a verdict below n=10.
+* **If a render pass dies at `chromium.launch()`, the browser is GONE, not broken.** Playwright
+  keeps its binaries in `~/Library/Caches/ms-playwright/`, which macOS is free to purge under disk
+  pressure — it did exactly that on 2026-09-08 and the accessibility pass crashed mid-run. Recovery
+  is `python3 -m playwright install chromium` (~96 MB). Nothing else is wrong when this happens.
 * `scripts/seed_demo.py` fills an EMPTY database so the product opens without a 12-hour crawl. Every
   URL is on `*.demo.invalid`; it refuses a database holding real findings, runs, pages or traffic.
 
