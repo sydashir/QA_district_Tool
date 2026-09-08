@@ -49,9 +49,12 @@ SECTIONS: list[tuple[str, str, list[str]]] = [
     # same shape — a visitor who cannot read the text or hit the button is stopped just as surely as
     # one following a dead link — and ahead of housekeeping, which would undersell it.
     ("Some visitors cannot read or use the page",
-     "Text too faint to read, a broken image, or a tap target too small to hit on a phone. "
-     "These are found by loading the page in a real browser, so they are what a visitor actually "
-     "gets rather than what the code says.",
+     "Text too faint to read against its background, or an image that fails to load. These are "
+     "found by loading the page in a real browser, so they are what a visitor actually gets rather "
+     "than what the code says.",
+     # `tap_target:*` stays in the key list so that if it is ever published it lands in the right
+     # section, but it is NOT described above: the pass discards tap-target findings, and a blurb
+     # promising something the report never shows is the same defect Section D had.
      ["contrast:*", "tap_target:*", "broken_image:*"]),
     ("The page shows something that was never meant to be published",
      "Template code, placeholder text, or an unfinished page that reached the public site.",
@@ -316,6 +319,46 @@ def _shot_html(shot: str | None, budget: list[int], omitted: list[int],
             f"src='{html.escape(shot, quote=True)}'></div>")
 
 
+
+# The section built from a RENDERED SAMPLE, and the only one whose numbers are not a census. Every
+# other section comes from the full crawl; this one comes from ~30 pages loaded in a browser,
+# because rendering RR's 8,000 pages would take days. Saying so next to the findings is not
+# optional: a count from a sample read as a site total is the single most likely way this section
+# misleads someone.
+SAMPLED_SECTION = "Some visitors cannot read or use the page"
+
+# Measured 2026-09-08 by photographing the flagged element and comparing the ACTUAL PIXELS with the
+# colours axe reported — a check independent of the DOM axe reads. Combined: 58 decided, 54 true,
+# 4 false = 93%. Per brand, only two reached the n>=10 needed for a verdict of their own.
+PRECISION_NOTES: dict[str, str] = {
+    "COC": "Checked on this site: 20 of its colour findings were verified against the actual "
+           "pixels and 17 held up — 85%.",
+    "TDRC": "Checked on this site: 10 of its colour findings were verified against the actual "
+            "pixels and all 10 held up.",
+    "CAD": "<strong>Treat this site's colour findings with more caution than the others.</strong> "
+           "Only 5 of its colour findings could be verified against the actual pixels, one of "
+           "those was wrong, and this site produced far more raw colour warnings than any other "
+           "(4,073 from 60 pages). That is too small a check to give this site a pass of its own, "
+           "so it is not being given one.",
+}
+
+_SAMPLE_CAVEAT = (
+    "<strong>These come from a sample, not the whole site.</strong> About 30 pages were loaded in "
+    "a real browser and inspected; the rest of the site was not. So this section cannot tell you "
+    "how many pages are affected, cannot be read as a site-wide total, and an empty section here "
+    "never means &ldquo;no problems&rdquo; — it means these pages, at this width, on this day. "
+    "Colour findings are also re-checked against the page&rsquo;s own pixels before being shown, "
+    "and any that the pixels contradict are dropped rather than printed."
+)
+
+
+def sampled_note(brand_code: str) -> str:
+    """The caveat block for the rendered section, plus whatever this brand's own check supports."""
+    extra = PRECISION_NOTES.get(brand_code.upper(), "")
+    return (f"<p class='caveat'>{_SAMPLE_CAVEAT}</p>"
+            + (f"<p class='caveat'>{extra}</p>" if extra else ""))
+
+
 def section_rows(findings: list, keys: list[str], top_n: int = None) -> tuple[list, list]:
     """(all merged rows for this section, the ones it will show).
 
@@ -480,8 +523,10 @@ def render(brand_code: str, run, findings, _baseline_warning: str | None = None)
         out.append(
             f"<section><h2>{html.escape(heading)}</h2>"
             f"<p class='why'>{html.escape(why)}</p>"
-            f"<p class='count'>{len(rows):,} finding(s), {errs:,} of them certain "f"(proven by the page's own code, not a judgement call).</p>"
-            f"<ul>{''.join(items)}</ul>{more}</section>")
+            + (sampled_note(brand_code) if heading == SAMPLED_SECTION else "")
+            + f"<p class='count'>{len(rows):,} finding(s), {errs:,} of them certain "
+              f"(proven by the page's own code, not a judgement call).</p>"
+            + f"<ul>{''.join(items)}</ul>{more}</section>")
 
     # A budget that was hit must SAY so. A report quietly missing half its pictures reads as a
     # report about findings that happen not to have any — the same silent-cap failure the project
