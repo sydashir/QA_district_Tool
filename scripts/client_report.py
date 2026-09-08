@@ -19,7 +19,8 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
 
 from server.db import SessionLocal
 from sqlalchemy import text as sql
@@ -103,10 +104,22 @@ STALE_CAVEATS = [
 _INLINE_PAGE_COUNT = re.compile(r"\s*[—-]\s*on\s+[\d,]+\s+pages?\s*$", re.I)
 
 
+# E.164 is how the checks store and compare numbers, and it is the right internal form — it is what
+# makes "+18445760144" and "(844) 576-0144" comparable at all. It is not how a client reads a phone
+# number, and the report was printing raw +18006929850 in issue text, snippets and suggestions.
+# Rewritten HERE rather than in `auditor/checks/phone.py`, which is hashed: changing that file
+# would invalidate every brand's resume cache and cost a full re-crawl to fix a display detail.
+_E164_US = re.compile(r"\+1(\d{3})(\d{3})(\d{4})\b")
+
+
+def _humanise_phones(text: str) -> str:
+    return _E164_US.sub(r"(\1) \2-\3", text)
+
+
 def _clean(text: str) -> str:
     for old, new in STALE_CAVEATS:
         text = text.replace(old, new)
-    return _INLINE_PAGE_COUNT.sub("", text)
+    return _humanise_phones(_INLINE_PAGE_COUNT.sub("", text))
 
 
 def _trim(text: str, limit: int = 400) -> str:
@@ -349,6 +362,78 @@ def selected_fingerprints(session, brand_code: str) -> list[str]:
     return out
 
 
+# ---------------------------------------------------------------- what the audit cannot see
+# DERIVED, never hand-written prose. Section D was wrong on 2026-09-08 in the way that matters
+# most — it told clients "a genuinely dead button would not appear in this report" while
+# `actions:dead_cta` was one of the most-reported classes in the run (379 findings). It also
+# claimed nothing checks colour and contrast, when `render/a11y.py` implements exactly that.
+#
+# So each topic below names the finding CLASSES that would cover it, and the state is worked out
+# from the code and the run rather than asserted:
+#   * a covering class appears in THIS run   -> the topic is covered; it is dropped from the list
+#     entirely, because it is in the body of the report above.
+#   * no finding, but the class exists in source -> "built, not switched on for these reports".
+#     That is the honest state of contrast, broken images and tap targets: `render/markup.py`
+#     excludes them from the published pass because they need a rendered page, so the capability
+#     exists and nothing publishes it. Saying "we do not check it" would be false; saying "we
+#     check it" would be worse.
+#   * no covering class anywhere in source   -> a genuine limitation, stated plainly.
+# Add a check and its class string appears in source, so this list corrects itself.
+LIMIT_TOPICS: list[tuple[str, list[str], str, str]] = [
+    ("Colour and contrast", ["color-contrast", "contrast_coverage"],
+     "Whether text is readable against the colour behind it.",
+     "The check is built and measured but is not part of these reports — it needs the page drawn "
+     "on a screen, and this audit reads the HTML."),
+    ("Images that fail to load", ["broken_image"],
+     "An image that 404s looks identical in the HTML to one that loads perfectly.",
+     "The check is built — it re-requests each image — but is not part of these reports."),
+    ("Tap targets that are too small to hit", ["target_size_enhanced"],
+     "Buttons and links too small or too close together to press on a phone.",
+     "The check is built but is not part of these reports."),
+    ("Whether a button wired in JavaScript works", ["dead_cta"],
+     "A link carries its destination in the HTML, so a dead one is reported above. A button whose "
+     "behaviour lives entirely in JavaScript is not exercised — this audit does not run it.", ""),
+    ("Mobile layout", [],
+     "Anything that breaks only at phone width — a widget that collapses, a button that "
+     "disappears, a form that is cut off.", ""),
+    ("Forms", [],
+     "Whether a form submits, and whether the enquiry reaches anyone. Deliberately not tested: we "
+     "will not send test enquiries into a live intake system.", ""),
+    ("Page speed", [],
+     "How fast a page paints requires actually painting it.", ""),
+    ("Call-tracking numbers", [],
+     "The number hard-coded in each element is checked; what your call-tracking script swaps it to "
+     "for a live visitor is not.", ""),
+]
+
+
+def _source_classes() -> set[str]:
+    """Every finding class the codebase can emit, read from the source rather than remembered."""
+    import re
+    found: set[str] = set()
+    for d in ("auditor/checks", "render"):
+        for f in (ROOT / d).glob("*.py"):
+            t = f.read_text(encoding="utf-8")
+            found |= set(re.findall(r'"class":\s*"([a-z0-9_-]+)"', t))
+            found |= set(re.findall(r'cls\s*=\s*"([a-z0-9_-]+)"', t))
+    return found
+
+
+def limits_html(findings: list) -> str:
+    """Section D, built from what this run actually produced and what the code can produce."""
+    present = {(f[1] or "") for f in findings}
+    in_source = _source_classes()
+    rows = []
+    for title, classes, what, unpublished in LIMIT_TOPICS:
+        if any(c in present for c in classes):
+            continue                       # covered, and shown in the body above
+        note = ""
+        if classes and unpublished and any(c in in_source for c in classes):
+            note = f" <em>{html.escape(unpublished)}</em>"
+        rows.append(f"  <li><strong>{html.escape(title)}</strong> {html.escape(what)}{note}</li>")
+    return "\n".join(rows)
+
+
 def render(brand_code: str, run, findings, _baseline_warning: str | None = None) -> str:
     _, started, pages, partial, name, base_url = run
     sev_rank = {"error": 0, "warning": 1, "info": 2}
@@ -383,7 +468,7 @@ def render(brand_code: str, run, findings, _baseline_warning: str | None = None)
         out.append(
             f"<section><h2>{html.escape(heading)}</h2>"
             f"<p class='why'>{html.escape(why)}</p>"
-            f"<p class='count'>{len(rows):,} finding(s), {errs:,} of them certain.</p>"
+            f"<p class='count'>{len(rows):,} finding(s), {errs:,} of them certain "f"(proven by the page's own code, not a judgement call).</p>"
             f"<ul>{''.join(items)}</ul>{more}</section>")
 
     # A budget that was hit must SAY so. A report quietly missing half its pictures reads as a
@@ -422,6 +507,8 @@ def render(brand_code: str, run, findings, _baseline_warning: str | None = None)
     # Stated with the scope caveats, above the findings: a reader who takes the new-count at face
     # value has already misread the report by the time they reach the list.
     baseline_note = (f"<p class='caveat'>{_baseline_warning}</p>") if _baseline_warning else ""
+
+    limits_rows = limits_html(findings)
 
     _sn = SCOPE_NOTES.get(brand_code.upper())
     scope_note = (f"<p class='caveat'><strong>Scope of this audit.</strong> {_sn}</p>") if _sn else ""
@@ -483,7 +570,7 @@ footer{{margin-top:44px;color:var(--mut);font-size:13px;border-top:1px solid var
 <div class="summary">
   <div><span>{pages:,}</span><small>pages checked</small></div>
   <div><span>{total:,}</span><small>open findings</small></div>
-  <div><span>{sum(1 for f in findings if f[2] == 'error'):,}</span><small>certain problems</small></div>
+  <div><span>{sum(1 for f in findings if f[2] == 'error'):,}</span><small>certain problems &mdash; proven wrong, not a judgement call</small></div>
 </div>
 <p>Ordered by how much each problem matters, not by how many there are. Every item links to the
 page it was found on.</p>
@@ -495,20 +582,7 @@ The audit reads the HTML each page sends to a browser. It does not draw the page
 only exists once the page is on a screen is invisible to it — and silence below does
 <strong>not</strong> mean these are fine.</p>
 <ul class="limits">
-  <li><strong>Colour and contrast.</strong> Whether text is readable against its background.
-      Nothing here checks it.</li>
-  <li><strong>Mobile layout.</strong> Anything that breaks only at phone width — a widget that
-      collapses, a button that disappears, a form that is cut off.</li>
-  <li><strong>Images that fail to load.</strong> A missing image looks identical in the HTML to one
-      that loads perfectly.</li>
-  <li><strong>Whether a button actually works.</strong> A link carries its destination in the HTML,
-      so a broken one is reported above. A <em>button</em> is wired up in JavaScript, which this
-      audit does not run — a genuinely dead button would not appear in this report.</li>
-  <li><strong>Forms.</strong> Whether a form submits, and whether the enquiry reaches anyone.
-      Deliberately not tested: we will not send test enquiries into a live intake system.</li>
-  <li><strong>Page speed.</strong> How fast a page paints requires actually painting it.</li>
-  <li><strong>Call-tracking numbers.</strong> The number hard-coded in each element is checked; what
-      your call-tracking script swaps it to for a live visitor is not.</li>
+{limits_rows}
 </ul>
 <p class="why">Most of the above are best caught by opening one page of each template on a phone and
 a desktop — an hour or two of human checking covers what no amount of re-running this can.</p>

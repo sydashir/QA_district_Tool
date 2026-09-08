@@ -82,9 +82,18 @@ function buildViews(brands: Brand[], runs: Run[] | undefined): BrandView[] {
 
 /** A run that did not complete is not "zero errors" — dim it so it reads as a gap. */
 function Sparkline({ history }: { history: Run[] }) {
+  // Scaled to THIS BRAND's own worst run, deliberately, and labelled because of it. A shared scale
+  // across brands would render TDRC (7 errors) as an invisible sliver beside MHD (1,356) and
+  // destroy the only thing a sparkline is good for — whether this brand is getting better or
+  // worse. The cost is that two cards side by side are NOT comparable by bar height, and that has
+  // to be said rather than left for the reader to assume the opposite.
   const peak = Math.max(1, ...history.map((r) => r.open_error));
   return (
-    <div className="spark" title="Errors per run, oldest to newest">
+    <div
+      className="spark"
+      title={`Errors per run, oldest to newest. Full height = this brand's worst run (${peak} ` +
+             `errors). Scaled per brand, so bar heights are NOT comparable between cards.`}
+    >
       {history.map((run) => {
         const ok = run.status === "ok";
         return (
@@ -179,7 +188,15 @@ function BrandCard({ view, queueAhead }: { view: BrandView; queueAhead: number }
           </div>
         )}
 
-        {history.length > 0 && <Sparkline history={history} />}
+        {history.length > 0 && (
+          <>
+            <Sparkline history={history} />
+            <div className="spark-note">
+              errors per run · full height = this brand&rsquo;s worst ({Math.max(
+                1, ...history.map((r) => r.open_error))}) · not comparable between brands
+            </div>
+          </>
+        )}
 
         {/* Coverage caveats are stated above the counts by DataCaveat; the only thing left to say
             down here is whether anything will ever run this brand on its own. */}

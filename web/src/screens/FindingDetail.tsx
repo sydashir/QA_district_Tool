@@ -6,7 +6,7 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, fmtDate } from "../lib/api";
+import { api, fmtDate, humanisePhones } from "../lib/api";
 import type { FindingDetail as FindingDetailData, Severity, TriageState } from "../lib/api";
 import Explain from "../components/Explain";
 import SourceList from "../components/SourceList";
@@ -54,6 +54,21 @@ function DetailValue({ value }: { value: unknown }) {
   if (typeof value === "object") return <pre className="snippet">{JSON.stringify(value, null, 2)}</pre>;
   return <>{String(value)}</>;
 }
+
+const ABSENCE_REASONS: Record<string, string> = {
+  uncapturable:
+    "No picture: this element is a mobile/desktop duplicate that is not visible at the width we " +
+    "photograph, so there is nothing on screen to capture. The defect is still present in the " +
+    "page's code.",
+  many:
+    "No picture: the page contains several different elements matching this position, and " +
+    "photographing the wrong one would be misleading. The defect is still present in the page's code.",
+  none:
+    "No picture: the element could not be located when the page was re-opened for the photograph, " +
+    "which usually means the page changed after the audit. The defect is what the audit found in " +
+    "the page's code at the time.",
+  budget: "No picture: this report reached its image limit. The defect is unaffected.",
+};
 
 export default function FindingDetail() {
   const params = useParams<{ hash: string }>();
@@ -143,6 +158,11 @@ export default function FindingDetail() {
   const refusedSince = since.filter((r) => r.status === "refused");
   const partialSince = since.filter((r) => r.partial_sample && r.status === "ok");
 
+  // Read once, here, where `d` is known to exist.
+  const shot = typeof d.details?.shot === "string" ? (d.details.shot as string) : null;
+  const shotAbsent =
+    typeof d.details?.shot_absent === "string" ? (d.details.shot_absent as string) : null;
+
   return (
     <div className="wrap">
       <div className="controls">
@@ -164,7 +184,7 @@ export default function FindingDetail() {
         )}
       </div>
 
-      <h2>{d.issue}</h2>
+      <h2>{humanisePhones(d.issue)}</h2>
 
       {d.page_count > 1 && (
         <div className="banner">
@@ -178,7 +198,7 @@ export default function FindingDetail() {
       <h3>What to do</h3>
       <div className="panel card">
         {d.suggestion
-          ? <div>{d.suggestion}</div>
+          ? <div>{humanisePhones(d.suggestion)}</div>
           : <div className="muted">No suggested fix is recorded for this check. Open the page below and
               compare it against the issue described above.</div>}
       </div>
@@ -204,7 +224,28 @@ export default function FindingDetail() {
         <>
           <h3>What the page actually contains</h3>
           <div className="panel card">
-            <pre className="snippet">{d.snippet}</pre>
+            <pre className="snippet">{humanisePhones(d.snippet)}</pre>
+          </div>
+        </>
+      )}
+
+      {/* The photograph, or a sentence saying why there is none. The client HTML report has carried
+          this since 2026-09-04 and the product did not, so the same finding looked better evidenced
+          on paper than in the tool people actually triage in. A missing picture is never a missing
+          defect — the finding is established by the page's own code, and the wording below says so
+          rather than leaving a reader to infer it from a blank. */}
+      {(shot || shotAbsent) && (
+        <>
+          <h3>The element, as a visitor sees it</h3>
+          <div className="panel card">
+            {shot ? (
+              <img className="finding-shot" src={shot}
+                   alt="the element this finding is about, outlined on the page" />
+            ) : (
+              <p className="noshot">
+                {(shotAbsent && ABSENCE_REASONS[shotAbsent]) || ABSENCE_REASONS.none}
+              </p>
+            )}
           </div>
         </>
       )}

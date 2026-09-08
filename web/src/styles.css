@@ -179,3 +179,14 @@ button.linkish { background: none; border: 0; padding: 0; color: var(--accent);
    the title and never the first row. */
 .explain-title + .explain-row { margin-top: 0; }
 .explain-row .badge { margin-right: 4px; }
+
+/* The sparkline is per-brand normalised, so the scale must be stated on the card itself — a
+   tooltip is invisible in a screenshot and on a touch device, which is where this gets read. */
+.spark-note { font-size: 11px; color: var(--mut); margin-top: 3px; line-height: 1.3; }
+
+/* max-width, never fixed: these are 2x crops of a 1280px viewport and must not force sideways
+   scroll on a laptop. The absence note is deliberately quiet — a missing picture is a fact about
+   the photograph, not about the defect, and styling it as a warning would imply otherwise. */
+.finding-shot { max-width: 100%; height: auto; border: 1px solid var(--bd); border-radius: 6px;
+                display: block; }
+.noshot { font-size: 13px; color: var(--mut); font-style: italic; margin: 0; }

@@ -308,3 +308,16 @@ export function fmtDate(s: string | null | undefined): string {
     year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
   });
 }
+
+/** E.164 -> the form a person reads: +18889954208 becomes (888) 995-4208.
+ *
+ *  E.164 is the checks' internal form and the right one for comparison — it is what makes
+ *  "+18445760144" and "(844) 576-0144" the same number. It is not what a client should be shown,
+ *  and the product was printing it raw in issue text, snippets and suggestions. Done at DISPLAY
+ *  time on both surfaces (here and in scripts/client_report.py) rather than in the checks, which
+ *  are hashed into checks_version — changing those would invalidate every brand's resume cache to
+ *  fix a formatting detail. */
+export function humanisePhones(text: string | null | undefined): string {
+  if (!text) return "";
+  return text.replace(/\+1(\d{3})(\d{3})(\d{4})\b/g, "($1) $2-$3");
+}

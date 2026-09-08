@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { anyInFlight, api, fmtDate, fpHash, isInFlight, SEVERITY_ORDER } from "../lib/api";
+import { anyInFlight, api, fmtDate, fpHash, isInFlight, SEVERITY_ORDER, humanisePhones } from "../lib/api";
 import type { Finding, Run, Severity, TriageState } from "../lib/api";
 import { RUN_POLL_MS } from "../components/RunTrigger";
 import RunStatus, { runStatusLabel, runStatusMeta } from "../components/RunStatus";
@@ -502,7 +502,7 @@ export default function Findings() {
                     <td data-label="Issue">
                       {hash ? (
                         <Link to={`/findings/${hash}`}>
-                          <strong>{f.issue}</strong>
+                          <strong>{humanisePhones(f.issue)}</strong>
                         </Link>
                       ) : (
                         <strong>{f.issue}</strong>
