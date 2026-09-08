@@ -84,3 +84,64 @@ def test_the_page_count_is_printed_once_not_twice():
 def test_a_baseline_that_saw_far_less_is_declared(prev_pages, cur_pages, flagged):
     """The rule is about PAGES, not run status — COC's poisoning came from an `ok` run."""
     assert (prev_pages < cur_pages * cr.BASELINE_FLOOR) is flagged
+
+
+# -------------------------------------------------- Section D must track the check registry
+# The whole point of deriving Section D is that a check which EXISTS can never be listed as
+# not-done. That guarantee is only as good as `_source_classes()`, and it had a hole: it matched
+# `"class": "literal"` but not `details={"class": rule}`, where a11y.py assigns the axe rule id from
+# a variable. So `target-size` — a real, shipped check — scanned as non-existent, and the tap-target
+# topic was keyed on `target_size_enhanced`, the separate 44px AAA advisory. Had the render pass
+# ever published, the report body would have listed tap-target findings while Section D denied them.
+
+# Every class the RENDER layer can emit must be accounted for by Section D — either it covers a
+# topic, or it is explicitly declared as not being a Section D subject. Anything else is a hole:
+# a shipped check that Section D goes on denying. This is the invariant the first version of this
+# test missed — it only checked that named classes EXIST, which `target_size_enhanced` did, so the
+# real bug (the topic naming the advisory instead of the shipped rule) sailed straight through.
+NOT_A_LIMITS_TOPIC = {
+    # Not a client-facing "we cannot see this" subject: it is a coverage caveat about the contrast
+    # pass itself, rendered inside the contrast section rather than as its own limitation.
+    "contrast_coverage",
+}
+
+
+def test_every_class_the_render_layer_can_emit_is_accounted_for_in_section_d():
+    """A render class named by no topic is a check Section D will keep denying after it ships."""
+    import re
+    from pathlib import Path
+
+    emitted = set()
+    for f in (Path(__file__).resolve().parent.parent / "render").glob("*.py"):
+        t = f.read_text(encoding="utf-8")
+        emitted |= set(re.findall(r'"class":\s*"([a-z0-9_-]+)"', t))
+        for group in re.findall(r'DEFAULT_RULES[^=]*=\s*\(([^)]*)\)', t):
+            emitted |= set(re.findall(r'"([a-z0-9-]+)"', group))
+
+    named = {c for _t, classes, _w, _n in cr.LIMIT_TOPICS for c in classes}
+    unaccounted = sorted(emitted - named - NOT_A_LIMITS_TOPIC)
+    assert not unaccounted, (
+        f"the render layer can emit {unaccounted} and no Section D topic names them — "
+        f"the report would deny a check it ships")
+
+
+def test_the_registry_scan_sees_classes_assigned_from_a_variable():
+    """`render/a11y.py` does `details={"class": rule}` — the literal never appears next to "class"."""
+    src = cr._source_classes()
+    assert "target-size" in src, "axe rule ids declared in DEFAULT_RULES are invisible to the scan"
+    assert "color-contrast" in src
+
+
+def test_a_topic_clears_when_its_class_appears_in_the_run():
+    """The mechanism itself: a covering class present means the topic is dropped, not softened."""
+    covered = [row("phone", "color-contrast", "error", 3)]
+    assert "Colour and contrast" not in cr.limits_html(covered)
+    assert "Colour and contrast" in cr.limits_html([row("phone", "stale_retired", "error", 3)])
+
+
+def test_an_unpublished_but_built_check_says_so_rather_than_denying_itself():
+    """The honest middle state: built, measured, not switched on. Neither 'we check it' nor 'we
+    do not' would have been true."""
+    html_out = cr.limits_html([row("phone", "stale_retired", "error", 3)])
+    assert "Colour and contrast" in html_out
+    assert "built" in html_out, "a built-but-unpublished check must not read as absent"

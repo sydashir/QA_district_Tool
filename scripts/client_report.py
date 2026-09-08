@@ -387,7 +387,12 @@ LIMIT_TOPICS: list[tuple[str, list[str], str, str]] = [
     ("Images that fail to load", ["broken_image"],
      "An image that 404s looks identical in the HTML to one that loads perfectly.",
      "The check is built — it re-requests each image — but is not part of these reports."),
-    ("Tap targets that are too small to hit", ["target_size_enhanced"],
+    # BOTH ids, and the pair matters. `render/a11y.py:117` sets details["class"] = the axe RULE id,
+    # so the finding this pass actually produces is `target-size` (WCAG 2.5.8 AA, 24x24).
+    # `target_size_enhanced` is a SEPARATE, additional 44px AAA advisory (a11y.py:363). Keying the
+    # topic on the advisory alone meant Section D would keep saying tap targets are not checked
+    # while the report body listed them — exactly the drift this derivation exists to stop.
+    ("Tap targets that are too small to hit", ["target-size", "target_size_enhanced"],
      "Buttons and links too small or too close together to press on a phone.",
      "The check is built but is not part of these reports."),
     ("Whether a button wired in JavaScript works", ["dead_cta"],
@@ -416,6 +421,13 @@ def _source_classes() -> set[str]:
             t = f.read_text(encoding="utf-8")
             found |= set(re.findall(r'"class":\s*"([a-z0-9_-]+)"', t))
             found |= set(re.findall(r'cls\s*=\s*"([a-z0-9_-]+)"', t))
+            # A class assigned from a VARIABLE is invisible to the two patterns above, and that is
+            # not hypothetical: `render/a11y.py` does `details={"class": rule, ...}` where `rule` is
+            # the axe rule id, so `target-size` — a real, shipped check — scanned as non-existent
+            # and Section D would have gone on denying tap-target coverage after it was published.
+            # Axe rule ids are declared as a literal tuple, so read them from there.
+            for group in re.findall(r'DEFAULT_RULES[^=]*=\s*\(([^)]*)\)', t):
+                found |= set(re.findall(r'"([a-z0-9-]+)"', group))
     return found
 
 
