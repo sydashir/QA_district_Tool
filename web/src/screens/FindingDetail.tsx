@@ -46,7 +46,12 @@ function asTriageState(v: string): TriageState {
 }
 
 /** Keys already shown elsewhere on this screen — don't repeat them in the details table. */
-const SKIP_DETAIL_KEYS = new Set(["class", "sources", "page_count"]);
+// Fields the raw table must NOT repeat, because the page already renders them properly above.
+// `shot` in particular is a ~10 KB base64 data URI: printed as a table row it is an unreadable wall
+// of characters, and the picture it encodes is displayed as an image a few inches higher up.
+const SKIP_DETAIL_KEYS = new Set([
+  "class", "sources", "page_count", "shot", "shot_bytes", "shot_absent",
+]);
 
 function DetailValue({ value }: { value: unknown }) {
   if (value === null || value === undefined || value === "") return <span className="muted">—</span>;
