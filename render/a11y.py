@@ -185,13 +185,20 @@ def _contrast_ratio(a: tuple[int, int, int], b: tuple[int, int, int]) -> float:
 def darken_to_pass(fg: str, bg: str, required: float = 4.5) -> str | None:
     """The nearest version of THIS colour that meets the ratio, keeping its hue.
 
-    Scales the foreground toward black (or toward white when the background is dark — AR's palette
-    is light grey on near-black, where darkening makes it worse). Returns None if no scaling of the
-    hue can reach the target, which is honest: some pairs need a different background, not a
-    different text colour, and inventing an answer there would send a designer in a circle.
+    Scales the foreground toward black or toward white, whichever reaches the target with the
+    SMALLER change. Returns None only when neither direction can, which is honest: some pairs
+    genuinely need a different background, and inventing an answer there sends a designer in a circle.
 
     Multiplicative scaling keeps the channel ratios, so #1989ff stays recognisably the same blue
     instead of becoming "use black" — advice a designer would correctly ignore.
+
+    THE DIRECTION IS CHOSEN BY TRYING BOTH, not from the background's luminance. Picking it from
+    the background alone was wrong in a way that produced a confidently FALSE instruction: on a
+    mid-tone background `_rel_luminance(bg) < 0.5` sent WHITE text "toward white", which is a
+    no-op, so the function reported that no shade could pass and the report told the designer to
+    change the background. Measured on real pairs — #ffffff on #8a8a8a, #7a7a7a, #949494 and
+    #6f8fae all pass by going DARKER, and all four were reported impossible. That was 8 of 36
+    client-facing rows on the sample this was found in.
     """
     try:
         f, b = _hex_to_rgb(fg), _hex_to_rgb(bg)
@@ -199,18 +206,23 @@ def darken_to_pass(fg: str, bg: str, required: float = 4.5) -> str | None:
         return None
     if _contrast_ratio(f, b) >= required:
         return fg
-    toward_white = _rel_luminance(b) < 0.5
-    best = None
-    for step in range(1, 101):
-        t = step / 100
-        if toward_white:
-            cand = tuple(round(c + (255 - c) * t) for c in f)
-        else:
-            cand = tuple(round(c * (1 - t)) for c in f)
-        if _contrast_ratio(cand, b) >= required:
-            best = cand
-            break
-    return "#%02x%02x%02x" % best if best else None
+
+    def _scan(toward_white: bool):
+        for step in range(1, 101):
+            t = step / 100
+            cand = (tuple(round(c + (255 - c) * t) for c in f) if toward_white
+                    else tuple(round(c * (1 - t)) for c in f))
+            if _contrast_ratio(cand, b) >= required:
+                return t, cand
+        return None
+
+    # Smaller t = less visual change, so prefer it. Ties go to darkening, which is the commoner
+    # remedy on the light backgrounds most of this fleet uses.
+    options = [o for o in (_scan(False), _scan(True)) if o]
+    if not options:
+        return None
+    _t, best = min(options, key=lambda o: o[0])
+    return "#%02x%02x%02x" % best
 
 
 # Below this share of assessable elements, listing findings implies a coverage that does not exist.
@@ -306,10 +318,33 @@ def collapse_contrast(findings: list[Finding]) -> list[Finding]:
             target = 4.5
         # A designer should not have to reach for a contrast tool to act on this.
         suggested = darken_to_pass(fg, bg, target)
-        fix = (f" Changing {fg} to {suggested} keeps the same colour and clears the standard."
-               if suggested and suggested.lower() != fg.lower()
-               else " No shade of this colour passes on this background — the background needs to "
-                    "change instead.")
+        # "keeps the same colour" is only true when the hue actually survives. White text has no
+        # hue to keep, and the nearest passing shade of #ffffff on a mid grey is #212121 — an
+        # inversion, not a tweak. Claiming otherwise is the same class of confident-but-false
+        # instruction that `darken_to_pass` itself used to produce.
+        fix = " No shade of this colour passes on this background — the background needs to " \
+              "change instead."
+        if suggested and suggested.lower() == fg.lower():
+            # The pair already clears `target`. Reachable when axe's reported ratio and the colours
+            # it reported disagree, and saying "no shade passes" there would be flatly false about
+            # a colour that does.
+            fix = (f" Re-measured from the colours themselves, {fg} on {bg} does clear "
+                   f"{target}:1 — check the element's text size, since the threshold differs for "
+                   f"large text.")
+        elif suggested and suggested.lower() != fg.lower():
+            try:
+                moved = abs(_rel_luminance(_hex_to_rgb(suggested)) - _rel_luminance(_hex_to_rgb(fg)))
+                r, g, bl = _hex_to_rgb(fg)
+                achromatic = max(r, g, bl) - min(r, g, bl) < 8
+            except (ValueError, IndexError):
+                moved, achromatic = 0.0, False
+            if achromatic or moved > 0.3:
+                fix = (f" The nearest passing shade is {suggested}, which is a substantial change "
+                       f"of lightness rather than a tweak — changing the background may suit the "
+                       f"design better, and either fixes it.")
+            else:
+                fix = (f" Changing {fg} to {suggested} keeps the same colour and clears the "
+                       f"standard.")
         out.append(Finding(
             url=first.url, check=CHECK_CONTRAST, severity=Severity.ERROR,
             fingerprint=make_fingerprint(CHECK_CONTRAST, "pair", fg, bg, required),

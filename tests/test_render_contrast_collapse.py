@@ -9,7 +9,10 @@ Every one of the 671 nodes with colour data was independently recomputed against
 and all 671 agreed with axe, so the underlying finding is sound — the problem is purely how many
 times it is said.
 """
+
 from __future__ import annotations
+
+import pytest
 
 from render.a11y import collapse_contrast
 from auditor.report import Finding, Severity
@@ -72,3 +75,58 @@ def test_findings_that_are_not_contrast_pass_through_untouched():
                     details={"class": "target-size"})
     out = collapse_contrast([_f("#7a7a7a", "#ffffff", 4.29, "https://x/a/", "s1"), other])
     assert other in out and len(out) == 2
+
+
+# ------------------------------------------------------------ darken_to_pass direction (2026-09-08)
+# Found by adversarial review: `toward_white = _rel_luminance(bg) < 0.5` chose the direction from
+# the BACKGROUND alone. On a mid-tone background that sent WHITE text "toward white" — a no-op — so
+# the function reported that no shade could pass and the report told the designer to change the
+# background. Measured: 8 of 36 client-facing rows carried that instruction, and every one of them
+# passes by going darker. A confidently wrong instruction is worse than none, and it would have
+# been the first impression of a newly published check.
+
+@pytest.mark.parametrize("fg,bg", [
+    ("#ffffff", "#8a8a8a"),
+    ("#ffffff", "#7a7a7a"),
+    ("#ffffff", "#949494"),
+    ("#ffffff", "#6f8fae"),
+])
+def test_white_on_a_mid_tone_background_gets_a_colour_not_a_shrug(fg, bg):
+    from render.a11y import _contrast_ratio, _hex_to_rgb, darken_to_pass
+
+    got = darken_to_pass(fg, bg, 4.5)
+    assert got is not None, "reported impossible when darkening reaches the target"
+    assert _contrast_ratio(_hex_to_rgb(got), _hex_to_rgb(bg)) >= 4.5
+
+
+def test_the_direction_is_whichever_moves_less():
+    """Black text on a dark background must still go LIGHTER — the fix must not simply always
+    darken, or it would break the case the original one-way scan got right."""
+    from render.a11y import _hex_to_rgb, _rel_luminance, darken_to_pass
+
+    got = darken_to_pass("#000000", "#3a3a3a", 4.5)
+    assert got is not None
+    assert _rel_luminance(_hex_to_rgb(got)) > _rel_luminance(_hex_to_rgb("#000000"))
+
+
+def test_a_pair_that_truly_cannot_pass_still_says_so():
+    """The honest None must survive: inventing an answer sends a designer in a circle."""
+    from render.a11y import darken_to_pass
+    # Mid grey on mid grey: no lightness of an achromatic fg reaches 7:1 here.
+    assert darken_to_pass("#808080", "#8a8a8a", 7.0) is None
+
+
+def test_an_inversion_is_not_described_as_keeping_the_same_colour():
+    """White -> #212121 is a lightness inversion. Calling it 'keeps the same colour' is the same
+    class of confident falsehood the direction bug produced."""
+    from render.a11y import collapse_contrast, to_findings
+
+    axe = {"violations": [{"id": "color-contrast", "nodes": [{
+        "target": ["a"], "html": "<a>x</a>",
+        "data": {"fgColor": "#ffffff", "bgColor": "#8a8a8a",
+                 "contrastRatio": 3.45, "expectedContrastRatio": "4.5:1"}}]}],
+        "incomplete": [], "url": "https://x.invalid/p"}
+    out = collapse_contrast(to_findings(axe, "https://x.invalid/p", viewport="mobile"))
+    text = " ".join(f.suggestion or "" for f in out)
+    assert "keeps the same colour" not in text
+    assert "substantial change" in text
