@@ -27,7 +27,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from sqlalchemy import select, text as sql          # noqa: E402
 
 from server.db import SessionLocal                  # noqa: E402
-from server.models import Brand, PageTraffic        # noqa: E402
+from server.models import Brand, PageTraffic, TrafficImport  # noqa: E402
 # The join key and the duplicate-row rule live in server/traffic.py, because the report and the API
 # read traffic through the same key the importer writes it with. Two copies would drift.
 from server.traffic import aggregate, url_key       # noqa: E402,F401
@@ -113,6 +113,12 @@ def store(brand_code: str, rows: list[dict], period: str) -> int:
                     source="gsc_csv", value_state=r["value_state"])
                 for r in aggregate(rows)]
         s.bulk_save_objects(objs)
+        # How big the export was, so a report can tell a CUT-OFF export from a complete one.
+        s.execute(sql("""delete from traffic_imports
+                         where brand_id=:b and period=:p and source='gsc_csv'"""),
+                  {"b": brand.id, "p": period})
+        s.add(TrafficImport(brand_id=brand.id, period=period, source="gsc_csv",
+                            rows_read=len(rows), pages_stored=len(objs)))
         s.commit()
         return len(objs)
 

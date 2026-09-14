@@ -25,8 +25,8 @@ sys.path.insert(0, str(ROOT))
 import json
 
 from server.db import SessionLocal
-from server.traffic import (NOT_CONNECTED, affected, load_brand_traffic, ranks_on_impressions,
-                            reach, sentence, union, url_key)
+from server.traffic import (NOT_CONNECTED, affected, coverage, load_brand_traffic,
+                            ranks_on_impressions, reach, sentence, union)
 from sqlalchemy import text as sql
 
 # Harm order. Each entry: (heading, plain-English why it matters, [check/class keys]).
@@ -204,7 +204,7 @@ def fetch(session, brand_code: str):
                f.fingerprint AS fp, f.sources AS sources
         FROM findings f
         WHERE f.run_id = :r AND f.status IN ('new','persisting')
-        ORDER BY f.severity, COALESCE(f.page_count,1) DESC"""), {"r": row[0]}).fetchall()
+        ORDER BY f.severity, COALESCE(f.page_count,1) DESC, f.fingerprint"""), {"r": row[0]}).fetchall()
     return row, findings
 
 
@@ -390,6 +390,12 @@ def section_rows(findings: list, keys: list[str], top_n: int = None,
     rows = [f for f in findings if _matches(f[0], f[1], keys)]
     if not rows:
         return [], []
+    # DETERMINISTIC, whatever order the rows arrive in. Ties on (severity, page count) used to be
+    # settled by the order Postgres returned them, and that order changes when rows are written: on
+    # 2026-09-15 the shot pass photographed 12 selected findings, saving the pictures reordered the
+    # rows, and the regenerated reports selected different ties and embedded 8. The fingerprint is
+    # the final tie-break because it is the one identity that never changes.
+    rows.sort(key=lambda f: (rank.get(f[2], 3), -(f[7] or 1), _fp(f)))
     # Group identical findings before showing them. DBH's cross-brand dial is the same defect on 17
     # pages; listed one per URL it filled the most important section with eight copies of one
     # sentence. The engine collapses TEMPLATE-wide findings, but a per-page finding repeated across
@@ -412,8 +418,31 @@ def section_rows(findings: list, keys: list[str], top_n: int = None,
         row[7] = span
         merged.append(tuple(row[:13]) + (reach(page_keys, span, traffic, first[0], first[1]),))
     merged.sort(key=lambda f: (rank.get(f[2], 3),
-                               f[13].rank(ranks_on_impressions(f[0], f[1])), -f[7]))
+                               f[13].rank(ranks_on_impressions(f[0], f[1])), -f[7], _fp(f)))
     return merged, select_shown(merged, TOP_N if top_n is None else top_n)
+
+
+def _fp(f) -> str:
+    return (f[11] if len(f) > 11 else None) or ""
+
+
+def sectioned(findings: list):
+    """(heading, why, keys, the findings that belong to that section) — each finding in ONE section.
+
+    Sections are matched in harm order and a finding goes to the FIRST that claims it. Before this,
+    `accessibility:link-name` matched both "A visitor cannot get through" and the housekeeping
+    wildcard `accessibility:*`, so the same finding was printed and counted twice: 25 duplicate slots
+    across the nine reports on 2026-09-15. The report and the shot pass both read this, so what is
+    photographed and what is printed cannot disagree about where a finding lives.
+    """
+    claimed: set[int] = set()
+    for heading, why, keys in SECTIONS:
+        mine = []
+        for i, f in enumerate(findings):
+            if i not in claimed and _matches(f[0], f[1], keys):
+                claimed.add(i)
+                mine.append(f)
+        yield heading, why, keys, mine
 
 
 def selected_fingerprints(session, brand_code: str) -> list[str]:
@@ -427,8 +456,8 @@ def selected_fingerprints(session, brand_code: str) -> list[str]:
     # The same traffic the report ranks on, or the pictures go to findings the report no longer shows.
     traffic = load_brand_traffic(session, brand_code)
     out: list[str] = []
-    for _heading, _why, keys in SECTIONS:
-        _all, shown = section_rows(findings, keys, traffic=traffic)
+    for _heading, _why, keys, mine in sectioned(findings):
+        _all, shown = section_rows(mine, keys, traffic=traffic)
         out.extend(f[11] for f in shown if len(f) > 11 and f[11])
     return out
 
@@ -526,17 +555,16 @@ def traffic_note(findings: list, traffic) -> str:
     """
     if traffic is None:
         return f"<p class='caveat'>{html.escape(NOT_CONNECTED)}</p>"
-    page_keys = {url_key(f[4]) for f in findings if f[4]}
-    hit = sum(1 for k in page_keys if k in traffic.pages)
-    cap = "" if traffic.measured else "Google&rsquo;s export lists at most 1,000 pages, and "
+    weighted = 0
+    for f in findings:
+        keys, _complete = affected(f[4], _sources(f), f[7])
+        weighted += reach(keys, f[7], traffic, f[0], f[1]).state == "weighted"
     return (f"<p>Within each section, problems on the pages that get the most visits from Google "
             f"search come first, using Google Search Console figures for "
             f"{html.escape(traffic.label)}. Problems with how the site appears in search are "
             f"ranked by how often the page was shown in Google&rsquo;s results instead, because "
-            f"that is where that harm happens. {cap}{hit:,} of the {len(page_keys):,} pages with "
-            f"findings here {'was' if hit == 1 else 'were'} in the traffic data. The rest follow "
-            f"the ones that matched, in the usual order &mdash; not being in the data says nothing "
-            f"about how busy a page is.</p>")
+            f"that is where that harm happens.</p>"
+            f"<p class='caveat'>{html.escape(coverage(weighted, len(findings), traffic.capped))}</p>")
 
 
 def render(brand_code: str, run, findings, _baseline_warning: str | None = None,
@@ -547,11 +575,13 @@ def render(brand_code: str, run, findings, _baseline_warning: str | None = None,
     _shots_omitted = [0]
     out = []
     total = len(findings)
+    shown_all: list = []
 
-    for heading, why, keys in SECTIONS:
-        rows, shown = section_rows(findings, keys, traffic=traffic)
+    for heading, why, keys, mine in sectioned(findings):
+        rows, shown = section_rows(mine, keys, traffic=traffic)
         if not rows:
             continue
+        shown_all.extend(shown)
         items = []
         for f in shown:
             pages_txt = (f"<span class='pages'>on {f[7]:,} pages</span>" if f[7] > 1 else "")
@@ -586,16 +616,24 @@ def render(brand_code: str, run, findings, _baseline_warning: str | None = None,
     # rules out everywhere else.
     # Said ONCE, plainly, wherever any finding lacks an image. Without it a reader compares two
     # findings — one with a photograph, one without — and silently ranks the second as less real.
+    # The picture COUNT is stated, not just the caveat. On 2026-09-14 the nine reports showed 428
+    # findings and 3 pictures, and nothing on the page said so — a reader saw a handful of images
+    # and could not tell whether the rest had been tried and failed or never could be.
+    pictured = sum(1 for f in shown_all if len(f) > 9 and f[9])
     no_image_note = ""
-    if any((f[10] if len(f) > 10 else None) for f in findings):
+    if shown_all and pictured < len(shown_all):
         no_image_note = (
             "<section><p class='caveat'><strong>Some findings have no picture, and that does not "
-            "make them less certain.</strong> Every finding in this report was established by "
-            "reading the page's own code — the text it displays and the number it dials. A "
-            "photograph is corroboration for a human skimming the report, never the proof. Where "
-            "one is missing, the reason is printed under the finding; the commonest is that the "
-            "element is a mobile/desktop duplicate that is not visible at the width we "
-            "photograph.</p></section>")
+            "make them less certain.</strong> "
+            f"{pictured:,} of the {len(shown_all):,} findings shown in this report "
+            f"{'has' if pictured == 1 else 'have'} a photograph. Every finding in this report was "
+            "established by reading the page's own code — the text it displays and the number it "
+            "dials. A photograph is corroboration for a human skimming the report, never the "
+            "proof. Only a problem the audit tied to one element on the page can be photographed: "
+            "a page title, a heading order or a sitemap entry has nothing to point a camera at, and "
+            "colour and link-name findings are currently recorded without their element's position. "
+            "Where an element exists but could not be photographed, the reason is printed under "
+            "the finding.</p></section>")
 
     if no_image_note:
         out.append(no_image_note)

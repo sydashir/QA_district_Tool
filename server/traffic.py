@@ -108,11 +108,18 @@ def ranks_on_impressions(check: str, cls: str | None) -> bool:
 
 
 # ---------------------------------------------------------------------------- loading
+# Google's Search Console UI export stops here. Five of the seven 2026-09-14 exports hit it exactly.
+EXPORT_ROW_CAP = 1000
+
+
 @dataclass(frozen=True)
 class BrandTraffic:
     period: str
     pages: dict[str, tuple[int, int]]        # url_key -> (clicks, impressions)
     measured: bool                           # False for every CSV import — see the module docstring
+    # True: the export hit Google's row cap, so a page missing from it may still be busy. False: the
+    # export was complete. None: not recorded (an import older than `traffic_imports`).
+    capped: bool | None = None
 
     @property
     def label(self) -> str:
@@ -149,7 +156,12 @@ def load_brand_traffic(session, brand_code: str) -> BrandTraffic | None:
             {"c": brand_code.upper(), "p": newest[0]}):
         pages[key] = (clicks or 0, impr or 0)
         measured = measured and state == "measured"
-    return BrandTraffic(period=newest[0], pages=pages, measured=measured)
+    rows_read = session.execute(sql("""
+        SELECT max(i.rows_read) FROM traffic_imports i JOIN brands b ON b.id = i.brand_id
+        WHERE b.code = :c AND i.period = :p AND i.source = 'gsc_csv'"""),
+        {"c": brand_code.upper(), "p": newest[0]}).scalar()
+    capped = None if rows_read is None else rows_read >= EXPORT_ROW_CAP
+    return BrandTraffic(period=newest[0], pages=pages, measured=measured, capped=capped)
 
 
 # ---------------------------------------------------------------------------- reach
@@ -192,6 +204,7 @@ class Reach:
     reason: str = ""
     period: str = ""
     measured: bool = False
+    capped: bool | None = None
 
     @property
     def partial(self) -> bool:
@@ -212,7 +225,8 @@ def reach(keys: set[str], total: int, traffic: BrandTraffic | None,
     total = max(total or 1, known)
     if traffic is None:
         return Reach("not_connected", known, total)
-    base = dict(known=known, total=total, period=traffic.label, measured=traffic.measured)
+    base = dict(known=known, total=total, period=traffic.label, measured=traffic.measured,
+                capped=traffic.capped)
     if check == "enumeration" and (cls or "") in NO_SEARCH_BY_DESIGN:
         return Reach("by_design", reason=NO_SEARCH_BY_DESIGN[cls or ""], **base)
     hits = [traffic.pages[k] for k in keys if k in traffic.pages]
@@ -246,6 +260,23 @@ def sentence(r: Reach) -> str:
     if r.state == "by_design":
         return r.reason
     if r.state == "unmatched":
+        # What "not in the data" means depends on whether the export was cut off. The join itself
+        # matches 90-100% of the pages an export contains, so on a capped export the honest cause
+        # is the cap, and on a complete one it is most likely a page Google never showed.
+        if r.capped:
+            return (("These pages are not in Google's traffic export, which stops at the site's "
+                     "1,000 pages with the most clicks, so they are unweighted. That says nothing "
+                     "about how busy the pages are." if many else
+                     "This page is not in Google's traffic export, which stops at the site's 1,000 "
+                     "pages with the most clicks, so it is unweighted. That says nothing about how "
+                     "busy the page is.") + sample)
+        if r.capped is False:
+            return (("These pages are not in Google's traffic data for the period, so they are "
+                     "unweighted. The export for this site was complete, so they most likely had no "
+                     "search impressions, but a missing row cannot prove that." if many else
+                     "This page is not in Google's traffic data for the period, so it is unweighted. "
+                     "The export for this site was complete, so the page most likely had no search "
+                     "impressions, but a missing row cannot prove that.") + sample)
         return (("We could not match these pages to the traffic data, so they are unweighted. That "
                  "is a gap in our matching, not a measurement of the pages." if many else
                  "We could not match this page to the traffic data, so it is unweighted. That is a "
@@ -264,6 +295,33 @@ def sentence(r: Reach) -> str:
     if r.matched > 1:
         out += f" The busiest affected page had {_n(r.busiest, 'visit', 'visits')}."
     return out + sample
+
+
+def coverage(weighted: int, total: int, capped: bool | None,
+             noun: str = "findings here") -> str:
+    """How much of a list the traffic order actually reaches. Said wherever that order is used.
+
+    Measured 2026-09-14: RR leaves 81% of its findings unweighted and GL 74%, both on capped exports.
+    A ranking that reaches a fifth of a site's findings orders the busiest part of it and nothing
+    else, and a reader who is not told reads everything below the weighted rows as "quieter".
+    """
+    if not total:
+        return ""
+    pct = round(weighted / total * 100)
+    share = f"{weighted:,} of the {total:,} {noun} ({pct}%)"
+    if capped:
+        lead = ("This traffic ranking only works for the busiest part of the site. "
+                if weighted * 2 < total else "")
+        return (f"{lead}Google's export stops at the site's 1,000 pages with the most clicks, so "
+                f"only {share} are on pages it covers and can be ranked by traffic. The other "
+                f"{100 - pct}% keep the usual order, which says nothing about how busy their "
+                f"pages are.")
+    if capped is False:
+        return (f"{share} are on pages in the traffic data and are ranked by it. Google's export "
+                f"for this site was complete, so the other {100 - pct}% are most likely on pages "
+                f"with no search traffic in the period; they keep the usual order.")
+    return (f"{share} are on pages in the traffic data and are ranked by it. The other "
+            f"{100 - pct}% keep the usual order, which says nothing about how busy their pages are.")
 
 
 def short(r: Reach) -> str | None:

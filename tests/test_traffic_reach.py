@@ -95,7 +95,9 @@ def test_traffic_orders_within_a_severity_never_across_it():
 
 
 def test_without_traffic_data_the_order_is_exactly_what_it_was():
-    assert order(FOUR, ["phone:*"], None) == ["wide error", "quiet error", "busy error",
+    # Severity, then page count; the two single-page errors tie and are settled by fingerprint
+    # ("busy…" before "quiet…"), never by the order they arrived in.
+    assert order(FOUR, ["phone:*"], None) == ["wide error", "busy error", "quiet error",
                                               "busy warning"]
 
 
@@ -168,7 +170,7 @@ def test_a_report_with_no_traffic_data_says_it_does_not_mean_quiet():
 
 def test_a_report_with_traffic_states_how_much_of_it_matched():
     out = cr.render("GL", RUN, FOUR, None, TRAFFIC)
-    assert "2 of the 4 pages with findings" in out
+    assert "2 of the 4 findings here (50%)" in out
     assert "13 Jun – 12 Sep 2026" in out
     assert "900 visits from Google" in out
 
@@ -183,3 +185,70 @@ def test_the_shot_pass_photographs_the_findings_the_traffic_order_shows(monkeypa
     fps = cr.selected_fingerprints(None, "GL")
     assert BUSY_ERROR[11] in fps
     assert fps.index(BUSY_ERROR[11]) == 0
+
+
+# --------------------------------------------------------------------------- how far the order reaches
+def test_a_capped_export_says_the_ranking_only_reaches_the_busiest_pages():
+    """RR leaves 81% of its findings unweighted and GL 74%, both on exports cut off at 1,000 rows.
+    A ranking that reaches a fifth of the findings orders the head of the site and nothing else."""
+    capped = BrandTraffic(period=PERIOD, pages=TRAFFIC.pages, measured=False, capped=True)
+    quiet = [row("phone", DIAL, "error", 1, f"{HOST}/q{i}", issue=f"q{i}") for i in range(4)]
+    out = cr.render("GL", RUN, FOUR + quiet, None, capped)
+    assert "only works for the busiest part of the site" in out
+    assert "only 2 of the 8 findings here (25%)" in out
+
+
+def test_a_complete_export_is_never_blamed_on_the_cap():
+    """AR exported 518 rows — everything Google had — and still leaves 62% unweighted. Saying the
+    1,000-row cap caused that would be false in AR's own report."""
+    complete = BrandTraffic(period=PERIOD, pages=TRAFFIC.pages, measured=False, capped=False)
+    out = cr.render("GL", RUN, FOUR, None, complete)
+    assert "1,000 pages" not in out
+    assert "export for this site was complete" in out
+    nowhere = {url_key(f"{HOST}/nowhere")}
+    assert "most likely had no search impressions" in sentence(reach(nowhere, 1, complete, "phone", "x"))
+    capped = BrandTraffic(period=PERIOD, pages=TRAFFIC.pages, measured=False, capped=True)
+    assert "1,000 pages with the most clicks" in sentence(reach(nowhere, 1, capped, "phone", "x"))
+
+
+def test_the_report_states_its_picture_count():
+    """428 findings shown, 3 pictures, and nothing on the page said so."""
+    shot = "data:image/png;base64,iVBORw0KGgo="
+    pictured = BUSY_ERROR[:9] + (shot,) + BUSY_ERROR[10:]
+    out = cr.render("GL", RUN, [pictured, QUIET_ERROR, WIDE_ERROR], None, None)
+    assert "1 of the 3 findings shown in this report has a photograph" in out
+
+
+# --------------------------------------------------------------------------- a stable, single listing
+def test_the_selection_does_not_depend_on_the_order_rows_arrive_in():
+    """Measured 2026-09-15: the shot pass photographed 12 findings the report selected, then the
+    report embedded 8 — because writing the pictures changed the order Postgres returned rows in,
+    and ties on (severity, page count) were resolved by that order. What the client sees must not
+    change because a picture was saved."""
+    import random
+    rows = [row("phone", DIAL, "error", 1, f"{HOST}/t{i}", issue=f"tie {i}") for i in range(20)]
+    first = [f[11] for f in cr.section_rows(rows, ["phone:*"], top_n=8)[1]]
+    for seed in range(5):
+        shuffled = rows[:]
+        random.Random(seed).shuffle(shuffled)
+        assert [f[11] for f in cr.section_rows(shuffled, ["phone:*"], top_n=8)[1]] == first
+
+
+def test_a_finding_is_listed_in_one_section_only():
+    """`accessibility:link-name` matched both "A visitor cannot get through" and the housekeeping
+    wildcard `accessibility:*`, so the same finding was printed and counted twice — 25 duplicate
+    slots across the nine reports."""
+    link = row("accessibility", "link-name", "error", 1, f"{HOST}/a", issue="a link has no name")
+    out = cr.render("GL", RUN, [link], None, None)
+    assert out.count("a link has no name") == 1
+    fps = []
+    import types
+    mp = types.SimpleNamespace()
+    orig_fetch, orig_load = cr.fetch, cr.load_brand_traffic
+    try:
+        cr.fetch = lambda s, code: (RUN, [link])
+        cr.load_brand_traffic = lambda s, code: None
+        fps = cr.selected_fingerprints(None, "GL")
+    finally:
+        cr.fetch, cr.load_brand_traffic = orig_fetch, orig_load
+    assert fps == [link[11]]

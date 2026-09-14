@@ -152,6 +152,29 @@ class PageTraffic(Base):
     )
 
 
+class TrafficImport(Base):
+    """One traffic export as it arrived: how many rows it had. Migration 0004 says why.
+
+    `rows_read` at Google's UI cap (1,000) means the export was cut off, so a page missing from it
+    may still be busy. Below the cap, the export was complete.
+    """
+
+    __tablename__ = "traffic_imports"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    brand_id: Mapped[int] = mapped_column(ForeignKey("brands.id"))
+    period: Mapped[str] = mapped_column(String(32))
+    source: Mapped[str] = mapped_column(String(16))
+    rows_read: Mapped[int] = mapped_column(Integer)
+    pages_stored: Mapped[int] = mapped_column(Integer)
+    imported_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),
+                                                  server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("brand_id", "period", "source", name="uq_traffic_import"),
+    )
+
+
 class Finding(Base):
     __tablename__ = "findings"
 

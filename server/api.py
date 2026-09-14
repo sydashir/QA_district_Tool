@@ -30,8 +30,8 @@ from sqlalchemy.orm import Session
 from auditor.humanize import CHECK_LABELS
 from .db import get_session
 from .models import Brand, Finding, Page, Run, Triage, fp_hash
-from .traffic import (NOT_CONNECTED, affected, load_brand_traffic, ranks_on_impressions, reach,
-                      sentence, short)
+from .traffic import (NOT_CONNECTED, affected, coverage, load_brand_traffic,
+                      ranks_on_impressions, reach, sentence, short)
 
 OPEN_STATUSES = ("new", "persisting")
 
@@ -228,8 +228,9 @@ def list_findings(
         ordering_note = NOT_CONNECTED if traffic is None else (
             f"Within each severity, findings on the pages with the most Google search visits come "
             f"first (Search Console, {traffic.label}); problems with how pages appear in search "
-            f"rank by impressions instead. Findings not in the traffic data follow in the usual "
-            f"order, which says nothing about how busy their pages are.")
+            f"rank by impressions instead.")
+        # What happens to the findings the data does not cover is said by `coverage()`, appended
+        # below with the real share — saying it here as well printed the same sentence twice.
     else:
         run_ids = list(latest.values())
         # Deliberately not ranked across brands: visits to different sites are not comparable, and
@@ -291,12 +292,16 @@ def list_findings(
             ordering_note = ordering_note.replace(
                 "; problems with how pages appear in search rank by impressions instead", "")
         ordered = []
+        weighted = 0
         for fid, url, sources, pages, chk, sev, cls in light:
             keys, _complete = affected(url, sources, pages)
             r = reach(keys, pages, traffic, chk, cls)
+            weighted += r.state == "weighted"
             ordered.append(((rank.get(sev, 3),) + r.rank(by_impressions)
                             + (-(pages or 1), -fid), fid))
         ordered.sort()
+        ordering_note = " ".join(p for p in (ordering_note, coverage(
+            weighted, len(light), traffic.capped, noun="findings in this list")) if p)
         page_ids = [fid for _key, fid in ordered[(page - 1) * per_page:page * per_page]]
         position = {fid: i for i, fid in enumerate(page_ids)}
         rows = sorted(session.execute(stmt.where(Finding.id.in_(page_ids))).all(),

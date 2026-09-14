@@ -16,7 +16,7 @@ from sqlalchemy.pool import StaticPool
 
 from server.api import app as api_app
 from server.db import get_session
-from server.models import Base, Brand, Finding, PageTraffic, Run, fp_hash
+from server.models import Base, Brand, Finding, PageTraffic, Run, TrafficImport, fp_hash
 from server.traffic import NOT_CONNECTED
 
 T0 = datetime(2026, 9, 4, 2, 0, 0)
@@ -96,6 +96,7 @@ def test_one_brand_is_ordered_by_traffic_within_severity(client, seed):
     assert by["quiet"]["traffic_short"] == "not in the traffic data"
     assert by["hidden"]["traffic_state"] == "by_design"
     assert "Search Console, 13 Jun – 12 Sep 2026" in body["ordering_note"]
+    assert "2 of the 5 findings in this list (40%)" in body["ordering_note"]
 
 
 def test_paging_follows_the_traffic_order(client, seed):
@@ -152,3 +153,16 @@ def test_a_mixed_list_ranks_every_row_on_visits(client, seed, sessions):
     only = client.get("/api/findings", params={"brand": "GL", "check": "schema"}).json()
     assert _issues(only) == ["shown", "clicked"]                     # 90,000 > 1,000 impressions
     assert "impressions in Google's results" in only["ordering_note"]
+
+
+def test_whether_an_export_was_cut_off_comes_from_its_row_count(client, seed, sessions):
+    from server.traffic import load_brand_traffic
+    with sessions() as s:
+        assert load_brand_traffic(s, "GL").capped is None          # no import record: unknown
+        gl = s.scalar(select(Brand).where(Brand.code == "GL"))
+        s.add(TrafficImport(brand_id=gl.id, period="2026-06-13..2026-09-12", source="gsc_csv",
+                            rows_read=1000, pages_stored=996))
+        s.commit()
+        assert load_brand_traffic(s, "GL").capped is True
+    note = client.get("/api/findings", params={"brand": "GL"}).json()["ordering_note"]
+    assert "only works for the busiest part of the site" in note
