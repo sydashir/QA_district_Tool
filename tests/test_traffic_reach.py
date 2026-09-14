@@ -204,7 +204,7 @@ def test_a_complete_export_is_never_blamed_on_the_cap():
     complete = BrandTraffic(period=PERIOD, pages=TRAFFIC.pages, measured=False, capped=False)
     out = cr.render("GL", RUN, FOUR, None, complete)
     assert "1,000 pages" not in out
-    assert "export for this site was complete" in out
+    assert "was not cut off" in out
     nowhere = {url_key(f"{HOST}/nowhere")}
     assert "most likely had no search impressions" in sentence(reach(nowhere, 1, complete, "phone", "x"))
     capped = BrandTraffic(period=PERIOD, pages=TRAFFIC.pages, measured=False, capped=True)

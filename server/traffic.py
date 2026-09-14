@@ -145,22 +145,29 @@ def load_brand_traffic(session, brand_code: str) -> BrandTraffic | None:
         {"c": brand_code.upper()}).first()
     if not newest:
         return None
+    params = {"c": brand_code.upper(), "p": newest[0]}
+    sources = {r[0] for r in session.execute(sql("""
+        SELECT DISTINCT t.source FROM page_traffic t JOIN brands b ON b.id = t.brand_id
+        WHERE b.code = :c AND t.period = :p"""), params)}
+    # The API REPLACES a CSV for the same period rather than being blended with it. Blending would
+    # rank some pages on a 1,000-row export and the rest on the full data, and a single CSV row
+    # would make every number read as "not proof", because the CSV cannot vouch for its zeros.
+    source = "gsc_api" if "gsc_api" in sources else "gsc_csv"
     pages: dict[str, tuple[int, int]] = {}
     measured = True
-    # API rows (if any ever exist) are read last so they win over a CSV row for the same page.
     for key, clicks, impr, state in session.execute(sql("""
             SELECT t.url_key, t.clicks, t.impressions, t.value_state
             FROM page_traffic t JOIN brands b ON b.id = t.brand_id
-            WHERE b.code = :c AND t.period = :p
-            ORDER BY CASE WHEN t.source = 'gsc_api' THEN 1 ELSE 0 END"""),
-            {"c": brand_code.upper(), "p": newest[0]}):
+            WHERE b.code = :c AND t.period = :p AND t.source = :s"""), {**params, "s": source}):
         pages[key] = (clicks or 0, impr or 0)
         measured = measured and state == "measured"
-    rows_read = session.execute(sql("""
-        SELECT max(i.rows_read) FROM traffic_imports i JOIN brands b ON b.id = i.brand_id
-        WHERE b.code = :c AND i.period = :p AND i.source = 'gsc_csv'"""),
-        {"c": brand_code.upper(), "p": newest[0]}).scalar()
-    capped = None if rows_read is None else rows_read >= EXPORT_ROW_CAP
+    if source == "gsc_api":
+        capped = False              # paged until Google returned 0 rows; no 1,000-row ceiling
+    else:
+        rows_read = session.execute(sql("""
+            SELECT max(i.rows_read) FROM traffic_imports i JOIN brands b ON b.id = i.brand_id
+            WHERE b.code = :c AND i.period = :p AND i.source = 'gsc_csv'"""), params).scalar()
+        capped = None if rows_read is None else rows_read >= EXPORT_ROW_CAP
     return BrandTraffic(period=newest[0], pages=pages, measured=measured, capped=capped)
 
 
@@ -272,11 +279,11 @@ def sentence(r: Reach) -> str:
                      "busy the page is.") + sample)
         if r.capped is False:
             return (("These pages are not in Google's traffic data for the period, so they are "
-                     "unweighted. The export for this site was complete, so they most likely had no "
-                     "search impressions, but a missing row cannot prove that." if many else
+                     "unweighted. That data was not cut off, so they most likely had no search "
+                     "impressions, but a missing row cannot prove that." if many else
                      "This page is not in Google's traffic data for the period, so it is unweighted. "
-                     "The export for this site was complete, so the page most likely had no search "
-                     "impressions, but a missing row cannot prove that.") + sample)
+                     "That data was not cut off, so the page most likely had no search impressions, "
+                     "but a missing row cannot prove that.") + sample)
         return (("We could not match these pages to the traffic data, so they are unweighted. That "
                  "is a gap in our matching, not a measurement of the pages." if many else
                  "We could not match this page to the traffic data, so it is unweighted. That is a "
@@ -317,9 +324,9 @@ def coverage(weighted: int, total: int, capped: bool | None,
                 f"{100 - pct}% keep the usual order, which says nothing about how busy their "
                 f"pages are.")
     if capped is False:
-        return (f"{share} are on pages in the traffic data and are ranked by it. Google's export "
-                f"for this site was complete, so the other {100 - pct}% are most likely on pages "
-                f"with no search traffic in the period; they keep the usual order.")
+        return (f"{share} are on pages in the traffic data and are ranked by it. Google's traffic "
+                f"data for this site was not cut off, so the other {100 - pct}% are most likely on "
+                f"pages with no search traffic in the period; they keep the usual order.")
     return (f"{share} are on pages in the traffic data and are ranked by it. The other "
             f"{100 - pct}% keep the usual order, which says nothing about how busy their pages are.")
 
