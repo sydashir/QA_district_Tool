@@ -4,16 +4,32 @@ Wraps the finished audit engine. Nothing in `auditor/` was changed to build this
 
 ## Local bring-up
 
+**No Docker on the Mac.** Since 2026-09-14 the database is a native Homebrew Postgres, because
+Docker Desktop disrupted the machine it runs on. Postgres listens on **55432**, the port every
+default in this repo already expects, so nothing else needs configuring.
+
 ```bash
-docker run -d --name district-pg -e POSTGRES_PASSWORD=district -e POSTGRES_USER=district \
-  -e POSTGRES_DB=district -p 55432:5432 postgres:16
-python3 -m alembic upgrade head     # creates the schema (run from the repo root)
-python3 -m server.importer          # backfills reports/ -> postgres (85 runs, ~247k findings)
-python3 -m uvicorn server.api:app --port 8099
+brew install postgresql@16                 # once; the cluster lives in /usr/local/var/postgresql@16
+# set `port = 55432` in /usr/local/var/postgresql@16/postgresql.conf
+brew services start postgresql@16          # starts now and at every login
+PG=/usr/local/opt/postgresql@16/bin        # keg-only: psql / pg_restore are not on PATH
+$PG/psql -h 127.0.0.1 -p 55432 -d postgres -c "create role district login password 'district'"
+$PG/psql -h 127.0.0.1 -p 55432 -d postgres -c "create database district owner district \
+  template template0 encoding 'UTF8' lc_collate 'en_US.UTF-8' lc_ctype 'en_US.UTF-8'"
+
+# either restore real data (the newest dump in backups/ — check its date first) ...
+$PG/pg_restore -h 127.0.0.1 -p 55432 -U district -d district --no-owner --role=district \
+  --exit-on-error -j 4 backups/district-YYYYMMDD-HHMMSS.dump
+# ... or start empty
+python3 -m alembic upgrade head            # creates the schema (run from the repo root)
+
+python3 -m uvicorn server.api:app --port 8099   # the API the web app proxies to
+python3 -m server.worker                        # only needed to run audits from the web app
 ```
 
-`DATABASE_URL` overrides the connection; it defaults to the container above. Alembic reads the
-same variable, and falls back to the same default, via `server.db.DATABASE_URL`.
+`DATABASE_URL` overrides the connection; it defaults to `127.0.0.1:55432`. Alembic reads the same
+variable, and falls back to the same default, via `server.db.DATABASE_URL`. `docker-compose.yml`
+still describes the server deployment in `deploy/README.md`; it is simply not how this runs locally.
 
 ## Migrations
 

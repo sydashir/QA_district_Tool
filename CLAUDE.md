@@ -562,20 +562,35 @@ Nothing below is a coding task. Each is a decision only he can make.
    runs it or nothing is audited. `brands.schedule_cron` is NULL for all nine ON PURPOSE, so the
    dashboard cannot claim audits run overnight when nothing runs them; installing a timer means
    setting those crons — the step is written into `deploy/README.md` section 5.
-4. **Traffic ranking — data is in, nothing uses it yet.** Seven of nine Search Console exports were
-   imported on 2026-09-14 (web search, 2026-06-13..2026-09-12): `page_traffic` holds 4,797 rows for
-   AH, AR, CAD, COC, DBH, GL, RR. **TDRC and MHD were not supplied.** Three things to know before
-   building on it:
-   * **The UI export caps at 1,000 rows**, so CAD, COC, DBH, GL and RR hold only their top pages by
-     clicks. Their low match rates (GL 27%, RR 13%) are that cap, not a matching fault — the join
-     reaches 90-100% of what is matchable. `--match-report` still prints "LOW — check the property
-     type" for them, which is the wrong advice. Full coverage needs the API (rowLimit up to 25,000).
-   * **Nothing reads `page_traffic`.** No API endpoint, report section or screen ranks by it.
-     Building that consumer is the open decision.
-   * **`store()` keeps the highest-click row per page**, which drops Elementor table-of-contents
-     anchor rows and undercounts impressions by 26% on AR, 20% on CAD and 12% on DBH (clicks are
-     barely affected). If it is ever consumed: sum clicks, take the max impression row — summing
-     impressions would double-count a page shown with its own jump links.
+4. **Whether to get fuller traffic data.** Traffic ranking is BUILT (2026-09-14) on seven Search
+   Console UI exports (web search, 2026-06-13..2026-09-12; 4,797 pages for AH, AR, CAD, COC, DBH,
+   GL, RR). **TDRC and MHD were not supplied** and their reports say traffic is not connected. The
+   UI export stops at 1,000 rows, so on GL only 971 of 3,595 finding pages can be weighted and on RR
+   886 of 6,881 — the join itself matches 90-100% of the pages the export contains. Weighting every
+   page needs the Search Console API (service account added to each property, rowLimit 25,000).
+
+### Traffic ranking — how it works (2026-09-14)
+* **`server/traffic.py` is the one definition**, used by the client report and the API. Harm first:
+  traffic orders findings only WITHIN a severity. Reach is a UNION of the pages a finding names,
+  never a sum (GL had 13 findings on one page). A capped page list says "at least … N of M". The
+  search-results section ranks on impressions, everything else on visits.
+* **Five states, five sentences:** weighted, zero (a CSV zero is "not proof" and does not rank),
+  unmatched ("a gap in our matching"), by design (no-indexed / 4xx / off-brand pages, reason
+  printed), not connected (said once per report: "It does not mean these pages are quiet.").
+* **The dashboard ranks by traffic only when one brand is selected** — visits to different sites are
+  not comparable — and says so above the list.
+* `traffic_import.py` sums visits across duplicate rows and keeps the largest impression row (jump-link
+  anchors overlap in one result). `--match-report` now says LIMITED BY THE EXPORT when most of the
+  export's pages matched, instead of blaming the property type.
+
+### The database is NATIVE, not Docker (2026-09-14)
+Docker Desktop disrupted Syed's Mac, so Postgres moved to Homebrew `postgresql@16`
+(`/usr/local/var/postgresql@16`, `brew services`, starts at login) on **port 55432** — the port every
+default already uses, so no config changed. Moved by pg_dump/pg_restore; row counts identical on all
+12 tables. `psql`/`pg_dump` live in `/usr/local/opt/postgresql@16/bin` (keg-only). Run the API with
+`python3 -m uvicorn server.api:app --port 8099` and, only to run audits from the web app,
+`python3 -m server.worker`. **Do not start Docker on this machine.** The compose file is kept for a
+server deployment only; the old Docker volume was left untouched as a fallback.
 
 ### Three DOCUMENTED NEGATIVE RESULTS — do not re-litigate without new evidence
 * **D9 (ARCHITECTURE.md) — AI grammar/spelling.** An LLM pass editorialised about word choice.
