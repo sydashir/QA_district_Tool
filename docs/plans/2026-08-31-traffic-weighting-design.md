@@ -53,9 +53,19 @@ The existing Sheets service account can be reused; nothing new is created.
 > For each of the nine properties in Search Console, add
 > **`app-service-account@lexical-sol-454719-s2.iam.gserviceaccount.com`**
 > as a user. Search Console → Settings → Users and permissions → Add user.
-> **Only an existing owner can add a user.** Owner, Full and Restricted all reach the Performance
-> data this needs; **Full is the safe minimum** to ask for, since Restricted has occasionally
-> surprised people on API reads.
+> **Only an existing owner can add a user.**
+
+**Updated 2026-09-15, checked rather than remembered:**
+* **Restricted is the level to ask for.** Google's permissions page (support.google.com/webmasters/
+  answer/7687615) marks the Performance report as available to Restricted users. The earlier "Full is
+  the safe minimum" line was unsourced. If any property's API query is refused at Restricted, raise
+  that one property to Full — the first real query will show it.
+* **The Search Console API is switched OFF in the project.** A `sites.list` call with the service
+  account returned HTTP 403 `SERVICE_DISABLED` for project 843513963349 (`lexical-sol-454719-s2`).
+  Adding the account to properties is not enough on its own: someone with access to that Google
+  Cloud project must enable "Google Search Console API" first.
+* The key file at `SHEETS_CREDENTIALS_HOST` names exactly this `client_email`, so the address above is
+  the account the tool will actually authenticate as.
 
 A service account needs no special treatment — the address is added like any other user, and
 delegated ownership is *not* required for Search Analytics reads.

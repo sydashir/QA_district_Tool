@@ -568,6 +568,11 @@ Nothing below is a coding task. Each is a decision only he can make.
    UI export stops at 1,000 rows, so on GL only 971 of 3,595 finding pages can be weighted and on RR
    886 of 6,881 — the join itself matches 90-100% of the pages the export contains. Weighting every
    page needs the Search Console API (service account added to each property, rowLimit 25,000).
+   **Two steps, both Syed's:** (a) enable "Google Search Console API" in Google Cloud project
+   `lexical-sol-454719-s2` — verified OFF on 2026-09-15 (`sites.list` -> 403 `SERVICE_DISABLED`);
+   (b) add `app-service-account@lexical-sol-454719-s2.iam.gserviceaccount.com` as a **Restricted**
+   user on each property (Settings -> Users and permissions -> Add user). Then run `sites.list` with
+   the key to confirm every property and its permission level before building the API importer.
 
 ### Traffic ranking — how it works (2026-09-14)
 * **`server/traffic.py` is the one definition**, used by the client report and the API. Harm first:
