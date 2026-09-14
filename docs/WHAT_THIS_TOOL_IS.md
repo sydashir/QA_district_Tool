@@ -77,6 +77,11 @@ about half of these elements are mobile/desktop duplicates that are not visible 
 photograph. A missing picture never means a missing defect: every finding is established by reading
 the page's own code, and the picture is corroboration.
 
+Within each level of seriousness, findings on **the pages that get the most visits from Google** now
+come first, using the site's own Search Console figures. A serious problem on a quiet page still
+outranks a minor one on a busy page, and a page missing from the traffic data is labelled as
+unmatched rather than treated as quiet.
+
 ![Finding detail](screenshots/finding-detail.png)
 
 **What changed** — the difference between a brand's last two audits: what appeared, what went away,

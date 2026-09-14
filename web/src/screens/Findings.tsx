@@ -450,6 +450,13 @@ export default function Findings() {
         )}
       </div>
 
+      {/* Traffic reorders the list when one brand is chosen, so the order is explained in words. */}
+      {!findingsQ.isError && findingsQ.data?.ordering_note && (
+        <div className="small muted" style={{ margin: "-4px 0 10px" }}>
+          {findingsQ.data.ordering_note}
+        </div>
+      )}
+
       <div className="panel" style={{ overflowX: "auto" }}>
         <QueryBoundary
           query={findingsQ}
@@ -537,6 +544,15 @@ export default function Findings() {
                       >
                         {shortUrl(f.url)}
                       </a>
+                      {f.traffic_short && (
+                        <div
+                          className="small muted"
+                          style={{ marginTop: 2 }}
+                          title={f.traffic_note ?? undefined}
+                        >
+                          {f.traffic_short}
+                        </div>
+                      )}
                     </td>
                     <td className="small muted" style={{ whiteSpace: "nowrap" }} data-label="First seen">
                       {fmtDate(f.first_seen)}

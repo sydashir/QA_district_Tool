@@ -30,6 +30,8 @@ from sqlalchemy.orm import Session
 from auditor.humanize import CHECK_LABELS
 from .db import get_session
 from .models import Brand, Finding, Page, Run, Triage, fp_hash
+from .traffic import (NOT_CONNECTED, affected, load_brand_traffic, ranks_on_impressions, reach,
+                      sentence, short)
 
 OPEN_STATUSES = ("new", "persisting")
 
@@ -99,6 +101,11 @@ class FindingOut(BaseModel):
     page_count: int
     triage_state: str = "open"
     triage_note: str | None = None
+    # Search traffic, only when one brand is selected. `traffic_short` is the table cell,
+    # `traffic_note` the full sentence — see server/traffic.py for the five states.
+    traffic_state: str | None = None
+    traffic_short: str | None = None
+    traffic_note: str | None = None
 
 
 class Paged(BaseModel):
@@ -106,6 +113,8 @@ class Paged(BaseModel):
     page: int
     per_page: int
     items: list[FindingOut]
+    # How this list is ordered, in words. Traffic changes the order, so the screen has to say so.
+    ordering_note: str | None = None
 
 
 class RunOut(BaseModel):
@@ -211,13 +220,24 @@ def list_findings(
     session: Session = Depends(get_session),
 ) -> Paged:
     latest = _latest_run_ids(session)
+    traffic = None
     if brand:
         b = _brand_or_404(session, brand)
         run_ids = [latest[b.id]] if b.id in latest else []
+        traffic = load_brand_traffic(session, b.code)
+        ordering_note = NOT_CONNECTED if traffic is None else (
+            f"Within each severity, findings on the pages with the most Google search visits come "
+            f"first (Search Console, {traffic.label}); problems with how pages appear in search "
+            f"rank by impressions instead. Findings not in the traffic data follow in the usual "
+            f"order, which says nothing about how busy their pages are.")
     else:
         run_ids = list(latest.values())
+        # Deliberately not ranked across brands: visits to different sites are not comparable, and
+        # the two brands with no traffic data would sink to the bottom of every page for it.
+        ordering_note = ("Choose one brand to order its findings by search traffic. Across all "
+                         "brands the list stays in severity and page-count order.")
     if not run_ids:
-        return Paged(total=0, page=page, per_page=per_page, items=[])
+        return Paged(total=0, page=page, per_page=per_page, items=[], ordering_note=ordering_note)
 
     stmt = (select(Finding, Brand.code, Triage.state, Triage.note)
             .join(Brand, Brand.id == Finding.brand_id)
@@ -243,17 +263,60 @@ def list_findings(
     # A CASE rather than array_position: portable, and it avoids the dialect-specific array cast
     # that produced "no function matches array_position(character varying, character varying)".
     sev_rank = case({"error": 0, "warning": 1, "info": 2}, value=Finding.severity, else_=3)
-    rows = session.execute(
-        stmt.order_by(sev_rank.asc().nullslast(), Finding.page_count.desc(), Finding.id.desc())
-        .offset((page - 1) * per_page).limit(per_page)).all()
+    if traffic is None:
+        rows = session.execute(
+            stmt.order_by(sev_rank.asc().nullslast(), Finding.page_count.desc(), Finding.id.desc())
+            .offset((page - 1) * per_page).limit(per_page)).all()
+    else:
+        # Traffic is joined through each finding's page LIST, which SQL cannot sort on, so the
+        # order is worked out over light columns for the whole filtered set (one brand: at most a
+        # few thousand rows, no `details` blob) and only the requested page is loaded in full.
+        rank = {"error": 0, "warning": 1, "info": 2}
+        light = session.execute(stmt.with_only_columns(
+            Finding.id, Finding.url, Finding.sources, Finding.page_count, Finding.check,
+            Finding.severity, Finding.details["class"].as_string())).all()
+        # ONE metric for the whole list. The client report can rank search-results problems on
+        # impressions because each of its sections holds one kind of problem. This list mixes every
+        # kind within a severity, and impressions run ~100x visits: measured on GL, two schema
+        # findings with 97 and 473 visits outranked the site-wide phone fault with 34,974 visits
+        # purely because their 128,276 impressions were compared against its visits. So impressions
+        # only when every row in the filtered list is a search-results problem.
+        by_impressions = bool(light) and all(
+            ranks_on_impressions(chk, cls) for _i, _u, _s, _p, chk, _sev, cls in light)
+        if by_impressions:
+            ordering_note = ordering_note.replace(
+                "the most Google search visits", "the most impressions in Google's results").replace(
+                "; problems with how pages appear in search rank by impressions instead", "")
+        else:
+            ordering_note = ordering_note.replace(
+                "; problems with how pages appear in search rank by impressions instead", "")
+        ordered = []
+        for fid, url, sources, pages, chk, sev, cls in light:
+            keys, _complete = affected(url, sources, pages)
+            r = reach(keys, pages, traffic, chk, cls)
+            ordered.append(((rank.get(sev, 3),) + r.rank(by_impressions)
+                            + (-(pages or 1), -fid), fid))
+        ordered.sort()
+        page_ids = [fid for _key, fid in ordered[(page - 1) * per_page:page * per_page]]
+        position = {fid: i for i, fid in enumerate(page_ids)}
+        rows = sorted(session.execute(stmt.where(Finding.id.in_(page_ids))).all(),
+                      key=lambda row: position[row[0].id])
 
-    items = [FindingOut(
-        id=f.id, brand=code, fingerprint=f.fingerprint, url=f.url, check=f.check,
-        check_label=CHECK_LABELS.get(f.check, f.check), severity=f.severity, issue=f.issue,
-        location=f.location, snippet=f.snippet, suggestion=f.suggestion, status=f.status,
-        first_seen=f.first_seen, page_count=f.page_count,
-        triage_state=tstate or "open", triage_note=tnote) for f, code, tstate, tnote in rows]
-    return Paged(total=total, page=page, per_page=per_page, items=items)
+    items = []
+    for f, code, tstate, tnote in rows:
+        out = FindingOut(
+            id=f.id, brand=code, fingerprint=f.fingerprint, url=f.url, check=f.check,
+            check_label=CHECK_LABELS.get(f.check, f.check), severity=f.severity, issue=f.issue,
+            location=f.location, snippet=f.snippet, suggestion=f.suggestion, status=f.status,
+            first_seen=f.first_seen, page_count=f.page_count,
+            triage_state=tstate or "open", triage_note=tnote)
+        if traffic is not None:
+            keys, _complete = affected(f.url, f.sources, f.page_count)
+            r = reach(keys, f.page_count, traffic, f.check, (f.details or {}).get("class"))
+            out.traffic_state, out.traffic_short, out.traffic_note = r.state, short(r), sentence(r)
+        items.append(out)
+    return Paged(total=total, page=page, per_page=per_page, items=items,
+                 ordering_note=ordering_note)
 
 
 @app.get("/api/findings/{fingerprint_hash}")
@@ -272,7 +335,12 @@ def finding_detail(fingerprint_hash: str, session: Session = Depends(get_session
     latest = rows[0][0]
     tri = session.scalar(select(Triage).where(Triage.brand_id == latest.brand_id,
                                               Triage.fingerprint_hash == fingerprint_hash))
+    traffic = load_brand_traffic(session, rows[0][3])
+    keys, _complete = affected(latest.url, latest.sources, latest.page_count)
+    r = reach(keys, latest.page_count, traffic, latest.check, (latest.details or {}).get("class"))
     return {
+        "traffic": {"state": r.state,
+                    "note": NOT_CONNECTED if r.state == "not_connected" else sentence(r)},
         "fingerprint": latest.fingerprint, "fingerprint_hash": fingerprint_hash,
         "brand": rows[0][3], "url": latest.url, "check": latest.check,
         "check_label": CHECK_LABELS.get(latest.check, latest.check),

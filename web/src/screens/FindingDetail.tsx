@@ -214,6 +214,11 @@ export default function FindingDetail() {
           <a href={d.url} target="_blank" rel="noreferrer" className="url">{d.url}</a>
         </div>
         <div className="small muted" style={{ marginTop: 4 }}>Opens the live page in a new tab.</div>
+        {d.traffic?.note && (
+          <div className="small" style={{ marginTop: 8 }}>
+            {d.traffic.note}
+          </div>
+        )}
 
         {d.page_count > 1 && (
           <SourceList

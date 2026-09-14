@@ -591,7 +591,9 @@ def test_a_brand_with_no_completed_run_reports_nothing_rather_than_everything(cl
         mk_brand(s, "DBH", "District Behavioral Health")
         s.commit()
     body = client.get("/api/findings", params={"brand": "DBH"}).json()
-    assert body == {"total": 0, "page": 1, "per_page": 50, "items": []}
+    # `ordering_note` is left out of the comparison: it describes the order, not the contents.
+    assert {k: body[k] for k in ("total", "page", "per_page", "items")} == {
+        "total": 0, "page": 1, "per_page": 50, "items": []}
 
     dbh = _brand(client, "DBH")
     assert dbh["last_run_at"] is None and dbh["last_run_status"] is None

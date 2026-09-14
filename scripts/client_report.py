@@ -22,7 +22,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+import json
+
 from server.db import SessionLocal
+from server.traffic import (NOT_CONNECTED, affected, load_brand_traffic, ranks_on_impressions,
+                            reach, sentence, union, url_key)
 from sqlalchemy import text as sql
 
 # Harm order. Each entry: (heading, plain-English why it matters, [check/class keys]).
@@ -197,7 +201,7 @@ def fetch(session, brand_code: str):
         SELECT f.check, f.details->>'class' AS cls, f.severity, f.issue, f.url,
                f.snippet, f.suggestion, COALESCE(f.page_count, 1) AS pages, f.first_seen,
                f.details->>'shot' AS shot, f.details->>'shot_absent' AS shot_absent,
-               f.fingerprint AS fp
+               f.fingerprint AS fp, f.sources AS sources
         FROM findings f
         WHERE f.run_id = :r AND f.status IN ('new','persisting')
         ORDER BY f.severity, COALESCE(f.page_count,1) DESC"""), {"r": row[0]}).fetchall()
@@ -359,13 +363,28 @@ def sampled_note(brand_code: str) -> str:
             + (f"<p class='caveat'>{extra}</p>" if extra else ""))
 
 
-def section_rows(findings: list, keys: list[str], top_n: int = None) -> tuple[list, list]:
+def _sources(f) -> list | None:
+    s = f[12] if len(f) > 12 else None
+    if isinstance(s, str):                  # JSON arrives as text from a non-Postgres driver
+        try:
+            s = json.loads(s)
+        except ValueError:
+            return None
+    return s if isinstance(s, list) else None
+
+
+def section_rows(findings: list, keys: list[str], top_n: int = None,
+                 traffic=None) -> tuple[list, list]:
     """(all merged rows for this section, the ones it will show).
 
     Extracted so that ONE piece of code decides what the client sees. The shot pass used to
     photograph any finding carrying a selector and hope it overlapped this selection; on GL the two
     populations barely intersected and not one picture reached a report. The report's choice is
     authoritative — so it is made here, once, and the shot pass reads it.
+
+    Each merged row gains its traffic `Reach` at index 13. Within a severity, rows with real search
+    traffic come first, busiest first; the rest keep the page-count order they always had. With no
+    traffic data every row ties on traffic and the order is exactly what it was before.
     """
     rank = {"error": 0, "warning": 1, "info": 2}
     rows = [f for f in findings if _matches(f[0], f[1], keys)]
@@ -384,9 +403,16 @@ def section_rows(findings: list, keys: list[str], top_n: int = None) -> tuple[li
     merged = []
     for (_c, _cls, _issue, _snip), g in grouped.items():
         first = g[0]
-        span = max(sum(x[7] for x in g), len(g))
-        merged.append(tuple(first[:7]) + (span,) + tuple(first[8:]))
-    merged.sort(key=lambda f: (rank.get(f[2], 3), -f[7]))
+        # A UNION of the pages the group names, never a sum. GL had a `dead_cta` group of 13
+        # findings on ONE page, printed "on 13 pages" — and weighted by traffic, a sum would have
+        # counted that one page's visits thirteen times.
+        page_keys, span, _complete = union(
+            [affected(x[4], _sources(x), x[7]) + (x[7],) for x in g])
+        row = list(first) + [None] * (13 - len(first))
+        row[7] = span
+        merged.append(tuple(row[:13]) + (reach(page_keys, span, traffic, first[0], first[1]),))
+    merged.sort(key=lambda f: (rank.get(f[2], 3),
+                               f[13].rank(ranks_on_impressions(f[0], f[1])), -f[7]))
     return merged, select_shown(merged, TOP_N if top_n is None else top_n)
 
 
@@ -398,9 +424,11 @@ def selected_fingerprints(session, brand_code: str) -> list[str]:
     run, findings = fetch(session, brand_code)
     if not run:
         return []
+    # The same traffic the report ranks on, or the pictures go to findings the report no longer shows.
+    traffic = load_brand_traffic(session, brand_code)
     out: list[str] = []
     for _heading, _why, keys in SECTIONS:
-        _all, shown = section_rows(findings, keys)
+        _all, shown = section_rows(findings, keys, traffic=traffic)
         out.extend(f[11] for f in shown if len(f) > 11 and f[11])
     return out
 
@@ -489,7 +517,30 @@ def limits_html(findings: list) -> str:
     return "\n".join(rows)
 
 
-def render(brand_code: str, run, findings, _baseline_warning: str | None = None) -> str:
+def traffic_note(findings: list, traffic) -> str:
+    """Said once, above the findings: whether the order uses traffic, and how much of it matched.
+
+    The match figure is not decoration. On a site with 3,595 pages carrying findings and an export
+    that stops at 1,000, most findings are unweighted — and a reader who does not know that reads
+    "listed further down" as "on a quieter page".
+    """
+    if traffic is None:
+        return f"<p class='caveat'>{html.escape(NOT_CONNECTED)}</p>"
+    page_keys = {url_key(f[4]) for f in findings if f[4]}
+    hit = sum(1 for k in page_keys if k in traffic.pages)
+    cap = "" if traffic.measured else "Google&rsquo;s export lists at most 1,000 pages, and "
+    return (f"<p>Within each section, problems on the pages that get the most visits from Google "
+            f"search come first, using Google Search Console figures for "
+            f"{html.escape(traffic.label)}. Problems with how the site appears in search are "
+            f"ranked by how often the page was shown in Google&rsquo;s results instead, because "
+            f"that is where that harm happens. {cap}{hit:,} of the {len(page_keys):,} pages with "
+            f"findings here {'was' if hit == 1 else 'were'} in the traffic data. The rest follow "
+            f"the ones that matched, in the usual order &mdash; not being in the data says nothing "
+            f"about how busy a page is.</p>")
+
+
+def render(brand_code: str, run, findings, _baseline_warning: str | None = None,
+           traffic=None) -> str:
     _, started, pages, partial, name, base_url = run
     sev_rank = {"error": 0, "warning": 1, "info": 2}
     _shot_budget = [SHOT_BUDGET_BYTES]
@@ -498,18 +549,20 @@ def render(brand_code: str, run, findings, _baseline_warning: str | None = None)
     total = len(findings)
 
     for heading, why, keys in SECTIONS:
-        rows, shown = section_rows(findings, keys)
+        rows, shown = section_rows(findings, keys, traffic=traffic)
         if not rows:
             continue
         items = []
         for f in shown:
             pages_txt = (f"<span class='pages'>on {f[7]:,} pages</span>" if f[7] > 1 else "")
             snippet = html.escape(_trim(f[5] or "", 220))
+            traffic_txt = sentence(f[13])
             items.append(
                 f"<li class='{html.escape(f[2])}'>"
                 f"<div class='issue'>{html.escape(_clean(f[3]))} {pages_txt}</div>"
                 + (f"<div class='snippet'>{snippet}</div>" if snippet else "")
                 + f"<div class='where'><a href='{html.escape(f[4])}'>{html.escape(f[4][:96])}</a></div>"
+                + (f"<div class='traffic'>{html.escape(traffic_txt)}</div>" if traffic_txt else "")
                 + (f"<div class='fix'>{html.escape(_trim(f[6] or ''))}</div>" if f[6] else "")
                 + _shot_html(f[9] if len(f) > 9 else None, _shot_budget, _shots_omitted,
                              f[10] if len(f) > 10 else None)
@@ -606,6 +659,7 @@ li.error{{border-left-color:var(--err)}} li.warning{{border-left-color:var(--war
   border-radius:6px;padding:8px 10px;margin:7px 0;white-space:pre-wrap;word-break:break-word}}
 .where a{{color:var(--mut);font-size:13px;word-break:break-all}}
 .fix{{font-size:14px;color:var(--mut);margin-top:6px}}
+.traffic{{font-size:13px;color:var(--mut);margin-top:4px}}
 .shot{{margin-top:10px}}
 /* Deliberately quiet, and deliberately NOT styled as a warning. A missing picture is a fact about
    the photograph, not about the defect, and colouring it like a caveat would imply the finding is
@@ -631,6 +685,7 @@ footer{{margin-top:44px;color:var(--mut);font-size:13px;border-top:1px solid var
 </div>
 <p>Ordered by how much each problem matters, not by how many there are. Every item links to the
 page it was found on.</p>
+{traffic_note(findings, traffic)}
 {''.join(out)}
 <section class="limits"><h2>What this audit cannot see</h2>
 {baseline_note}{scope_note}{acc_note}
@@ -659,7 +714,8 @@ def main(brands: list[str], out_dir: Path) -> None:
                 continue
             path = out_dir / f"{code.lower()}-audit.html"
             warn = poisoned_baseline(s, code, run[0], run[2])
-            path.write_text(render(code, run, findings, warn), encoding="utf-8")
+            traffic = load_brand_traffic(s, code)
+            path.write_text(render(code, run, findings, warn, traffic), encoding="utf-8")
             print(f"  {code.upper():<5} {len(findings):>6,} findings -> {path.name} "
                   f"({path.stat().st_size/1024:.0f} KB)")
 

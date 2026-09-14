@@ -48,6 +48,11 @@ export interface Finding {
   page_count: number;
   triage_state: TriageState;
   triage_note: string | null;
+  /** Search traffic — only filled in when one brand is selected. `traffic_short` is the table
+   *  cell, `traffic_note` the full sentence (weighted, zero, unmatched, by design). */
+  traffic_state?: string | null;
+  traffic_short?: string | null;
+  traffic_note?: string | null;
 }
 
 export interface Paged<T> {
@@ -55,6 +60,8 @@ export interface Paged<T> {
   page: number;
   per_page: number;
   items: T[];
+  /** How the server ordered this list, in words — traffic changes the order, so it is said. */
+  ordering_note?: string | null;
 }
 
 export interface Run {
@@ -124,6 +131,8 @@ export interface FindingDetail {
   details: Record<string, unknown>;
   page_count: number;
   sources: string[] | null;
+  /** What the search-traffic data says about this finding's pages, as a sentence. */
+  traffic?: { state: string; note: string } | null;
   triage: { state: TriageState; note: string | null };
   history: { run_id: number; at: string; status: string | null }[];
 }

@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import pytest
 
-from scripts.traffic_import import parse_csv, url_key
+from scripts.traffic_import import aggregate, diagnose, parse_csv, url_key
 
 
 # --- the match key ---------------------------------------------------------------------------
@@ -97,3 +97,48 @@ def test_percentages_and_thousands_separators_survive(tmp_path):
     f.write_text('Top pages,Clicks,Impressions,CTR,Position\n"https://x.com/a/","1,234","45,678",2.7%,3.1\n')
     r = parse_csv(f)[0]
     assert r["clicks"] == 1234 and r["impressions"] == 45678
+
+
+# --- the same page listed more than once ------------------------------------------------------
+
+def test_duplicate_rows_sum_visits_and_keep_the_largest_impression_row():
+    """Measured on the 2026-09-14 exports: keeping the first row per page dropped Elementor
+    jump-link rows and undercounted impressions by 26% on AR. But a page and its own jump links
+    appear in the SAME search result, so summing impressions would count one appearance twice.
+    Visits are separate clicks and do add up."""
+    k = url_key("https://x.com/a/")
+    rows = [
+        {"url_key": k, "clicks": 10, "impressions": 100, "position": 4.0, "value_state": "unknown"},
+        {"url_key": k, "clicks": 1, "impressions": 5000, "position": 9.0, "value_state": "unknown"},
+        {"url_key": k, "clicks": 2, "impressions": 50, "position": 3.0, "value_state": "unknown"},
+    ]
+    [one] = aggregate(rows)
+    assert one["clicks"] == 13
+    assert one["impressions"] == 5000
+    assert one["position"] == 9.0          # the position that belongs to the kept impressions
+
+
+def test_a_page_listed_once_is_unchanged():
+    rows = [{"url_key": "x.com/a", "clicks": 3, "impressions": 30, "position": 2.0},
+            {"url_key": "x.com/b", "clicks": None, "impressions": None, "position": None}]
+    assert aggregate(rows) == rows
+
+
+# --- why a match rate is low ------------------------------------------------------------------
+
+def test_a_capped_export_is_not_blamed_on_the_property_type():
+    """GL on 2026-09-14: 27% of its 3,595 finding pages matched, but 971 of the 996 pages in the
+    export did. The join worked; the export stops at 1,000 rows. "Check the property type" sent the
+    reader after a problem that did not exist."""
+    said = diagnose(27, export_pages=996, export_matched=971, finding_pages=3595)
+    assert "property type" not in said
+    assert "LIMITED BY THE EXPORT" in said and "25,000" in said
+
+
+def test_an_export_about_other_pages_still_points_at_the_property():
+    said = diagnose(2, export_pages=1000, export_matched=20, finding_pages=3000)
+    assert "property type" in said
+
+
+def test_a_good_match_rate_says_nothing():
+    assert diagnose(79, export_pages=187, export_matched=92, finding_pages=117) == ""

@@ -21,7 +21,6 @@ import argparse
 import csv
 import sys
 from pathlib import Path
-from urllib.parse import urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -29,6 +28,9 @@ from sqlalchemy import select, text as sql          # noqa: E402
 
 from server.db import SessionLocal                  # noqa: E402
 from server.models import Brand, PageTraffic        # noqa: E402
+# The join key and the duplicate-row rule live in server/traffic.py, because the report and the API
+# read traffic through the same key the importer writes it with. Two copies would drift.
+from server.traffic import aggregate, url_key       # noqa: E402,F401
 
 # Header names seen on Google's per-page export. Matched case-insensitively, first hit wins.
 # NOT a guess-and-hope: an export whose headers match none of these RAISES, naming what it saw,
@@ -37,24 +39,6 @@ _URL_HEADERS = ("top pages", "page", "url", "landing page", "address")
 _CLICK_HEADERS = ("clicks", "url clicks")
 _IMPR_HEADERS = ("impressions", "impr.", "impressions ")
 _POS_HEADERS = ("position", "average position", "avg. pos")
-
-
-def url_key(url: str) -> str:
-    """The join key: lowercased host + path, no scheme, no trailing slash, no query, no fragment.
-
-    Measured against our own corpus (15,959 pages): we store 100% https, 0% trailing slash, 0%
-    query, 0% fragment, 0% mixed case — but the LIVE sites serve the slashed form on 96.7-100% of
-    pages, so Google reports `…/mescaline/` where we store `…/mescaline`. Raw equality between the
-    two matches ~0.2%; this normalisation is what makes the join possible at all.
-
-    `www` is KEPT on purpose. GL and RR are 100% `www` and the other seven are 100% bare host, so
-    stripping it would merge two different hosts — and a key that over-merges invents traffic,
-    which is worse than having none.
-    """
-    p = urlparse(url.strip())
-    host = (p.netloc or "").lower()
-    path = (p.path or "/").rstrip("/")
-    return f"{host}{path}"
 
 
 def _num(raw: str) -> float | None:
@@ -121,19 +105,41 @@ def store(brand_code: str, rows: list[dict], period: str) -> int:
         s.execute(sql("""delete from page_traffic
                          where brand_id=:b and period=:p and source='gsc_csv'"""),
                   {"b": brand.id, "p": period})
-        seen: set[str] = set()
-        objs = []
-        for r in rows:
-            if r["url_key"] in seen:      # a CSV can list the same page twice; keep the first
-                continue
-            seen.add(r["url_key"])
-            objs.append(PageTraffic(
-                brand_id=brand.id, url_key=r["url_key"], period=period,
-                impressions=r["impressions"], clicks=r["clicks"], position=r["position"],
-                source="gsc_csv", value_state=r["value_state"]))
+        # A CSV lists one page several times (jump-link anchors, utm variants, slashed and bare).
+        # `aggregate` sums the visits and keeps the largest impression row — see its docstring.
+        objs = [PageTraffic(
+                    brand_id=brand.id, url_key=r["url_key"], period=period,
+                    impressions=r["impressions"], clicks=r["clicks"], position=r["position"],
+                    source="gsc_csv", value_state=r["value_state"])
+                for r in aggregate(rows)]
         s.bulk_save_objects(objs)
         s.commit()
         return len(objs)
+
+
+MATCH_FLOOR = 60        # percent of finding pages matched, below which the report explains why
+
+
+def diagnose(rate: float, export_pages: int, export_matched: int, finding_pages: int) -> str:
+    """Why a match rate is low — because the two causes need opposite fixes.
+
+    The first version said "check the property type" for every low rate. On the 2026-09-14 exports
+    that was the wrong advice for five brands: GL matched 27% of its finding pages, but 971 of the
+    996 pages in its export matched — the join worked, and the export simply stops at 1,000 rows
+    while GL has 3,595 pages with findings. Telling someone to re-check the property there sends
+    them after a problem that does not exist.
+
+    So look at the export's side of the join. If most of ITS pages matched, the key and the property
+    are right and the export is just smaller than the site. If few did, the export is about some
+    other set of pages, and the property type is the thing to check.
+    """
+    if rate >= MATCH_FLOOR:
+        return ""
+    if export_pages and export_matched / export_pages >= 0.5:
+        return (f"   LIMITED BY THE EXPORT — {export_matched:,} of its {export_pages:,} pages matched, "
+                f"so the join works; it lists fewer pages than the {finding_pages:,} with findings. "
+                f"Google's UI export stops at 1,000 rows; the API returns up to 25,000.")
+    return "   LOW — few of the export's pages matched; check the property type (domain vs URL-prefix)"
 
 
 def match_report(brand_codes: list[str]) -> None:
@@ -159,7 +165,7 @@ def match_report(brand_codes: list[str]) -> None:
                 continue
             hit = sum(1 for u in urls if url_key(u) in have)
             rate = hit / len(urls) * 100 if urls else 0
-            flag = "" if rate >= 60 else "   LOW — check the property type (domain vs URL-prefix)"
+            flag = diagnose(rate, len(have), len(have & {url_key(u) for u in urls}), len(urls))
             print(f"  {code.upper():<6}{len(urls):>19}{hit:>10}{rate:>7.0f}%{flag}")
 
 
