@@ -562,8 +562,20 @@ Nothing below is a coding task. Each is a decision only he can make.
    runs it or nothing is audited. `brands.schedule_cron` is NULL for all nine ON PURPOSE, so the
    dashboard cannot claim audits run overnight when nothing runs them; installing a timer means
    setting those crons — the step is written into `deploy/README.md` section 5.
-4. **Traffic ranking** is designed and built to the CSV stage, waiting on his nine Google Search
-   Console exports. `page_traffic` currently holds 0 rows.
+4. **Traffic ranking — data is in, nothing uses it yet.** Seven of nine Search Console exports were
+   imported on 2026-09-14 (web search, 2026-06-13..2026-09-12): `page_traffic` holds 4,797 rows for
+   AH, AR, CAD, COC, DBH, GL, RR. **TDRC and MHD were not supplied.** Three things to know before
+   building on it:
+   * **The UI export caps at 1,000 rows**, so CAD, COC, DBH, GL and RR hold only their top pages by
+     clicks. Their low match rates (GL 27%, RR 13%) are that cap, not a matching fault — the join
+     reaches 90-100% of what is matchable. `--match-report` still prints "LOW — check the property
+     type" for them, which is the wrong advice. Full coverage needs the API (rowLimit up to 25,000).
+   * **Nothing reads `page_traffic`.** No API endpoint, report section or screen ranks by it.
+     Building that consumer is the open decision.
+   * **`store()` keeps the highest-click row per page**, which drops Elementor table-of-contents
+     anchor rows and undercounts impressions by 26% on AR, 20% on CAD and 12% on DBH (clicks are
+     barely affected). If it is ever consumed: sum clicks, take the max impression row — summing
+     impressions would double-count a page shown with its own jump links.
 
 ### Three DOCUMENTED NEGATIVE RESULTS — do not re-litigate without new evidence
 * **D9 (ARCHITECTURE.md) — AI grammar/spelling.** An LLM pass editorialised about word choice.
