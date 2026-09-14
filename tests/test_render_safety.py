@@ -36,6 +36,18 @@ def test_call_tracking_is_matched_by_pattern_not_hostname():
     assert classify("https://999999.tctm.xyz/t.js", GL) == "block"
 
 
+def test_a_crm_attribution_script_is_blocked():
+    """Found on RR's homepage 2026-09-15 as a static `<script src>`: Zoho CRM's Google Ads helper,
+    `zcga.js`. Read end to end, it makes no requests of its own — it sets a gclid cookie and fills
+    hidden `zc_gad` form fields, and data reaches the CRM only when a visitor SUBMITS a form, which a
+    render never does. So it cannot create a record. It is blocked anyway: it is attribution tooling,
+    nothing on a CRM host is page content, and it was the one unrecognised third party on a CRM."""
+    rr = "https://www.renaissancerecovery.com/"
+    assert classify("https://crm.zoho.com/crm/javascript/zcga.js", rr) == "block"
+    # Zoho runs the same CRM from regional data centres.
+    assert classify("https://crm.zoho.eu/crm/WebFormServeServlet?rid=x", rr) == "block"
+
+
 @pytest.mark.parametrize("url", [
     "https://fonts.gstatic.com/s/roboto/v30/font.woff2",
     "https://fonts.googleapis.com/css2?family=Roboto",

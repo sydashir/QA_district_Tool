@@ -63,6 +63,12 @@ TRACKER_PATTERNS: tuple[str, ...] = (
     r"criteo\.", r"taboola\.", r"outbrain\.",
     # marketing automation / chat identity
     r"hubspot\.com", r"hs-scripts\.com", r"marketo\.net", r"drift\.com", r"intercom\.io",
+    # CRM. Found on RR's homepage 2026-09-15: `crm.zoho.com/crm/javascript/zcga.js`, Zoho CRM's
+    # Google Ads attribution helper (sets a gclid cookie, fills hidden `zc_gad` form fields). It
+    # makes no requests of its own and a render never submits a form, so it cannot create a record —
+    # blocked anyway, because nothing on a CRM host is page content. `crm\.zoho\.` covers Zoho's
+    # regional data centres (.com, .eu, .in, .com.au).
+    r"crm\.zoho\.",
     # CALL TRACKING — the account-numbered subdomain is why this is a pattern
     r"tctm\.xyz", r"tctm\.co", r"calltrackingmetrics\.com", r"calltrk\.com", r"callrail\.com",
 )
