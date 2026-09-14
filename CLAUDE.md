@@ -587,9 +587,13 @@ Nothing below is a coding task. Each is a decision only he can make.
 Docker Desktop disrupted Syed's Mac, so Postgres moved to Homebrew `postgresql@16`
 (`/usr/local/var/postgresql@16`, `brew services`, starts at login) on **port 55432** — the port every
 default already uses, so no config changed. Moved by pg_dump/pg_restore; row counts identical on all
-12 tables. `psql`/`pg_dump` live in `/usr/local/opt/postgresql@16/bin` (keg-only). Run the API with
-`python3 -m uvicorn server.api:app --port 8099` and, only to run audits from the web app,
-`python3 -m server.worker`. **Do not start Docker on this machine.** The compose file is kept for a
+12 tables. `psql`/`pg_dump` live in `/usr/local/opt/postgresql@16/bin` (keg-only). **The API and
+the web app start at login through two launchd agents** installed by
+`deploy/macos/login_agents.sh install` (`local.district-auditor.api` on 8099,
+`local.district-auditor.web` on 5173, KeepAlive, logs in `~/Library/Logs/district-auditor/`). The API
+does NOT reload code: after any `server/` change run
+`launchctl kickstart -k gui/$(id -u)/local.district-auditor.api`. Only to run audits from the web app,
+also start `python3 -m server.worker`. **Do not start Docker on this machine.** The compose file is kept for a
 server deployment only; the old Docker volume was left untouched as a fallback.
 
 ### Three DOCUMENTED NEGATIVE RESULTS — do not re-litigate without new evidence

@@ -27,6 +27,25 @@ python3 -m uvicorn server.api:app --port 8099   # the API the web app proxies to
 python3 -m server.worker                        # only needed to run audits from the web app
 ```
 
+### Starting at login — REQUIRED on the Mac
+
+Postgres starts at login (`brew services`). The API and the web app start at login **only if the
+login agents are installed**. Without them a reboot leaves the product dead with no warning: the page
+does not load, or loads and shows nothing.
+
+```bash
+deploy/macos/login_agents.sh install     # once: writes two launchd agents, starts both, waits for answers
+deploy/macos/login_agents.sh status      # are both running, and do both answer?
+deploy/macos/login_agents.sh uninstall
+```
+
+* `local.district-auditor.api` runs uvicorn on 127.0.0.1:8099; `local.district-auditor.web` runs the
+  Vite dev server on localhost:5173. Both start at login and are restarted by launchd if they exit.
+* Logs: `~/Library/Logs/district-auditor/{api,web}.log`.
+* **The API does not reload itself.** After changing anything under `server/`, restart it:
+  `launchctl kickstart -k gui/$(id -u)/local.district-auditor.api`. The web agent picks up changes
+  on its own.
+
 `DATABASE_URL` overrides the connection; it defaults to `127.0.0.1:55432`. Alembic reads the same
 variable, and falls back to the same default, via `server.db.DATABASE_URL`. `docker-compose.yml`
 still describes the server deployment in `deploy/README.md`; it is simply not how this runs locally.
