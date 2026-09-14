@@ -36,7 +36,7 @@ from __future__ import annotations
 import argparse
 import sys
 import time
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -47,7 +47,7 @@ sys.path.insert(0, str(ROOT))
 try:
     from playwright.sync_api import sync_playwright
 
-    from render.safety import SafetyLedger, install, prove_attached
+    from render.safety import SafetyLedger, SafetyNotArmed, install, prove_attached
     from render.shots import ShotTally, attach_shots
 except ModuleNotFoundError as exc:  # pragma: no cover - container-only path
     raise SystemExit(
@@ -140,27 +140,50 @@ def run_brand(session, browser, code: str, max_pages: int, dry_run: bool,
     # A cap that is hit is REPORTED, never silently applied.
 
     shots = errors = 0
+    # What the network guard actually did, summed over every page of the brand. The first version
+    # built a ledger for each page and reported none of it, so "third parties were blocked" was a
+    # claim about the configuration rather than a measurement of the run.
+    guard = {"pages": 0, "canary_pages": 0, "blocked": 0, "allowed": 0,
+             "blocked_hosts": Counter(), "unrecognised": Counter()}
     for i, url in enumerate(urls, 1):
         led = SafetyLedger()
         page = browser.new_page(viewport=VIEWPORT)
         try:
             install(page, cfg.base_url, led)
-            prove_attached(page, led)       # the canary, every page, no exceptions
-            page.goto(url, wait_until="domcontentloaded", timeout=45000)
-            page.wait_for_timeout(700)
-            shots += attach_shots(page, by_url[url], tally=tally,
-                                  max_shots=MAX_SHOTS_PER_PAGE)
-        except Exception as e:                                          # noqa: BLE001
-            # A page that will not load is not a locator failure. Say so on the findings rather
-            # than leaving them silently blank, which the report would have nothing to explain.
-            errors += 1
-            for f in by_url[url]:
-                f.details = dict(f.details or {})
-                f.details.setdefault("shot_absent", "none")
-            print(f"    [{i}/{len(urls)}] page did not load: {url[:90]} — {type(e).__name__}")
+            # The canary, every page, BEFORE the client page — and deliberately OUTSIDE the
+            # page-error handling below. An unproven guard is not "a page that did not load": the
+            # first version caught SafetyNotArmed along with every other error, printed that, and
+            # went on to the next client page. Now it propagates and the pass stops.
+            prove_attached(page, led)
+            guard["canary_pages"] += 1
+            try:
+                page.goto(url, wait_until="domcontentloaded", timeout=45000)
+                page.wait_for_timeout(700)
+                shots += attach_shots(page, by_url[url], tally=tally,
+                                      max_shots=MAX_SHOTS_PER_PAGE)
+            except Exception as e:                                      # noqa: BLE001
+                # A page that will not load is not a locator failure. Say so on the findings rather
+                # than leaving them silently blank, which the report would have nothing to explain.
+                errors += 1
+                for f in by_url[url]:
+                    f.details = dict(f.details or {})
+                    f.details.setdefault("shot_absent", "none")
+                print(f"    [{i}/{len(urls)}] page did not load: {url[:90]} — {type(e).__name__}")
+            guard["pages"] += 1
         finally:
             page.close()
+            guard["blocked"] += led.blocked
+            guard["allowed"] += led.allowed
+            guard["blocked_hosts"].update(led.blocked_hosts)
+            guard["unrecognised"].update(led.unblocked_third_parties)
         time.sleep(DELAY_S)
+
+    hosts = ", ".join(f"{h} x{n}" for h, n in guard["blocked_hosts"].most_common(6))
+    unrec = ", ".join(f"{h} x{n}" for h, n in guard["unrecognised"].most_common(8))
+    print(f"    guard: canary blocked on {guard['canary_pages']} of {len(urls)} pages, each before "
+          f"the client page loaded; blocked {guard['blocked']} tracker request(s)"
+          + (f" ({hosts})" if hosts else " (none were requested)")
+          + f"; allowed {guard['allowed']}; unrecognised third parties allowed: {unrec or 'none'}")
 
     absent = sum(1 for u in urls for f in by_url[u] if (f.details or {}).get("shot_absent"))
     if dry_run:
@@ -170,7 +193,9 @@ def run_brand(session, browser, code: str, max_pages: int, dry_run: bool,
         session.commit()
         print(f"    wrote {shots} picture(s) and {absent} explained absence(s)"
               + (f"; {errors} page(s) failed to load" if errors else ""))
-    return {"pages": len(urls), "shots": shots, "absent": absent}
+    return {"pages": len(urls), "shots": shots, "absent": absent,
+            "guard": {**guard, "blocked_hosts": dict(guard["blocked_hosts"]),
+                      "unrecognised": dict(guard["unrecognised"])}}
 
 
 def main() -> int:
@@ -191,18 +216,36 @@ def main() -> int:
 
     tally = ShotTally()
     totals = {"pages": 0, "shots": 0, "absent": 0}
-    with SessionLocal() as session, sync_playwright() as p:
-        browser = p.chromium.launch()
-        try:
-            for code in codes:
-                got = run_brand(session, browser, code, args.max_pages, args.dry_run, tally)
-                for k in totals:
-                    totals[k] += got[k]
-        finally:
-            browser.close()
+    grand = {"canary_pages": 0, "blocked": 0, "allowed": 0,
+             "blocked_hosts": Counter(), "unrecognised": Counter()}
+    try:
+        with SessionLocal() as session, sync_playwright() as p:
+            browser = p.chromium.launch()
+            try:
+                for code in codes:
+                    got = run_brand(session, browser, code, args.max_pages, args.dry_run, tally)
+                    for k in totals:
+                        totals[k] += got[k]
+                    g = got.get("guard")
+                    if g:
+                        for k in ("canary_pages", "blocked", "allowed"):
+                            grand[k] += g[k]
+                        grand["blocked_hosts"].update(g["blocked_hosts"])
+                        grand["unrecognised"].update(g["unrecognised"])
+            finally:
+                browser.close()
+    except SafetyNotArmed as e:
+        print(f"\nREFUSED — the network guard could not be proven, so no further client page was "
+              f"loaded: {e}")
+        return 2
 
     print(f"\n{totals['shots']:,} picture(s), {totals['absent']:,} explained absence(s), "
           f"{totals['pages']:,} page(s) visited")
+    print(f"guard: canary proven before {grand['canary_pages']:,} client page load(s); blocked "
+          f"{grand['blocked']:,} tracker request(s) "
+          f"({', '.join(f'{h} x{n}' for h, n in grand['blocked_hosts'].most_common(8)) or 'none'}); "
+          f"allowed {grand['allowed']:,}; unrecognised third-party hosts allowed: "
+          f"{', '.join(f'{h} x{n}' for h, n in grand['unrecognised'].most_common(12)) or 'none'}")
     print(f"locator: {tally.summary()}")
     if tally.below_floor():
         print("  A class below the floor still gets its ABSENCE explained in the report — the "

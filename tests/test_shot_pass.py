@@ -189,3 +189,99 @@ def _fake_playwright():
 def test_mhd_is_named_in_the_skip_set():
     """Pinned as data, so removing the guard cannot look like a refactor."""
     assert "MHD" in shot_pass.SKIP
+
+
+# ------------------------------------------------ 4. the network guard is proven and REPORTED
+
+class _Route:
+    def __init__(self, url):
+        self.request = type("Req", (), {"url": url})()
+        self.aborted = None
+
+    def abort(self, reason):
+        self.aborted = reason
+
+    def continue_(self):
+        pass
+
+
+class _GuardedPage:
+    """Drives the REAL render.safety guard: every request goes through the handler it installs."""
+    SUBRESOURCES = ["https://gl.test/style.css", "https://www.googletagmanager.com/gtm.js",
+                    "https://cdn.unknown-widget.test/w.js", "https://gl.test/logo.png"]
+    loaded: list = []
+
+    def __init__(self, attach=True):
+        self.handler = None
+        self.attach = attach
+
+    def route(self, _pattern, handler):
+        if self.attach:
+            self.handler = handler
+
+    def set_content(self, html, **_k):
+        import re
+        if self.handler:
+            self.handler(_Route(re.search(r'src="([^"]+)"', html).group(1)))
+
+    def wait_for_timeout(self, *_a, **_k):
+        pass
+
+    def goto(self, url, **_k):
+        _GuardedPage.loaded.append(url)
+        for u in [url] + self.SUBRESOURCES:
+            self.handler(_Route(u))
+
+    def close(self):
+        pass
+
+
+def test_the_guard_totals_are_reported_per_brand(session, monkeypatch, capsys):
+    """Configured is not the same as working, and working that nobody reports is not evidence.
+    The first version built a ledger for every page and printed none of it."""
+    _b, _run = _brand_with_findings(session, n=2)
+    monkeypatch.setattr(shot_pass, "selected_fingerprints",
+                        lambda s, code: ["phone:display_dial_mismatch:u0",
+                                         "phone:display_dial_mismatch:u1"])
+    monkeypatch.setattr(shot_pass, "attach_shots", lambda *a, **k: 0)
+    monkeypatch.setattr(shot_pass.time, "sleep", lambda *_a: None)
+    monkeypatch.setattr(shot_pass, "load_brand",
+                        lambda code: type("Cfg", (), {"base_url": "https://gl.test"})())
+
+    class _B:
+        def new_page(self, **_k):
+            return _GuardedPage()
+
+    from render.shots import ShotTally
+    got = shot_pass.run_brand(session, _B(), "GL", max_pages=10, dry_run=True, tally=ShotTally())
+    guard = got["guard"]
+    assert guard["canary_pages"] == 2 and guard["pages"] == 2
+    assert guard["blocked"] == 2 and guard["blocked_hosts"] == {"www.googletagmanager.com": 2}
+    assert guard["allowed"] == 8
+    assert guard["unrecognised"] == {"cdn.unknown-widget.test": 2}
+    out = capsys.readouterr().out
+    assert "canary blocked on 2 of 2 pages" in out
+    assert "blocked 2" in out and "allowed 8" in out and "cdn.unknown-widget.test" in out
+
+
+def test_an_unproven_guard_stops_the_pass_before_any_client_page_loads(session, monkeypatch):
+    """If the canary is not blocked, the guard is not attached. The old code caught that like any
+    other page error, printed "page did not load", and moved on to the next client page."""
+    _b, _run = _brand_with_findings(session, n=2)
+    monkeypatch.setattr(shot_pass, "selected_fingerprints",
+                        lambda s, code: ["phone:display_dial_mismatch:u0",
+                                         "phone:display_dial_mismatch:u1"])
+    monkeypatch.setattr(shot_pass.time, "sleep", lambda *_a: None)
+    monkeypatch.setattr(shot_pass, "load_brand",
+                        lambda code: type("Cfg", (), {"base_url": "https://gl.test"})())
+    _GuardedPage.loaded = []
+
+    class _B:
+        def new_page(self, **_k):
+            return _GuardedPage(attach=False)
+
+    from render.safety import SafetyNotArmed
+    from render.shots import ShotTally
+    with pytest.raises(SafetyNotArmed):
+        shot_pass.run_brand(session, _B(), "GL", max_pages=10, dry_run=True, tally=ShotTally())
+    assert _GuardedPage.loaded == [], f"client pages loaded without a proven guard: {_GuardedPage.loaded}"
