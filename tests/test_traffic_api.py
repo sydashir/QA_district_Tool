@@ -167,3 +167,38 @@ def test_api_data_replaces_the_csv_for_the_same_period(session):
     assert t.pages == {"www.x.com/a": (5, 50)}
     assert t.measured is True
     assert t.capped is False        # paged to the end; the 1,000-row CSV cap no longer applies
+
+
+# --------------------------------------------------------------------------- the www sibling
+from scripts.traffic_import import fold_sibling_rows, redirect_target_host, sibling_host  # noqa: E402
+
+
+def test_sibling_host_is_the_www_or_bare_twin():
+    assert sibling_host("thedistrictrecoverycommunity.com") == "www.thedistrictrecoverycommunity.com"
+    assert sibling_host("www.gratitudelodge.com") == "gratitudelodge.com"
+
+
+def test_only_a_permanent_redirect_counts_as_the_same_site():
+    """Checked 2026-09-15: https://www.thedistrictrecoverycommunity.com/ answers 301 to the bare host.
+    A temporary redirect or a failed request is not evidence the two hosts are one site, and folding
+    on a guess would invent traffic."""
+    assert redirect_target_host(lambda u: (301, "https://x.com/"), "www.x.com") == "x.com"
+    assert redirect_target_host(lambda u: (308, "https://x.com/"), "www.x.com") == "x.com"
+    assert redirect_target_host(lambda u: (302, "https://x.com/"), "www.x.com") is None
+    assert redirect_target_host(lambda u: (200, None), "www.x.com") is None
+
+    def boom(u):
+        raise OSError("timed out")
+    assert redirect_target_host(boom, "www.x.com") is None
+
+
+def test_folding_moves_only_the_sibling_hosts_rows():
+    """TDRC's homepage traffic (392 clicks) was recorded on www., which 301s to the bare host we audit,
+    so it matched nothing. DBH's cms. host is a different site and must never be folded."""
+    rows = api_rows([row("https://www.x.com/?utm_source=google", 392, 900),
+                     row("https://x.com/about/", 5, 50),
+                     row("https://cms.x.com/about/", 3, 30)])
+    folded, n = fold_sibling_rows(rows, "x.com", "www.x.com")
+    assert n == 1
+    assert [r["url_key"] for r in folded] == ["x.com", "x.com/about", "cms.x.com/about"]
+    assert folded[0]["clicks"] == 392

@@ -213,6 +213,51 @@ def api_rows(raw: list[dict]) -> list[dict]:
     return out
 
 
+def sibling_host(host: str) -> str:
+    """The www / bare twin of a host."""
+    return host[4:] if host.startswith("www.") else f"www.{host}"
+
+
+def redirect_target_host(fetch, host: str) -> str | None:
+    """The host `https://{host}/` PERMANENTLY redirects to, or None.
+
+    `url_key` keeps www on purpose, because merging two hosts on a guess invents traffic. But a domain
+    property reports both twins, and on 2026-09-15 TDRC's homepage traffic — 392 clicks, more than the
+    rest of the site together — was recorded on www., which answers 301 to the bare host we audit.
+    So the two are merged only on EVIDENCE, checked at import: a 301 or 308 to the audited host. A
+    temporary redirect or a failed request proves nothing and leaves the rows where they are.
+    """
+    try:
+        status, location = fetch(f"https://{host}/")
+    except Exception:                                                   # noqa: BLE001
+        return None
+    if status not in (301, 308) or not location:
+        return None
+    return (urlparse(location).netloc or "").lower() or None
+
+
+def fold_sibling_rows(rows: list[dict], audited_host: str, sibling: str) -> tuple[list[dict], int]:
+    """Move rows on `sibling` onto `audited_host`. Call ONLY after `redirect_target_host` has shown
+    the sibling permanently redirects to the audited host. Every other host is left untouched."""
+    out, folded = [], 0
+    for r in rows:
+        p = urlparse(r["url"])
+        if (p.netloc or "").lower() == sibling:
+            u = p._replace(netloc=audited_host).geturl()
+            r = {**r, "url": u, "url_key": url_key(u)}
+            folded += 1
+        out.append(r)
+    return out, folded
+
+
+def _fetch_no_follow(url: str) -> tuple[int, str | None]:
+    import httpx
+
+    from auditor.config import DEFAULT_USER_AGENT
+    r = httpx.get(url, follow_redirects=False, timeout=20, headers={"User-Agent": DEFAULT_USER_AGENT})
+    return r.status_code, r.headers.get("location")
+
+
 def default_api_period(today: date | None = None) -> str:
     """The last 92 days of FINAL data. Google: "Data is typically available after 2-3 days"."""
     end = (today or date.today()) - timedelta(days=3)
@@ -250,6 +295,19 @@ def import_api(codes: list[str], period: str) -> None:
             print(f"  {code:<5} NOT CONNECTED — none of the account's properties covers {base}")
             continue
         rows = api_rows(fetch_pages(session, prop["siteUrl"], start, end))
+        host = (urlparse(base).netloc or "").lower()
+        twin = sibling_host(host)
+        on_twin = [r for r in rows if (urlparse(r["url"]).netloc or "").lower() == twin]
+        if on_twin:
+            target = redirect_target_host(_fetch_no_follow, twin)
+            twin_clicks = sum(r["clicks"] or 0 for r in on_twin)
+            if target == host:
+                rows, moved = fold_sibling_rows(rows, host, twin)
+                print(f"        folded {moved} row(s) ({twin_clicks:,} clicks) from {twin}: it "
+                      f"permanently redirects to {host} (checked just now)")
+            else:
+                print(f"        left {len(on_twin)} row(s) ({twin_clicks:,} clicks) on {twin} "
+                      f"unmatched: https://{twin}/ does not permanently redirect to {host}")
         n = store(code, rows, period, source="gsc_api")
         print(f"  {code:<5} {prop['siteUrl']} ({prop['permissionLevel']}): {len(rows):,} row(s) "
               f"read, {n:,} page(s) stored")
