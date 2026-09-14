@@ -562,17 +562,12 @@ Nothing below is a coding task. Each is a decision only he can make.
    runs it or nothing is audited. `brands.schedule_cron` is NULL for all nine ON PURPOSE, so the
    dashboard cannot claim audits run overnight when nothing runs them; installing a timer means
    setting those crons — the step is written into `deploy/README.md` section 5.
-4. **Whether to get fuller traffic data.** Traffic ranking is BUILT (2026-09-14) on seven Search
-   Console UI exports (web search, 2026-06-13..2026-09-12; 4,797 pages for AH, AR, CAD, COC, DBH,
-   GL, RR). **TDRC and MHD were not supplied** and their reports say traffic is not connected. The
-   UI export stops at 1,000 rows, so on GL only 971 of 3,595 finding pages can be weighted and on RR
-   886 of 6,881 — the join itself matches 90-100% of the pages the export contains. Weighting every
-   page needs the Search Console API (service account added to each property, rowLimit 25,000).
-   **Two steps, both Syed's:** (a) enable "Google Search Console API" in Google Cloud project
-   `lexical-sol-454719-s2` — verified OFF on 2026-09-15 (`sites.list` -> 403 `SERVICE_DISABLED`);
-   (b) add `app-service-account@lexical-sol-454719-s2.iam.gserviceaccount.com` as a **Restricted**
-   user on each property (Settings -> Users and permissions -> Add user). Then run `sites.list` with
-   the key to confirm every property and its permission level before building the API importer.
+4. **Traffic is connected for all nine through the Search Console API — DONE 2026-09-15, nothing
+   left for Syed.** He enabled the API in Cloud project `lexical-sol-454719-s2` ("Google Map Reviews
+   Project", in the districtbehavioralhealth.com org) and granted
+   `app-service-account@lexical-sol-454719-s2.iam.gserviceaccount.com` on all nine properties
+   (`sites.list` shows `siteFullUser` on each). Refresh with
+   `python3 scripts/traffic_import.py --api` (last 92 days of final data), then regenerate reports.
 
 ### Traffic ranking — how it works (2026-09-14)
 * **`server/traffic.py` is the one definition**, used by the client report and the API. Harm first:
@@ -584,6 +579,17 @@ Nothing below is a coding task. Each is a decision only he can make.
   printed), not connected (said once per report: "It does not mean these pages are quiet.").
 * **The dashboard ranks by traffic only when one brand is selected** — visits to different sites are
   not comparable — and says so above the list.
+* **The API is the source now** (`traffic_import.py --api`): property picked from `sites.list`
+  (exact URL-prefix on the audited host, else the covering `sc-domain:`; never a URL-prefix on another
+  host), paged by `startRow` until Google returns 0 rows, 429/5xx retried. For the same period the
+  loader uses API rows and ignores the CSV. **Verified against the CSV on 2026-09-15:** on every page
+  in both, impressions identical on all seven brands and clicks identical except 5 RR pages (+6
+  clicks total). Unweighted findings fell RR 81%→12%, GL 74%→49%, CAD 47%→11%, COC 37%→13%;
+  TDRC 100%→47%, MHD 100%→57%; AR (62%) and AH (17%) unchanged because their exports were complete.
+  **www / bare twins** are folded onto the audited host ONLY when the twin permanently redirects
+  (301/308) there, checked at import: TDRC's homepage traffic (392 clicks) was on `www.`, which 301s to
+  the bare host; DBH's `www.` does not redirect permanently, so its 23 rows (1 click) stay unmatched.
+  `url_key` itself still never strips www.
 * `traffic_import.py` sums visits across duplicate rows and keeps the largest impression row (jump-link
   anchors overlap in one result). `--match-report` now says LIMITED BY THE EXPORT when most of the
   export's pages matched, instead of blaming the property type.
