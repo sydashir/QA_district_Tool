@@ -123,6 +123,15 @@ class BrandTraffic:
     # Audited url_key -> the url_key it lands on, same site only (table page_redirects). Google reports
     # traffic under the destination, so a finding on a redirecting URL is weighted by where visitors land.
     redirects: dict[str, str] = field(default_factory=dict)
+    # The reverse: a page -> every audited address that redirects to it. Derived, never passed in, so
+    # it can never disagree with `redirects` (dataclasses.replace recomputes it).
+    aliases: dict[str, set[str]] = field(default_factory=dict, init=False, repr=False, compare=False)
+
+    def __post_init__(self):
+        inverse: dict[str, set[str]] = {}
+        for src, dst in self.redirects.items():
+            inverse.setdefault(dst, set()).add(src)
+        object.__setattr__(self, "aliases", inverse)
 
     @property
     def label(self) -> str:
@@ -243,19 +252,41 @@ def reach(keys: set[str], total: int, traffic: BrandTraffic | None,
                 capped=traffic.capped)
     if check == "enumeration" and (cls or "") in NO_SEARCH_BY_DESIGN:
         return Reach("by_design", reason=NO_SEARCH_BY_DESIGN[cls or ""], **base)
-    # Where visitors LAND counts as well as the address the audit requested, because Google reports
-    # the destination of a redirect. A set: a group naming both URLs counts the destination once, and
-    # the page count (`known`) stays on the pages the finding names.
-    lookup = set(keys) | {traffic.redirects[k] for k in keys if k in traffic.redirects}
-    hits = [traffic.pages[k] for k in lookup if k in traffic.pages]
-    if not hits:
+    per_page = page_traffic(keys, traffic, follow_redirects=check != "enumeration")
+    if not per_page:
         return Reach("unmatched", **base)
-    clicks = sum(c for c, _i in hits)
-    impressions = sum(i for _c, i in hits)
+    clicks = sum(c for c, _i in per_page.values())
+    impressions = sum(i for _c, i in per_page.values())
     # A CSV zero may be a figure Google withheld, so it is not a number to rank on.
     state = "weighted" if (clicks or impressions) else "zero"
     return Reach(state, clicks=clicks, impressions=impressions,
-                 busiest=max(c for c, _i in hits), matched=len(hits), **base)
+                 busiest=max(c for c, _i in per_page.values()), matched=len(per_page), **base)
+
+
+def page_traffic(keys: set[str], traffic: BrandTraffic,
+                 follow_redirects: bool = True) -> dict[str, tuple[int, int]]:
+    """(clicks, impressions) per PAGE among the pages `keys` name.
+
+    An address that redirects IS the page it lands on — one page reached two ways. So a page's traffic
+    is the sum over every address Google reports it under (its own key and each audited address that
+    redirects to it), each counted once, and the page counts once however many of its addresses a
+    finding names. The first version counted addresses: reviewed on 2026-09-15, that printed "the
+    busiest affected page" on 142 single-page findings, and let a copy of a finding on the old address
+    carry more traffic than the original on the new one and outrank it in the dashboard.
+
+    Enumeration findings are about the requested address itself — is THIS address in the sitemap? — so
+    for them no redirect is followed: the destination, often the homepage, is not their reach.
+    """
+    out: dict[str, tuple[int, int]] = {}
+    for k in keys:
+        page = traffic.redirects.get(k, k) if follow_redirects else k
+        if page in out:
+            continue
+        addresses = {page} | (traffic.aliases.get(page, set()) if follow_redirects else set())
+        rows = [traffic.pages[a] for a in addresses if a in traffic.pages]
+        if rows:
+            out[page] = (sum(c for c, _i in rows), sum(i for _c, i in rows))
+    return out
 
 
 # ---------------------------------------------------------------------------- the words

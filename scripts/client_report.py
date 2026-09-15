@@ -551,13 +551,13 @@ def limits_html(findings: list) -> str:
 # GL, 2026-09-15: all 452 indexable GL pages missing from the API traffic were queried one at a time
 # with an anchored page filter (25/25 known pages returned their stored numbers exactly; 597 requests,
 # none failed) and Google returned no rows for any of them; 819 more are noindex. 35 of the 452 redirect
-# to another page whose traffic is stored under the destination. So GL's unweighted share is real zero
+# to another page whose traffic is stored under the destination; since 8795ae1 those are ranked by that
+# destination, so the sentence no longer mentions them. So GL's unweighted share is real zero
 # search impressions, not Google dropping its low-traffic tail from a grouped response.
 TRAFFIC_EVIDENCE: dict[str, str] = {
     "GL": ("Checked on 15 September 2026: Google recorded no search impressions for the pages behind "
            "these unranked findings, asked page by page, so they genuinely go unseen in search rather "
-           "than being left out of Google's data, apart from 35 addresses that redirect to other pages "
-           "whose traffic sits under the destination."),
+           "than being left out of Google's data."),
 }
 
 

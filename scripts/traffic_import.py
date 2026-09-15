@@ -318,6 +318,15 @@ def _iter_cache(path: Path):
                 continue
 
 
+def _latest_ok_pages(code: str) -> int | None:
+    """Pages audited by the run a brand's report and dashboard show (its latest ok run)."""
+    with SessionLocal() as s:
+        return s.execute(sql("""
+            SELECT r.pages_audited FROM runs r JOIN brands b ON b.id = r.brand_id
+            WHERE b.code = :c AND r.status = 'ok' ORDER BY r.started_at DESC LIMIT 1"""),
+            {"c": code.upper()}).scalar()
+
+
 def store_redirects(brand_code: str, pairs: dict[str, str]) -> int:
     with SessionLocal() as s:
         brand = s.scalar(select(Brand).where(Brand.code == brand_code.upper()))
@@ -371,9 +380,25 @@ def import_api(codes: list[str], period: str) -> None:
             # Said, not skipped: without the crawl cache the map cannot be rebuilt, so the last one stays.
             print(f"        no crawl cache for {code}, so its redirect map was not refreshed")
         else:
-            pairs = redirect_pairs(_iter_cache(cache), host)
-            store_redirects(code, pairs)
-            print(f"        {len(pairs):,} same-site redirect(s) recorded from the latest crawl")
+            seen: set = set()
+
+            def counted(rows):
+                for r in rows:
+                    seen.add(r.get("url"))
+                    yield r
+            pairs = redirect_pairs(counted(_iter_cache(cache)), host)
+            audited = _latest_ok_pages(code)
+            if audited and len(seen) < audited:
+                # Every crawl overwrites the cache, including one later REFUSED: MHD's cache holds the
+                # 334 pages of a refused attempt while its report shows run 108's 621. A map built from
+                # it would describe pages the report is not about, so the last map stays.
+                print(f"        kept the last redirect map: the crawl cache holds {len(seen):,} page(s) "
+                      f"but the run {code}'s report shows audited {audited:,}, so the cache is from a "
+                      f"different crawl")
+            else:
+                store_redirects(code, pairs)
+                print(f"        {len(pairs):,} same-site redirect(s) recorded from the latest crawl "
+                      f"({len(seen):,} pages)")
 
 
 MATCH_FLOOR = 60        # percent of finding pages matched, below which the report explains why
