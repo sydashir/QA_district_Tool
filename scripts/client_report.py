@@ -546,7 +546,22 @@ def limits_html(findings: list) -> str:
     return "\n".join(rows)
 
 
-def traffic_note(findings: list, traffic) -> str:
+# What a brand's unranked findings ARE, where that was MEASURED rather than inferred. Each entry
+# carries its date and how it was established, like SCOPE_NOTES.
+# GL, 2026-09-15: all 452 indexable GL pages missing from the API traffic were queried one at a time
+# with an anchored page filter (25/25 known pages returned their stored numbers exactly; 597 requests,
+# none failed) and Google returned no rows for any of them; 819 more are noindex. 35 of the 452 redirect
+# to another page whose traffic is stored under the destination. So GL's unweighted share is real zero
+# search impressions, not Google dropping its low-traffic tail from a grouped response.
+TRAFFIC_EVIDENCE: dict[str, str] = {
+    "GL": ("Checked on 15 September 2026: Google recorded no search impressions for the pages behind "
+           "these unranked findings, asked page by page, so they genuinely go unseen in search rather "
+           "than being left out of Google's data, apart from 35 addresses that redirect to other pages "
+           "whose traffic sits under the destination."),
+}
+
+
+def traffic_note(findings: list, traffic, brand_code: str = "") -> str:
     """Said once, above the findings: whether the order uses traffic, and how much of it matched.
 
     The match figure is not decoration. On a site with 3,595 pages carrying findings and an export
@@ -564,7 +579,7 @@ def traffic_note(findings: list, traffic) -> str:
             f"{html.escape(traffic.label)}. Problems with how the site appears in search are "
             f"ranked by how often the page was shown in Google&rsquo;s results instead, because "
             f"that is where that harm happens.</p>"
-            f"<p class='caveat'>{html.escape(coverage(weighted, len(findings), traffic.capped))}</p>")
+            f"<p class='caveat'>{html.escape(' '.join(p for p in (coverage(weighted, len(findings), traffic.capped), TRAFFIC_EVIDENCE.get(brand_code.upper(), '')) if p))}</p>")
 
 
 def render(brand_code: str, run, findings, _baseline_warning: str | None = None,
@@ -723,7 +738,7 @@ footer{{margin-top:44px;color:var(--mut);font-size:13px;border-top:1px solid var
 </div>
 <p>Ordered by how much each problem matters, not by how many there are. Every item links to the
 page it was found on.</p>
-{traffic_note(findings, traffic)}
+{traffic_note(findings, traffic, brand_code)}
 {''.join(out)}
 <section class="limits"><h2>What this audit cannot see</h2>
 {baseline_note}{scope_note}{acc_note}

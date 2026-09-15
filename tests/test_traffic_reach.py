@@ -252,3 +252,15 @@ def test_a_finding_is_listed_in_one_section_only():
     finally:
         cr.fetch, cr.load_brand_traffic = orig_fetch, orig_load
     assert fps == [link[11]]
+
+
+def test_gl_says_its_unranked_findings_are_genuinely_unseen_in_search():
+    """Checked 2026-09-15, page by page: Google returned no rows for all 452 indexable GL pages missing
+    from the traffic data (controls: 25/25 known pages returned their stored numbers exactly), so GL's
+    49% unweighted is real zero search impressions, not Google dropping its low-traffic tail. The
+    report says which — and only for the brand where it was measured."""
+    t = BrandTraffic(period=PERIOD, pages=TRAFFIC.pages, measured=True, capped=False)
+    gl = cr.render("GL", RUN, FOUR, None, t)
+    rr = cr.render("RR", RUN, FOUR, None, t)
+    assert "Google recorded no search impressions" in gl
+    assert "Google recorded no search impressions" not in rr
