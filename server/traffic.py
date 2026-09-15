@@ -19,7 +19,7 @@ Kept out of `auditor/` on purpose: nothing here is hashed, so iterating on it co
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from urllib.parse import urlparse
 
@@ -120,6 +120,9 @@ class BrandTraffic:
     # True: the export hit Google's row cap, so a page missing from it may still be busy. False: the
     # export was complete. None: not recorded (an import older than `traffic_imports`).
     capped: bool | None = None
+    # Audited url_key -> the url_key it lands on, same site only (table page_redirects). Google reports
+    # traffic under the destination, so a finding on a redirecting URL is weighted by where visitors land.
+    redirects: dict[str, str] = field(default_factory=dict)
 
     @property
     def label(self) -> str:
@@ -168,7 +171,11 @@ def load_brand_traffic(session, brand_code: str) -> BrandTraffic | None:
             SELECT max(i.rows_read) FROM traffic_imports i JOIN brands b ON b.id = i.brand_id
             WHERE b.code = :c AND i.period = :p AND i.source = 'gsc_csv'"""), params).scalar()
         capped = None if rows_read is None else rows_read >= EXPORT_ROW_CAP
-    return BrandTraffic(period=newest[0], pages=pages, measured=measured, capped=capped)
+    redirects = {k: v for k, v in session.execute(sql("""
+        SELECT r.url_key, r.final_key FROM page_redirects r JOIN brands b ON b.id = r.brand_id
+        WHERE b.code = :c"""), {"c": brand_code.upper()})}
+    return BrandTraffic(period=newest[0], pages=pages, measured=measured, capped=capped,
+                        redirects=redirects)
 
 
 # ---------------------------------------------------------------------------- reach
@@ -236,7 +243,11 @@ def reach(keys: set[str], total: int, traffic: BrandTraffic | None,
                 capped=traffic.capped)
     if check == "enumeration" and (cls or "") in NO_SEARCH_BY_DESIGN:
         return Reach("by_design", reason=NO_SEARCH_BY_DESIGN[cls or ""], **base)
-    hits = [traffic.pages[k] for k in keys if k in traffic.pages]
+    # Where visitors LAND counts as well as the address the audit requested, because Google reports
+    # the destination of a redirect. A set: a group naming both URLs counts the destination once, and
+    # the page count (`known`) stays on the pages the finding names.
+    lookup = set(keys) | {traffic.redirects[k] for k in keys if k in traffic.redirects}
+    hits = [traffic.pages[k] for k in lookup if k in traffic.pages]
     if not hits:
         return Reach("unmatched", **base)
     clicks = sum(c for c, _i in hits)

@@ -37,7 +37,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from sqlalchemy import select, text as sql          # noqa: E402
 
 from server.db import SessionLocal                  # noqa: E402
-from server.models import Brand, PageTraffic, TrafficImport  # noqa: E402
+from server.models import Brand, PageRedirect, PageTraffic, TrafficImport  # noqa: E402
 # The join key and the duplicate-row rule live in server/traffic.py, because the report and the API
 # read traffic through the same key the importer writes it with. Two copies would drift.
 from server.traffic import aggregate, url_key       # noqa: E402,F401
@@ -275,6 +275,61 @@ def _api_session():
     return AuthorizedSession(creds)
 
 
+def redirect_pairs(cache_rows, host: str) -> dict[str, str]:
+    """url_key -> final url_key for audited URLs that land on a DIFFERENT page of the SAME site.
+
+    Google reports traffic under the page a visitor lands on; the audit keys a finding on the URL it
+    requested. On 2026-09-15, 313 URLs across the brands redirected, carrying 1,047 findings, and 534 of
+    those read "not in the traffic data" although their destination had traffic.
+
+    Never recorded: an OFF-SITE redirect (its traffic belongs to another site), a landing that was not a
+    page (final status other than 200), or a redirect that leaves the key unchanged (a trailing slash).
+    """
+    host = host.lower()
+    same_site = {host, sibling_host(host)}
+    out: dict[str, str] = {}
+    for r in cache_rows:
+        final = r.get("final_url")
+        if not final or r.get("status") != 200:
+            continue
+        if (urlparse(final).netloc or "").lower() not in same_site:
+            continue
+        k, fk = url_key(r["url"]), url_key(final)
+        if k != fk:
+            out[k] = fk
+    return out
+
+
+def _cache_path(code: str) -> Path | None:
+    path = Path(__file__).resolve().parent.parent / "cache" / code.lower() / "resume.done.jsonl"
+    return path if path.is_file() else None
+
+
+def _iter_cache(path: Path):
+    import json
+    with open(path, encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                yield json.loads(line)
+            except ValueError:
+                continue
+
+
+def store_redirects(brand_code: str, pairs: dict[str, str]) -> int:
+    with SessionLocal() as s:
+        brand = s.scalar(select(Brand).where(Brand.code == brand_code.upper()))
+        if brand is None:
+            return 0
+        s.execute(sql("delete from page_redirects where brand_id=:b"), {"b": brand.id})
+        s.bulk_save_objects([PageRedirect(brand_id=brand.id, url_key=k, final_key=v)
+                             for k, v in pairs.items()])
+        s.commit()
+        return len(pairs)
+
+
 def import_api(codes: list[str], period: str) -> None:
     start, _, end = period.partition("..")
     session = _api_session()
@@ -311,6 +366,14 @@ def import_api(codes: list[str], period: str) -> None:
         n = store(code, rows, period, source="gsc_api")
         print(f"  {code:<5} {prop['siteUrl']} ({prop['permissionLevel']}): {len(rows):,} row(s) "
               f"read, {n:,} page(s) stored")
+        cache = _cache_path(code)
+        if cache is None:
+            # Said, not skipped: without the crawl cache the map cannot be rebuilt, so the last one stays.
+            print(f"        no crawl cache for {code}, so its redirect map was not refreshed")
+        else:
+            pairs = redirect_pairs(_iter_cache(cache), host)
+            store_redirects(code, pairs)
+            print(f"        {len(pairs):,} same-site redirect(s) recorded from the latest crawl")
 
 
 MATCH_FLOOR = 60        # percent of finding pages matched, below which the report explains why

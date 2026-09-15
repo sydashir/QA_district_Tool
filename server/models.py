@@ -175,6 +175,25 @@ class TrafficImport(Base):
     )
 
 
+class PageRedirect(Base):
+    """An audited URL that lands on a DIFFERENT page of the same site. Migration 0005 says why.
+
+    Rebuilt from the latest crawl cache at every traffic import. Off-site redirects are never stored:
+    their traffic belongs to another site.
+    """
+
+    __tablename__ = "page_redirects"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    brand_id: Mapped[int] = mapped_column(ForeignKey("brands.id"))
+    url_key: Mapped[str] = mapped_column(Text)
+    final_key: Mapped[str] = mapped_column(Text)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),
+                                                  server_default=func.now())
+
+    __table_args__ = (UniqueConstraint("brand_id", "url_key", name="uq_page_redirect"),)
+
+
 class Finding(Base):
     __tablename__ = "findings"
 
