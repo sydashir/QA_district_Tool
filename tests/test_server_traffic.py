@@ -16,7 +16,7 @@ from sqlalchemy.pool import StaticPool
 
 from server.api import app as api_app
 from server.db import get_session
-from server.models import Base, Brand, Finding, PageTraffic, Run, TrafficImport, fp_hash
+from server.models import Base, Brand, Finding, PageRedirect, PageTraffic, Run, TrafficImport, fp_hash
 from server.traffic import NOT_CONNECTED
 
 T0 = datetime(2026, 9, 4, 2, 0, 0)
@@ -166,3 +166,24 @@ def test_whether_an_export_was_cut_off_comes_from_its_row_count(client, seed, se
         assert load_brand_traffic(s, "GL").capped is True
     note = client.get("/api/findings", params={"brand": "GL"}).json()["ordering_note"]
     assert "only works for the busiest part of the site" in note
+
+
+
+def test_a_redirect_copy_never_sorts_above_the_original(client, seed, sessions):
+    """The audit follows redirects, so a finding on an old address is a copy of the finding on the page
+    it lands on. With equal traffic the newest-id tie-break put every copy above the original (COC: 21
+    copies above finding 404738)."""
+    with sessions() as s:
+        gl = s.scalar(select(Brand).where(Brand.code == "GL"))
+        run = s.scalar(select(Run).where(Run.brand_id == gl.id))
+        _finding(s, run, "original", severity="warning", url=f"{GL}/landing")
+        s.flush()
+        _finding(s, run, "copy", severity="warning", url=f"{GL}/old-landing")     # later, higher id
+        s.add(PageTraffic(brand_id=gl.id, url_key="www.gratitudelodge.com/landing",
+                          period="2026-06-13..2026-09-12", clicks=70_000, impressions=100_000,
+                          source="gsc_csv", value_state="unknown"))
+        s.add(PageRedirect(brand_id=gl.id, url_key="www.gratitudelodge.com/old-landing",
+                           final_key="www.gratitudelodge.com/landing"))
+        s.commit()
+    order = _issues(client.get("/api/findings", params={"brand": "GL", "severity": "warning"}).json())
+    assert order.index("original") < order.index("copy")

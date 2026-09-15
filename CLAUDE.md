@@ -590,6 +590,17 @@ Nothing below is a coding task. Each is a decision only he can make.
   (301/308) there, checked at import: TDRC's homepage traffic (392 clicks) was on `www.`, which 301s to
   the bare host; DBH's `www.` does not redirect permanently, so its 23 rows (1 click) stay unmatched.
   `url_key` itself still never strips www.
+* **Redirected pages (2026-09-15).** A finding on an audited URL that redirects to another page of the SAME
+  site is weighted by the page it lands on: table `page_redirects` (migration 0005), rebuilt from
+  `cache/<brand>/resume.done.jsonl` by `traffic_import.py --api`, but ONLY when that cache holds at least as
+  many distinct URLs as the brand's latest ok run audited (MHD's cache is a refused run's, so MHD keeps its
+  last map). Rules proven on live data by two review workflows: each page counts once however many of its
+  addresses a finding names; ONLY the destination's own rows count, never the old address's (those rows can
+  be a different page it used to be — COC's homepage would have gained 50,773 impressions from an Orange
+  County page); enumeration findings never follow redirects; in the dashboard the real page sorts above a
+  redirect copy of the same finding. Weighting gained: RR +207, GL +86, COC +22, AR +19, CAD +15.
+  **Known limitation:** the report's "on N pages" still counts addresses, so a group whose addresses all land
+  on one page can say "on 5 pages". Pre-existing; no traffic number depends on it.
 * `traffic_import.py` sums visits across duplicate rows and keeps the largest impression row (jump-link
   anchors overlap in one result). `--match-report` now says LIMITED BY THE EXPORT when most of the
   export's pages matched, instead of blaming the property type.

@@ -61,12 +61,15 @@ def test_a_finding_on_a_redirecting_url_is_weighted_by_where_visitors_land():
     assert (r.known, r.total) == (1, 1)                 # still one page
 
 
-def test_the_old_address_and_the_destination_are_both_counted_once():
-    """Google can report both: a result shown under the old URL and one under the new. Different
-    results, so different visits — added together, but each page only once."""
+def test_the_old_addresss_own_rows_are_not_added_to_where_it_lands():
+    """Verified on live data 2026-09-15: an old address's rows inside the period can belong to a
+    DIFFERENT page it used to be. COC's homepage gained 50,773 impressions from
+    /mental-health/therapy/orange-county-ca, and a Tennessee Brentwood page gained a Los Angeles
+    Brentwood page's. Nothing stored tells a renamed page from a replaced one, so only the page visitors
+    land on counts: a floor, never another page's traffic."""
     traffic = t({"old": (5, 50), "new": (120, 3_000)}, {"old": "new"})
     r = reach({url_key(f"{H}/old")}, 1, traffic, "phone", "x")
-    assert (r.clicks, r.impressions) == (125, 3_050)
+    assert (r.clicks, r.impressions) == (120, 3_000)
 
 
 def test_a_group_naming_both_urls_does_not_count_the_destination_twice():
@@ -133,18 +136,19 @@ def test_one_page_reached_by_two_addresses_is_one_page_in_the_sentence():
     figure — the old address and its destination were counted as two pages."""
     traffic = t({"old": (5, 50), "new": (120, 3_000)}, {"old": "new"})
     r = reach({url_key(f"{H}/old")}, 1, traffic, "phone", "x")
-    assert (r.clicks, r.impressions, r.matched, r.busiest) == (125, 3_050, 1, 125)
+    assert (r.clicks, r.impressions, r.matched, r.busiest) == (120, 3_000, 1, 120)
     assert "busiest" not in sentence(r)
 
 
 def test_a_copy_on_the_old_address_and_the_original_carry_the_same_traffic():
     """The audit follows redirects, so a finding on /old is usually a copy of the finding on /new. The
     copy got /old's rows plus /new's, the original only /new's, and copies filled the top of the
-    dashboard above the real row (COC: 20 copies at positions 5-24)."""
+    dashboard above the real row (COC: 20 copies at positions 5-24). Both describe the page visitors
+    land on, so both carry exactly that page's traffic."""
     traffic = t({"old": (5, 50), "new": (120, 3_000)}, {"old": "new"})
     copy = reach({url_key(f"{H}/old")}, 1, traffic, "phone", "x")
     original = reach({url_key(f"{H}/new")}, 1, traffic, "phone", "x")
-    assert (copy.clicks, copy.impressions) == (original.clicks, original.impressions) == (125, 3_050)
+    assert (copy.clicks, copy.impressions) == (original.clicks, original.impressions) == (120, 3_000)
 
 
 def test_sitemap_coverage_findings_are_about_the_address_not_where_it_lands():
@@ -318,3 +322,59 @@ def test_migration_0005_creates_exactly_the_model_table():
     uniques = lambda tb: {(c.name, tuple(c.columns.keys())) for c in tb.constraints  # noqa: E731
                           if isinstance(c, sa.UniqueConstraint)}
     assert uniques(table) == uniques(model)
+
+
+
+# --------------------------------------------------------------------------- found by verification 2026-09-15
+def test_a_finding_on_the_destination_does_not_take_a_redirecting_addresss_rows():
+    """COC's homepage title finding 404738 read 73,643 impressions instead of its own 22,869: the extra
+    50,773 were an Orange County page's, from before that address redirected to the homepage."""
+    traffic = t({"home": (479, 22_869), "orange-county-ca": (67, 50_773)}, {"orange-county-ca": "home"})
+    r = reach({url_key(f"{H}/home")}, 1, traffic, "meta", "x")
+    assert (r.clicks, r.impressions) == (479, 22_869)
+
+
+def test_a_later_refused_run_does_not_open_the_guard(api_env, capsys):
+    """MHD: its newest run (139) was REFUSED with 0 pages audited, and its report shows run 108. Compared
+    with the refused run, the guard would see 0 and let a 334-page cache through."""
+    from datetime import datetime
+    api_env["write"](THREE_PAGES)
+    ti.import_api(["GL"], PERIOD)
+    with api_env["factory"]() as s:
+        run = s.query(Run).one()
+        run.pages_audited, run.started_at = 900, datetime(2026, 8, 28)
+        s.add(Run(brand_id=run.brand_id, status="refused", pages_audited=0,
+                  started_at=datetime(2026, 9, 7)))
+        s.commit()
+    api_env["write"]([crawl(f"{H}/other", f"{H}/elsewhere/")])
+    ti.import_api(["GL"], PERIOD)
+    assert len(_stored(api_env["factory"])) == 2
+    assert "different crawl" in capsys.readouterr().out
+
+
+def test_a_cache_that_repeats_urls_is_measured_in_pages_not_lines(api_env, capsys):
+    """RR's cache has 14,210 lines for 7,998 distinct URLs. Counting lines would let a smaller crawl
+    pass as the run the report shows."""
+    api_env["write"](THREE_PAGES)
+    ti.import_api(["GL"], PERIOD)
+    with api_env["factory"]() as s:
+        s.query(Run).update({"pages_audited": 5})
+        s.commit()
+    api_env["write"]([crawl(f"{H}/other", f"{H}/elsewhere/")] * 6)
+    ti.import_api(["GL"], PERIOD)
+    assert len(_stored(api_env["factory"])) == 2
+    assert "different crawl" in capsys.readouterr().out
+
+
+def test_the_guard_compares_with_the_latest_ok_run_not_an_older_one(api_env):
+    """AR's oldest ok run audited 502 pages; its latest audited 474, which its cache matches. Compared
+    with the oldest, AR's map would freeze."""
+    from datetime import datetime
+    with api_env["factory"]() as s:
+        run = s.query(Run).one()
+        run.pages_audited, run.started_at = 3, datetime(2026, 9, 4)
+        s.add(Run(brand_id=run.brand_id, status="ok", pages_audited=900, started_at=datetime(2026, 8, 1)))
+        s.commit()
+    api_env["write"](THREE_PAGES)
+    ti.import_api(["GL"], PERIOD)
+    assert len(_stored(api_env["factory"])) == 2

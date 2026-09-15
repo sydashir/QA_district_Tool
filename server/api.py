@@ -31,7 +31,7 @@ from auditor.humanize import CHECK_LABELS
 from .db import get_session
 from .models import Brand, Finding, Page, Run, Triage, fp_hash
 from .traffic import (NOT_CONNECTED, affected, coverage, load_brand_traffic,
-                      ranks_on_impressions, reach, sentence, short)
+                      ranks_on_impressions, reach, sentence, short, url_key)
 
 OPEN_STATUSES = ("new", "persisting")
 
@@ -297,8 +297,12 @@ def list_findings(
             keys, _complete = affected(url, sources, pages)
             r = reach(keys, pages, traffic, chk, cls)
             weighted += r.state == "weighted"
+            # A finding on an address that redirects is a copy of the finding on the page it lands on
+            # (the audit follows redirects) and carries the same traffic. The real page wins that tie:
+            # the newest-id tie-break alone put 21 COC copies above the original, finding 404738.
+            copy = 1 if url_key(url) in traffic.redirects else 0
             ordered.append(((rank.get(sev, 3),) + r.rank(by_impressions)
-                            + (-(pages or 1), -fid), fid))
+                            + (-(pages or 1), copy, -fid), fid))
         ordered.sort()
         ordering_note = " ".join(p for p in (ordering_note, coverage(
             weighted, len(light), traffic.capped, noun="findings in this list")) if p)

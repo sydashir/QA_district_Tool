@@ -123,15 +123,6 @@ class BrandTraffic:
     # Audited url_key -> the url_key it lands on, same site only (table page_redirects). Google reports
     # traffic under the destination, so a finding on a redirecting URL is weighted by where visitors land.
     redirects: dict[str, str] = field(default_factory=dict)
-    # The reverse: a page -> every audited address that redirects to it. Derived, never passed in, so
-    # it can never disagree with `redirects` (dataclasses.replace recomputes it).
-    aliases: dict[str, set[str]] = field(default_factory=dict, init=False, repr=False, compare=False)
-
-    def __post_init__(self):
-        inverse: dict[str, set[str]] = {}
-        for src, dst in self.redirects.items():
-            inverse.setdefault(dst, set()).add(src)
-        object.__setattr__(self, "aliases", inverse)
 
     @property
     def label(self) -> str:
@@ -265,27 +256,25 @@ def reach(keys: set[str], total: int, traffic: BrandTraffic | None,
 
 def page_traffic(keys: set[str], traffic: BrandTraffic,
                  follow_redirects: bool = True) -> dict[str, tuple[int, int]]:
-    """(clicks, impressions) per PAGE among the pages `keys` name.
+    """(clicks, impressions) per PAGE among the pages `keys` name — each page once.
 
-    An address that redirects IS the page it lands on — one page reached two ways. So a page's traffic
-    is the sum over every address Google reports it under (its own key and each audited address that
-    redirects to it), each counted once, and the page counts once however many of its addresses a
-    finding names. The first version counted addresses: reviewed on 2026-09-15, that printed "the
-    busiest affected page" on 142 single-page findings, and let a copy of a finding on the old address
-    carry more traffic than the original on the new one and outrank it in the dashboard.
+    An address that redirects IS the page it lands on, so a finding on it is weighted by that page, and a
+    group naming both addresses counts the page once. Only the destination's OWN rows count. Adding the
+    old address's rows is not safe: verified on live data 2026-09-15, rows recorded under an old address
+    inside the period can belong to a DIFFERENT page it used to be — COC's homepage gained 50,773
+    impressions from /mental-health/therapy/orange-county-ca — and nothing stored tells a renamed page
+    from a replaced one. So the number is a floor, never another page's traffic. Counting addresses
+    instead of pages (the first version) printed "the busiest affected page" on 142 single-page findings
+    and let a copy on the old address outrank the original.
 
     Enumeration findings are about the requested address itself — is THIS address in the sitemap? — so
-    for them no redirect is followed: the destination, often the homepage, is not their reach.
+    for them no redirect is followed.
     """
     out: dict[str, tuple[int, int]] = {}
     for k in keys:
         page = traffic.redirects.get(k, k) if follow_redirects else k
-        if page in out:
-            continue
-        addresses = {page} | (traffic.aliases.get(page, set()) if follow_redirects else set())
-        rows = [traffic.pages[a] for a in addresses if a in traffic.pages]
-        if rows:
-            out[page] = (sum(c for c, _i in rows), sum(i for _c, i in rows))
+        if page in traffic.pages:
+            out[page] = traffic.pages[page]
     return out
 
 
