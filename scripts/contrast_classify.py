@@ -44,12 +44,13 @@ try:
 
     from render.a11y import (_contrast_ratio, _hex_to_rgb, collapse_contrast, run_axe,
                              to_findings)
+    from render.browser import ensure_chromium
     from render.safety import SafetyLedger, install, prove_attached
 except ModuleNotFoundError as exc:  # pragma: no cover - container-only path
     raise SystemExit(
         f"{exc.name} is not available. This is a HOST-ONLY tool: the container ships neither "
-        f"render/ nor playwright. If it is chromium that is missing, macOS purges "
-        f"~/Library/Caches/ms-playwright — run `python3 -m playwright install chromium`.") from exc
+        f"render/ nor playwright. Run it on the host, from the repo root. (A MISSING CHROMIUM "
+        f"is no longer this error — render/browser.py installs it before the pass starts.)") from exc
 
 from auditor.config import load_brand                                  # noqa: E402
 
@@ -250,6 +251,7 @@ def main() -> int:
     out_dir = ROOT / args.out
     out_dir.mkdir(parents=True, exist_ok=True)
     results = []
+    ensure_chromium()          # never reach launch() without it (render/browser.py)
     with sync_playwright() as p:
         browser = p.chromium.launch()
         try:

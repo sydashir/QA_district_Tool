@@ -7,6 +7,8 @@ output readable.
 """
 from __future__ import annotations
 
+import sys
+
 import pytest
 
 from auditor.report import Severity
@@ -105,7 +107,13 @@ def test_the_pass_refuses_to_run_if_the_guard_is_not_attached(monkeypatch):
         def new_page(self): return _Page()
         def close(self): pass
     class _PW:
-        chromium = type("C", (), {"launch": staticmethod(lambda *a, **k: _Browser())})()
+        # `executable_path` is on the real BrowserType, and the preflight in render/browser.py
+        # reads it to decide whether chromium needs installing. A double without it made this
+        # test fail on an AttributeError instead of on the canary — a fake kinder than reality
+        # hiding the thing it exists to catch. sys.executable is simply a path that exists, i.e.
+        # "a browser is present", so the preflight passes through and the canary is what is tested.
+        chromium = type("C", (), {"launch": staticmethod(lambda *a, **k: _Browser()),
+                                  "executable_path": sys.executable})()
         def __enter__(self): return self
         def __exit__(self, *a): return False
 

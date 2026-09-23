@@ -41,6 +41,7 @@ sys.path.insert(0, str(ROOT))
 try:
     from playwright.sync_api import sync_playwright
 
+    from render.browser import ensure_chromium
     from render.safety import SafetyLedger, install, prove_attached
     from render.shots import SHIP_FLOOR, ShotTally, capture
 except ModuleNotFoundError as exc:  # pragma: no cover - container-only path
@@ -154,6 +155,7 @@ def measure(brand: str, report: Path, classes: tuple[str, ...],
 
     tally = ShotTally()
     errors = 0
+    ensure_chromium()          # never reach launch() without it (render/browser.py)
     with sync_playwright() as p:
         browser = p.chromium.launch()
         for i, url in enumerate(urls, 1):

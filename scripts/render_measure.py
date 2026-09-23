@@ -29,6 +29,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 try:
     from playwright.sync_api import sync_playwright
 
+    from render.browser import ensure_chromium
     from render.a11y import run_axe, to_findings
     from render.images import find_broken, scroll_to_load_everything
     from render.safety import SafetyLedger, install, prove_attached
@@ -186,6 +187,7 @@ def measure_brand(browser, brand: str, tally=None) -> list[dict]:
 
 def main(brands: list[str]) -> None:
     OUT.mkdir(parents=True, exist_ok=True)
+    ensure_chromium()          # never reach launch() without it (render/browser.py)
     with sync_playwright() as pw:
         browser = pw.chromium.launch()
         for b in brands:

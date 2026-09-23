@@ -143,6 +143,10 @@ def audit_html(pages: list[tuple[str, str]], brand_url: str) -> tuple[list[Findi
     """(url, html) pairs -> collapsed findings. Raises SafetyNotArmed if the block did not work."""
     from playwright.sync_api import sync_playwright
 
+    from render.browser import ensure_chromium
+
+    ensure_chromium()          # before a browser is asked for, not at launch() (see browser.py)
+
     ledger = SafetyLedger()
     raw: list[tuple[str, dict]] = []
     with sync_playwright() as pw:

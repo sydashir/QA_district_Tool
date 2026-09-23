@@ -490,10 +490,22 @@ remaining work is *operating* it, not extending it.
     photographed anything with a selector, and on GL wrote 61 pictures of which the report showed 0.
   - `scripts/locator_measure.py <brand>` — the acceptance test for the above, per finding class,
     against a 70% floor. Refuses a verdict below n=10.
-* **If a render pass dies at `chromium.launch()`, the browser is GONE, not broken.** Playwright
-  keeps its binaries in `~/Library/Caches/ms-playwright/`, which macOS is free to purge under disk
-  pressure — it did exactly that on 2026-09-08 and the accessibility pass crashed mid-run. Recovery
-  is `python3 -m playwright install chromium` (~96 MB). Nothing else is wrong when this happens.
+* **THE BROWSER NO LONGER LIVES IN THE CACHE macOS PURGES, AND THE PASSES INSTALL IT THEMSELVES.**
+  Playwright's default is `~/Library/Caches/ms-playwright/`, which macOS reclaims under disk
+  pressure — it did so on 2026-09-08 (accessibility pass crashed mid-run) and again by 2026-09-23
+  (28 tests erroring at `chromium.launch()`). Fixed 2026-09-23 in `render/browser.py`, two parts,
+  because neither alone is enough:
+  - binaries live in **`~/.local/share/ms-playwright`**, outside the cache tree. `PLAYWRIGHT_BROWSERS_PATH`
+    is read at **RUN time as well as install time** (measured: unset, `launch()` looks in the cache
+    and fails however the browsers were installed), so the module exports it in code — NOT from a
+    shell profile, which no launchd agent or cron job would inherit.
+  - `ensure_chromium()` runs **before any client page loads** in all six launch sites and installs
+    if the binary is missing. A version bump, a fresh machine and a deleted folder all present as
+    the same crash, and none is fixed by a better directory. A wiring test fails if a new pass
+    calls `chromium.launch(` without it.
+  **Do not run a bare `python3 -m playwright install chromium`** — it installs into the cache we no
+  longer read, so it looks like it worked and changes nothing. Use `render.browser.INSTALL_COMMAND`
+  (it carries the path), or just run the pass and let the preflight do it.
 * `scripts/seed_demo.py` fills an EMPTY database so the product opens without a 12-hour crawl. Every
   URL is on `*.demo.invalid`; it refuses a database holding real findings, runs, pages or traffic.
 

@@ -54,6 +54,7 @@ sys.path.insert(0, str(ROOT))
 try:
     from playwright.sync_api import sync_playwright
 
+    from render.browser import ensure_chromium
     from render.a11y import collapse_contrast, coverage_finding, run_axe, to_findings
     from render.images import find_broken, scroll_to_load_everything
     from render.images import to_findings as images_to_findings
@@ -61,8 +62,8 @@ try:
 except ModuleNotFoundError as exc:  # pragma: no cover - container-only path
     raise SystemExit(
         f"{exc.name} is not available. HOST-ONLY tool: the container ships neither render/ nor "
-        f"playwright. If chromium is missing, macOS purges ~/Library/Caches/ms-playwright — run "
-        f"`python3 -m playwright install chromium`.") from exc
+        f"playwright. Run it on the host, from the repo root. (A MISSING CHROMIUM is no longer "
+        f"this error — render/browser.py installs it before the pass starts.)") from exc
 
 from sqlalchemy import select                                          # noqa: E402
 from sqlalchemy import text as sql                                     # noqa: E402
@@ -268,6 +269,7 @@ def main() -> int:
 
     cc = _classifier()
     total = 0
+    ensure_chromium()          # never reach launch() without it (render/browser.py)
     with sync_playwright() as p:
         browser = p.chromium.launch()
         try:

@@ -47,6 +47,7 @@ sys.path.insert(0, str(ROOT))
 try:
     from playwright.sync_api import sync_playwright
 
+    from render.browser import ensure_chromium
     from render.safety import SafetyLedger, SafetyNotArmed, install, prove_attached
     from render.shots import ShotTally, attach_shots
 except ModuleNotFoundError as exc:  # pragma: no cover - container-only path
@@ -219,6 +220,7 @@ def main() -> int:
     grand = {"canary_pages": 0, "blocked": 0, "allowed": 0,
              "blocked_hosts": Counter(), "unrecognised": Counter()}
     try:
+        ensure_chromium()          # never reach launch() without it (render/browser.py)
         with SessionLocal() as session, sync_playwright() as p:
             browser = p.chromium.launch()
             try:
