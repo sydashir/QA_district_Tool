@@ -564,6 +564,17 @@ remaining work is *operating* it, not extending it.
    cause.** Consequence: the next GL run re-crawls all 3,594 pages. The accessibility pass now falls
    back to the newest report's URLs, so a lost cache can no longer make a brand silently skip its
    checks — that fallback exists because of this incident.
+11. **EVERY BRAND'S FIRST NATIVE RUN IS A FULL RE-CRAWL, NOT AN INCREMENTAL — expect ~12h, not an
+   evening.** Measured on TDRC run 141 (2026-09-23), the first crawl since Postgres moved off
+   Docker: `resumed_from_cache: 0`, and the summary named why —
+   `changed_components = ["dict:soupsieve", "geodata_gfv_path", "src:geo_field_validator.py"]`.
+   Runs up to 140 executed INSIDE the container, where `geodata_gfv_path` was `/opt/geodata-services`;
+   a native run resolves it to the host path, so the path and that file's hash both move and every
+   brand's banked pages are invalid. This is a ONE-TIME cost per brand, not a recurring one — the
+   second native run resumes normally. TDRC paid 58 seconds; **RR is ~8,000 pages and the eight
+   brands together are about 12 hours** (§6 has the per-brand rates). Nothing is wrong when this
+   happens, and the diff handles it correctly: findings that vanish under the moved ruler are
+   labelled `rule_changed`, never `resolved`. Do not "fix" it by reverting to Docker.
 
 ### What needs SYED, not an engineer
 Nothing below is a coding task. Each is a decision only he can make.
@@ -654,3 +665,27 @@ as a dataset — D10 names the 7 real words of 78; note that 2 of those 7 (`alco
 `ency`) are already caught by `empty_slot`. A separate, better-evidenced lever exists: the **UMLS
 SPECIALIST Lexicon** hit PPV 0.90 on 76,786 clinical notes with residual FPs that were *not* drug
 names — that attacks the failure that actually killed D9 and D10.
+
+---
+
+## 14. Process Management & Memory Constraints
+
+- ALWAYS gracefully shut down llama-server, watchman, and node (Metro/Expo) dev servers before
+  exiting a task, running a new server instance, or restarting the environment.
+- Do NOT leave orphaned processes running in the background. Use killall or pkill to verify your
+  spawned servers are dead before moving to the next step.
+
+**Exception — this repo's three deliberate long-running services.** They are not orphans and must
+NOT be swept up by a `killall`/`pkill` pass: the two launchd agents `local.district-auditor.api`
+(uvicorn :8099) and `local.district-auditor.web` (vite :5173), which are installed to start at
+login, and `python3 -m server.worker`, which the product needs in order to run an audit at all
+(Syed, 2026-09-23: "Leave the worker running"). Stop those only when asked, or when restarting them
+deliberately — and say so. Everything else you spawn is yours to clean up.
+
+**Why this matters here specifically.** This machine is shared with other projects and has gone
+into swap thrash repeatedly — load 947 on 2026-08-21, load 167 with `com.docker.backend` at 1000%
+CPU on 2026-09-01/02, and three unclean reboots in four hours on 2026-09-02/03 that killed a crawl
+and corrupted a Postgres checkpoint file. Measured 2026-09-23: with another project's jest suite at
+84% CPU on two cores and 6.5 GB of 8 GB swap used, `/api/health` took **31.8 seconds** to answer and
+a trivial `count(*)` took 8.3 s. A leaked dev server is not a tidiness problem on this box — it is
+the difference between a 58-second audit and a dead run. Check `uptime` before starting long work.

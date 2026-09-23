@@ -42,8 +42,8 @@ from auditor.report import canonical_url                  # noqa: E402
 from auditor.config import load_brand                     # noqa: E402
 from render.markup import audit_html                      # noqa: E402
 from server.db import SessionLocal                        # noqa: E402
-from server.models import Brand, Finding, Run             # noqa: E402
-from server.models import fp_hash                         # noqa: E402
+from server.models import Brand, Run                      # noqa: E402
+from server.passes import attach                          # noqa: E402
 from sqlalchemy import select, text as sql                # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -177,10 +177,11 @@ def fetch_pages(urls: list[str], base_url: str) -> tuple[list[tuple[str, str]], 
 
 
 def store(brand_code: str, findings: list) -> int:
-    """Attach findings to the brand's latest ok run, skipping any fingerprint already there.
+    """Attach findings to the brand's latest ok run, classified against that check's own history.
 
     Deliberately NOT a new run: these describe the same pages the latest run audited, and inventing
-    a run row would put a second 'latest run' in front of every report and diff.
+    a run row would put a second 'latest run' in front of every report and diff. The new/persisting
+    decision lives in `server/passes.py` — see its note on why a pass has to make it itself.
     """
     with SessionLocal() as s:
         brand = s.scalar(select(Brand).where(Brand.code == brand_code.upper()))
@@ -188,27 +189,9 @@ def store(brand_code: str, findings: list) -> int:
                        .order_by(Run.started_at.desc()).limit(1))
         if run is None:
             print("    no completed run to attach to"); return 0
-        existing = {r[0] for r in s.execute(sql(
-            "select fingerprint from findings where run_id=:r"), {"r": run.id})}
-        rows = []
-        for f in findings:
-            if f.fingerprint in existing:
-                continue
-            existing.add(f.fingerprint)
-            rows.append(Finding(
-                brand_id=brand.id, run_id=run.id,
-                fingerprint=f.fingerprint, fingerprint_hash=fp_hash(f.fingerprint),
-                url=f.url, check=f.check, severity=str(getattr(f.severity, "value", f.severity)),
-                issue=f.issue, location=f.location, snippet=f.snippet, suggestion=f.suggestion,
-                details=f.details or {}, status="new",
-                page_count=int((f.details or {}).get("page_count") or 1),
-                sources=(f.details or {}).get("sources")))
-        s.bulk_save_objects(rows)
-        s.commit()
-        print(f"    stored {len(rows)} finding(s) on run {run.id}")
-        return len(rows)
-
-
+        n = attach(s, brand, run, findings)
+        print(f"    stored {n} finding(s) on run {run.id}")
+        return n
 def status(brands: list[str]) -> int:
     """Which brands' accessibility findings belong to a crawl that is no longer the latest.
 

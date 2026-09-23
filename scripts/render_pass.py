@@ -46,6 +46,7 @@ from __future__ import annotations
 import argparse
 import sys
 import time
+from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -70,7 +71,8 @@ from sqlalchemy import text as sql                                     # noqa: E
 
 from auditor.config import load_brand                                  # noqa: E402
 from server.db import SessionLocal                                     # noqa: E402
-from server.models import Brand, Finding, Run, fp_hash                 # noqa: E402
+from server.models import Brand, Run                                   # noqa: E402
+from server.passes import attach                                       # noqa: E402
 
 VIEWPORT = {"width": 390, "height": 844}      # the viewport contrast was measured and classified at
 DELAY_S = 1.0                                  # politeness: these are live client pages
@@ -100,7 +102,38 @@ def _sample_urls(brand: str, n: int) -> list[str]:
     return ap.sample_urls(brand.lower(), n)
 
 
-def gate_contrast(browser, cfg, cc, pairs: list, findings_by_pair: dict) -> tuple[list, int, int]:
+def new_guard() -> dict:
+    """What the network guard did, so a run can SAY it rather than leave it implied.
+
+    `prove_attached` already raises when the canary gets through, so a completed pass is proof the
+    block held — but Syed's standing requirement (2026-09-15) is to REPORT blocked versus allowed,
+    and this is the pass that needs it most: it loads client pages first-party with their CSS and
+    images, where the markup pass blocks every request outright. Same shape and wording as
+    `scripts/shot_pass.py` so the two passes read alike.
+    """
+    return {"pages": 0, "canary_pages": 0, "blocked": 0, "allowed": 0,
+            "blocked_hosts": Counter(), "unrecognised": Counter()}
+
+
+def record(guard: dict, led) -> None:
+    guard["pages"] += 1
+    guard["blocked"] += led.blocked
+    guard["allowed"] += led.allowed
+    guard["blocked_hosts"].update(led.blocked_hosts)
+    guard["unrecognised"].update(led.unblocked_third_parties)
+
+
+def guard_line(guard: dict, pages_attempted: int, indent: str = "    ") -> str:
+    hosts = ", ".join(f"{h} x{n}" for h, n in guard["blocked_hosts"].most_common(6))
+    unrec = ", ".join(f"{h} x{n}" for h, n in guard["unrecognised"].most_common(8))
+    return (f"{indent}guard: canary blocked on {guard['canary_pages']} of {pages_attempted} page "
+            f"load(s), each before the client page loaded; blocked {guard['blocked']:,} tracker "
+            f"request(s) ({hosts or 'none'}); allowed {guard['allowed']:,}; unrecognised third "
+            f"parties allowed: {unrec or 'none'}")
+
+
+def gate_contrast(browser, cfg, cc, pairs: list, findings_by_pair: dict,
+                  guard: dict) -> tuple[list, int, int]:
     """Verify each colour pair against the pixels. Returns (kept, dropped, unclear)."""
     kept, dropped, unclear = [], 0, 0
     for f in pairs:
@@ -119,6 +152,7 @@ def gate_contrast(browser, cfg, cc, pairs: list, findings_by_pair: dict) -> tupl
             led = SafetyLedger()
             install(page, cfg.base_url, led)
             prove_attached(page, led)
+            guard["canary_pages"] += 1
             page.goto(member.url, wait_until="domcontentloaded", timeout=45000)
             page.wait_for_timeout(900)
             loc = page.locator(sel).first
@@ -140,6 +174,7 @@ def gate_contrast(browser, cfg, cc, pairs: list, findings_by_pair: dict) -> tupl
         except Exception as e:                                          # noqa: BLE001
             note = f"could not photograph the element ({type(e).__name__})"
         finally:
+            record(guard, led)
             page.close()
         time.sleep(DELAY_S)
 
@@ -160,10 +195,11 @@ def run_brand(browser, cc, brand: str, pages: int) -> list:
     urls = _sample_urls(brand, pages)
     if not urls:
         print(f"  {brand.upper():5s} no URLs to sample — skipped")
-        return []
+        return [], new_guard()
 
     raw_contrast, images, failed = [], [], 0
     assessed = withheld = 0
+    guard = new_guard()
     # Why axe could not judge an element — the coverage caveat names the dominant one, so the
     # client is told "we could not see most of this" rather than being handed a small number that
     # reads as "we looked and found little".
@@ -174,6 +210,7 @@ def run_brand(browser, cc, brand: str, pages: int) -> list:
         try:
             install(page, cfg.base_url, led)
             prove_attached(page, led)       # the canary, every page, no exceptions
+            guard["canary_pages"] += 1
             page.goto(url, wait_until="domcontentloaded", timeout=45000)
             page.wait_for_timeout(900)
             axe = run_axe(page)
@@ -191,6 +228,7 @@ def run_brand(browser, cc, brand: str, pages: int) -> list:
             failed += 1
             print(f"    [{i}/{len(urls)}] page did not load: {url[:78]} — {type(e).__name__}")
         finally:
+            record(guard, led)
             page.close()
         time.sleep(DELAY_S)
 
@@ -205,7 +243,7 @@ def run_brand(browser, cc, brand: str, pages: int) -> list:
 
     pairs = [f for f in collapse_contrast(raw_contrast)
              if (f.details or {}).get("class") == "color-contrast"]
-    kept, dropped, unclear = gate_contrast(browser, cfg, cc, pairs, by_pair)
+    kept, dropped, unclear = gate_contrast(browser, cfg, cc, pairs, by_pair, guard)
 
     out = kept + images
     cov = coverage_finding(brand.upper(), assessed=assessed, withheld=withheld, reasons=reasons)
@@ -215,40 +253,26 @@ def run_brand(browser, cc, brand: str, pages: int) -> list:
           f"{len(pairs)} colour pairs -> {len(kept)} kept ({unclear} unclear), "
           f"{dropped} DROPPED by the pixel gate · {len(images)} broken image(s)"
           + (f" · {failed} page(s) failed to load" if failed else ""))
-    return [f for f in out if (f.details or {}).get("class") in PUBLISH]
+    print(guard_line(guard, guard["pages"]))
+    return [f for f in out if (f.details or {}).get("class") in PUBLISH], guard
 
 
 def store(brand_code: str, findings: list) -> int:
-    """Attach to the brand's latest ok run — never invent a run row, which would put a second
-    'latest run' in front of every report and diff."""
+    """Attach findings to the brand's latest ok run, classified against that check's own history.
+
+    Deliberately NOT a new run: these describe the same pages the latest run audited, and inventing
+    a run row would put a second 'latest run' in front of every report and diff. The new/persisting
+    decision lives in `server/passes.py` — see its note on why a pass has to make it itself.
+    """
     with SessionLocal() as s:
         brand = s.scalar(select(Brand).where(Brand.code == brand_code.upper()))
         run = s.scalar(select(Run).where(Run.brand_id == brand.id, Run.status == "ok")
                        .order_by(Run.started_at.desc()).limit(1))
         if run is None:
             print("    no completed run to attach to"); return 0
-        existing = {r[0] for r in s.execute(
-            sql("select fingerprint from findings where run_id=:r"), {"r": run.id})}
-        rows = []
-        for f in findings:
-            if f.fingerprint in existing:
-                continue
-            existing.add(f.fingerprint)
-            rows.append(Finding(
-                brand_id=brand.id, run_id=run.id,
-                fingerprint=f.fingerprint, fingerprint_hash=fp_hash(f.fingerprint),
-                url=f.url, check=f.check,
-                severity=str(getattr(f.severity, "value", f.severity)),
-                issue=f.issue, location=f.location, snippet=f.snippet, suggestion=f.suggestion,
-                details=f.details or {}, status="new",
-                page_count=int((f.details or {}).get("page_count") or 1),
-                sources=(f.details or {}).get("sources")))
-        s.bulk_save_objects(rows)
-        s.commit()
-        print(f"    stored {len(rows)} finding(s) on run {run.id}")
-        return len(rows)
-
-
+        n = attach(s, brand, run, findings)
+        print(f"    stored {n} finding(s) on run {run.id}")
+        return n
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -269,12 +293,17 @@ def main() -> int:
 
     cc = _classifier()
     total = 0
+    grand = new_guard()
     ensure_chromium()          # never reach launch() without it (render/browser.py)
     with sync_playwright() as p:
         browser = p.chromium.launch()
         try:
             for code in codes:
-                found = run_brand(browser, cc, code, args.pages)
+                found, guard = run_brand(browser, cc, code, args.pages)
+                for k in ("pages", "canary_pages", "blocked", "allowed"):
+                    grand[k] += guard[k]
+                grand["blocked_hosts"].update(guard["blocked_hosts"])
+                grand["unrecognised"].update(guard["unrecognised"])
                 if args.dry_run:
                     print(f"    dry run — {len(found)} finding(s), nothing written")
                 else:
@@ -282,6 +311,7 @@ def main() -> int:
         finally:
             browser.close()
     print(f"\n  {total} finding(s) published across {len(codes)} brand(s)")
+    print(guard_line(grand, grand["pages"], indent="  "))
     return 0
 
 

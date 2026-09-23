@@ -661,8 +661,8 @@ def export_sheet(brand: str, dry_run: bool = True,
             409, f"{b.code}'s latest run has no report on disk to publish "
                  f"(it was recorded via the API, not a file-based run)")
     try:
-        from .export import export_brand
-        line = export_brand(b.code, run.report_dir, dry_run=dry_run)
+        from .export import export_run
+        line = export_run(session, b.code, run, dry_run=dry_run)
     except FileNotFoundError as e:
         raise HTTPException(409, f"the report for that run is no longer on disk: {e}")
     except Exception as e:                       # noqa: BLE001 — creds/sheet may be absent locally
