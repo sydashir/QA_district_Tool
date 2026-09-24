@@ -197,3 +197,61 @@ def test_the_sheet_shows_human_labels_not_module_names():
     header, rows = fake.written
     assert rows[0][header.index("check")] == "Page content"
     assert rows[0][header.index("suggestion")].strip(), "shipped an empty suggestion"
+
+
+# --- adding a column to an append-only history tab ---
+
+def _client_with(existing_header):
+    """A real SheetsClient with its transport intercepted, reporting `existing_header` as the tab's
+    current header. Drives the REAL ensure_tab: the FakeSheets in test_publish.py carries its own
+    copy of this logic, so mutating the real one left every test there passing."""
+    from auditor.sheets import SheetsClient
+    puts = []
+
+    class C(SheetsClient):
+        def _send(self, method, url, **kw):
+            if method == "PUT":
+                puts.append(kw.get("json", {}).get("values", [None])[0])
+
+            class R:
+                status_code = 200
+
+                @staticmethod
+                def raise_for_status():
+                    return None
+
+                @staticmethod
+                def json():
+                    return {"sheets": [{"properties": {"title": "Summary"}}]}
+            return R()
+
+        def read_tab(self, tab):
+            return (list(existing_header), [["old-row"]]) if existing_header else None
+
+    return C(spreadsheet_id="s", credentials_path="x"), puts
+
+
+def test_a_header_written_before_a_column_existed_is_extended():
+    """The live Summary tab was written with the old header and ensure_tab only SEEDS a header when
+    the tab has none — so a new column's value would land under no name and every reader that uses
+    header.index() would fail to find it."""
+    from auditor.sheets import SUMMARY_HEADER
+    client, puts = _client_with(SUMMARY_HEADER[:-1])
+    client.ensure_tab("Summary", header=SUMMARY_HEADER)
+    assert puts == [SUMMARY_HEADER], "the live header was left one column short"
+
+
+def test_a_header_that_is_not_ours_is_left_alone():
+    """Only a strict PREFIX is extended. Anything else is somebody's own edit, and overwriting it
+    would silently re-point every row beneath it."""
+    from auditor.sheets import SUMMARY_HEADER
+    client, puts = _client_with(["brand", "something_someone_added"])
+    client.ensure_tab("Summary", header=SUMMARY_HEADER)
+    assert puts == [], "overwrote a header we did not write"
+
+
+def test_a_header_already_current_is_not_rewritten():
+    from auditor.sheets import SUMMARY_HEADER
+    client, puts = _client_with(SUMMARY_HEADER)
+    client.ensure_tab("Summary", header=SUMMARY_HEADER)
+    assert puts == []

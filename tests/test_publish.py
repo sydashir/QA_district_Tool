@@ -44,6 +44,12 @@ class FakeSheets:
             self.tabs[tab] = (list(header) if header else [], [])
         elif header and not self.tabs[tab][0]:
             self.tabs[tab] = (list(header), self.tabs[tab][1])
+        elif header and list(self.tabs[tab][0]) != list(header) \
+                and list(header[:len(self.tabs[tab][0])]) == list(self.tabs[tab][0]):
+            # Mirrors the real client: EXTEND a header written before a column existed, and only
+            # when the live one is a strict prefix (columns appended, nothing moved). A fake that
+            # skipped this would let the live sheet keep an 18-column header while the code wrote 19.
+            self.tabs[tab] = (list(header), self.tabs[tab][1])
 
     def replace_tab(self, tab, header, rows):
         self._maybe_fail(f"replace:{tab}")
@@ -189,3 +195,152 @@ def test_a_zero_page_audit_is_never_published_as_ok():
         publish_brand_from_result("mhd", {"pages_audited": 0, "findings": []},
                                   run_id="r1", dry_run=False, client=fake)
     assert fake.tabs == {}, "an empty audit was published"
+
+
+# --------------------------------------------------------------------------- what counts as OPEN
+# A finding on a page that now 404s is not work anybody can do — the page is gone. The sheet used to
+# count those in its open tab while `scripts/client_report.py` (which filters `status IN
+# ('new','persisting')`) did not, so the two client-facing surfaces disagreed. Measured on GL run 142,
+# 2026-09-24: the sheet said 9,173 open / 800 errors, the report 8,077 / 567 — a 1,096 gap that was
+# invisible until GL deleted 224 pages in one go. The removals are real information, so they are
+# SAID in Summary rather than dropped.
+
+def _f_status(fp, status, url="https://x/a/", sev=Severity.ERROR):
+    f = _f(fp, sev)
+    f.url = url
+    f.status = status
+    return f
+
+
+def _publish(findings, **kw):
+    c = FakeSheets()
+    delta = {"new": 0, "resolved": 0, "rule_changed": 0, "open": 0, "new_fingerprints": set()}
+    delta.update(kw.pop("delta", {}))
+    publish_brand(c, brand="GL", run_id="r1", findings=findings, delta=delta,
+                  changed_checks=set(), first_seen={}, run_date="2026-09-24",
+                  started="2026-09-24T01:00:00", finished="2026-09-24T02:00:00",
+                  pages=10, counts={"ERROR": len(findings)}, **kw)
+    return c
+
+
+def test_a_finding_on_a_removed_page_never_reaches_the_open_tab():
+    """publish_brand is handed only open work; the filtering happens above it. This pins the tab
+    itself: whatever arrives is what the QA team sees, so a removed page must not arrive."""
+    c = _publish([_f_status("keep", "persisting")])
+    _, rows = c.tabs["GL — open"]
+    assert len(rows) == 1
+
+
+def test_the_summary_says_how_many_pages_were_removed():
+    """Not dropped silently. 224 pages vanishing from GL is the story of that audit."""
+    c = _publish([_f_status("keep", "persisting")], delta={"pages_removed": 224})
+    hdr, rows = c.tabs["Summary"]
+    assert "pages_removed" in hdr
+    assert rows[0][hdr.index("pages_removed")] == "224"
+
+
+def test_a_run_that_removed_nothing_says_nothing_about_removals():
+    """A '0 pages removed' note on every brand every run is noise that trains people to skip the
+    detail column — which is where PARTIAL SAMPLE also lives."""
+    c = _publish([_f_status("keep", "persisting")])
+    hdr, rows = c.tabs["Summary"]
+    assert rows[0][hdr.index("pages_removed")] == "0"
+    assert "removed" not in rows[0][hdr.index("detail")].lower()
+
+
+def test_the_new_column_goes_after_the_existing_ones():
+    """Summary is append-only history. Inserting a column mid-header would re-point every row
+    already written — `detail` on an old row would be read as the new column."""
+    assert SUMMARY_HEADER[-1] == "pages_removed"
+    assert SUMMARY_HEADER.index("detail") < SUMMARY_HEADER.index("pages_removed")
+
+
+def test_a_sheet_written_before_the_column_existed_gets_it_added():
+    """The live Summary tab already has the old header, and `ensure_tab` only seeds a header when
+    the tab has NONE — so without this the value lands in a column with no name and every reader
+    that uses header.index() fails to find it."""
+    c = FakeSheets()
+    old = SUMMARY_HEADER[:-1]
+    c.tabs["Summary"] = (list(old), [["r0", "s", "f", "GL"] + [""] * (len(old) - 4)])
+    c.ensure_tab("Summary", header=SUMMARY_HEADER)
+    hdr, rows = c.tabs["Summary"]
+    assert hdr == SUMMARY_HEADER
+    assert rows[0][3] == "GL", "an existing row must not shift"
+
+
+def test_only_new_and_persisting_findings_are_open_work():
+    """THE change, tested where it actually lives. The filter is in `publish_brand_from_result`,
+    not in `publish_brand` — the tests above drive the lower layer and would all still pass with
+    this reverted. Statuses here are one of each carried state plus the two that are real work."""
+    from auditor.publish import publish_brand_from_result
+
+    class _Rollup:
+        by_status = {"new": 1, "persisting": 1, "rule_changed": 1,
+                     "page_removed": 2, "page_unsitemapped": 1}
+
+    findings = [
+        _f_status("open-new", "new", url="https://x/live-a/"),
+        _f_status("open-old", "persisting", url="https://x/live-b/"),
+        _f_status("ruler", "rule_changed", url="https://x/live-c/"),
+        _f_status("gone-1", "page_removed", url="https://x/gone-1/"),
+        _f_status("gone-2", "page_removed", url="https://x/gone-1/"),   # SAME page, 2 findings
+        _f_status("gone-3", "page_removed", url="https://x/gone-2/"),
+        _f_status("out-of-scope", "page_unsitemapped", url="https://x/live-d/"),
+    ]
+    c = FakeSheets()
+    publish_brand_from_result("GL", {
+        "pages_audited": 10, "findings": findings,
+        "run": {"rollup": _Rollup(), "resolved": [], "changed": []},
+        "css_status": "ok", "sitemap_partial": False, "partial_sample": False,
+        "scope_total": 10}, run_id="r1", client=c)
+
+    _, open_rows = c.tabs["GL — open"]
+    assert len(open_rows) == 2, "only the new and persisting findings are work anybody can do"
+
+    hdr, rows = c.tabs["Summary"]
+    assert rows[0][hdr.index("pages_removed")] == "2", "2 PAGES gone, not 3 findings"
+    detail = rows[0][hdr.index("detail")]
+    assert "2 pages covered by the previous audit are no longer listed" in detail
+    assert "removed or redirected" in detail, "must not claim deletion it never checked"
+    assert "1 page left the audit scope" in detail
+
+
+def test_a_run_with_no_removals_adds_no_removal_sentence():
+    """Tested through `publish_brand_from_result`, which is what builds `detail` — the earlier
+    zero-removal test drives `publish_brand` and never reaches that code, so a mutation making the
+    note unconditional survived it."""
+    from auditor.publish import publish_brand_from_result
+
+    class _Rollup:
+        by_status = {"persisting": 1}
+
+    c = FakeSheets()
+    publish_brand_from_result("GL", {
+        "pages_audited": 10, "findings": [_f_status("a", "persisting")],
+        "run": {"rollup": _Rollup(), "resolved": [], "changed": []},
+        "css_status": "ok", "sitemap_partial": False, "partial_sample": False,
+        "scope_total": 10}, run_id="r1", client=c)
+    hdr, rows = c.tabs["Summary"]
+    assert "removed" not in rows[0][hdr.index("detail")].lower()
+    assert rows[0][hdr.index("pages_removed")] == "0"
+
+
+def test_a_sampled_brand_still_carries_its_partial_sample_warning():
+    """The most dangerous sentence on the sheet to lose: without it a 621-of-10,727-page MHD sample
+    reads as a complete audit of a clean site. It had no test until `_detail` was extracted, and a
+    mutation deleting it survived every other test here."""
+    from auditor.publish import publish_brand_from_result
+
+    class _Rollup:
+        by_status = {"persisting": 1}
+
+    c = FakeSheets()
+    publish_brand_from_result("MHD", {
+        "pages_audited": 621, "findings": [_f_status("a", "persisting")],
+        "run": {"rollup": _Rollup(), "resolved": [], "changed": []},
+        "css_status": "ok", "sitemap_partial": False, "partial_sample": True,
+        "scope_total": 10727}, run_id="r1", client=c)
+    hdr, rows = c.tabs["Summary"]
+    detail = rows[0][hdr.index("detail")]
+    assert "PARTIAL SAMPLE" in detail
+    assert "621 pages audited out of 10727" in detail

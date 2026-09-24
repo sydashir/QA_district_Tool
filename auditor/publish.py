@@ -164,6 +164,39 @@ class EmptyAuditRefused(RuntimeError):
     """Raised when an audit produced no pages, so there is nothing honest to publish."""
 
 
+def _detail(result: dict, delta: dict, all_findings: list) -> str:
+    """The prose a human reads on the Summary row. Sentences, in order of how much they change the
+    reading of the numbers beside them."""
+    parts = []
+    if result.get("partial_sample"):
+        parts.append(
+            "PARTIAL SAMPLE — %d pages audited out of %d live on this brand. This is a SAMPLE, "
+            "not a complete audit: findings here are real, but absence of a finding does NOT "
+            "mean the rest of the site is clean." % (result.get("pages_audited", 0),
+                                                     result.get("scope_total", 0)))
+    # Said only when it happened. A "0 pages removed" note on every brand every run trains people
+    # to skip this column, and PARTIAL SAMPLE also lives here.
+    gone = delta.get("pages_removed", 0)
+    if gone:
+        # "no longer listed", NOT "deleted". The diff knows only that these pages left the site's
+        # own page list; it never probes them. Measured 2026-09-24: GL's 224 return 404 (genuinely
+        # gone) while MHD's 134 return 301 (still there, redirected). A sentence claiming deletion
+        # would have been false on one of the two brands it first shipped to.
+        parts.append(
+            f"{gone} page{'s' if gone != 1 else ''} covered by the previous audit "
+            f"{'are' if gone != 1 else 'is'} no longer listed on the site, so earlier findings on "
+            f"{'them' if gone != 1 else 'it'} are not counted as open work — and are not reported "
+            f"as fixed either. They may have been removed or redirected; the audit does not probe "
+            f"them to tell which.")
+    unsitemapped = len({f.url for f in all_findings
+                        if getattr(f, "status", None) == "page_unsitemapped"})
+    if unsitemapped:
+        parts.append(
+            f"{unsitemapped} page{'s' if unsitemapped != 1 else ''} left the audit scope but may "
+            f"still be live; their earlier findings are not counted as open work.")
+    return " ".join(parts)
+
+
 def publish_brand_from_result(brand: str, result: dict, *, run_id: str, dry_run: bool = False,
                               out=None, started: str | None = None,
                               duration_s: int = 0, client=None) -> str:
@@ -181,7 +214,15 @@ def publish_brand_from_result(brand: str, result: dict, *, run_id: str, dry_run:
             f"unchanged. Check host availability and whether the resume cache was invalidated by "
             f"a check-version change.")
 
-    findings = [f for f in result.get("findings", []) if getattr(f, "status", None) != "resolved"]
+    # OPEN WORK = exactly what `scripts/client_report.py::fetch` shows (`status IN
+    # ('new','persisting')`). The two client-facing surfaces must not disagree about the same run.
+    # Excluding `resolved` alone left the carried states in: a finding on a page that now 404s
+    # (`page_removed`) is not something anybody can fix, `rule_changed` was un-flagged by a moved
+    # ruler, and `page_unsitemapped` left the audit scope. Measured on GL run 142 (2026-09-24): the
+    # sheet said 9,173 open / 800 errors against the report's 8,077 / 567, a 1,096 gap that stayed
+    # invisible until GL deleted 224 pages at once. The removals are REPORTED below, not dropped.
+    all_findings = result.get("findings", [])
+    findings = [f for f in all_findings if getattr(f, "status", None) in ("new", "persisting")]
     counts = Counter(getattr(f.severity, "name", str(f.severity)) for f in findings)
     run = result.get("run") or {}
     # `rollup` is a writers.Rollup object, not a dict — its counters live on attributes.
@@ -198,6 +239,9 @@ def publish_brand_from_result(brand: str, result: dict, *, run_id: str, dry_run:
         "open": len(findings),
         "new_fingerprints": {f.fingerprint for f in findings
                              if getattr(f, "status", None) == "new"},
+        # PAGES, not findings: two defects on one deleted page is one page gone.
+        "pages_removed": len({f.url for f in all_findings
+                              if getattr(f, "status", None) == "page_removed"}),
     }
     first_seen = {f.fingerprint: (f.first_seen or "")[:10] for f in findings if f.first_seen}
     return publish_brand(
@@ -209,11 +253,7 @@ def publish_brand_from_result(brand: str, result: dict, *, run_id: str, dry_run:
         pages=result.get("pages_audited", 0), counts=dict(counts),
         css_status=result.get("css_status", ""), duration_s=duration_s,
         sitemap_partial=bool(result.get("sitemap_partial")),
-        detail=("PARTIAL SAMPLE — %d pages audited out of %d live on this brand. This is a SAMPLE, "
-                "not a complete audit: findings here are real, but absence of a finding does NOT "
-                "mean the rest of the site is clean." % (result.get("pages_audited", 0),
-                                                        result.get("scope_total", 0))
-                if result.get("partial_sample") else ""))
+        detail=_detail(result, delta, all_findings))
 
 
 def publish_result(brand: str, result: dict, *, dry_run: bool = False) -> str:

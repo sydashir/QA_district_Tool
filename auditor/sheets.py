@@ -169,7 +169,12 @@ class SheetsClient:
             self._send("POST", f"{SHEETS_API}/{self.spreadsheet_id}:batchUpdate",
                        json={"requests": [{"addSheet": {"properties": {"title": tab}}}]}
                        ).raise_for_status()
-        if header and not self.read_tab(tab):
+        existing = self.read_tab(tab)
+        # Seed a header, or EXTEND one written before a column existed. Only when the live header is
+        # a strict PREFIX of the wanted one — i.e. columns were appended and nothing moved. Anything
+        # else is somebody's edit and is left alone rather than overwritten.
+        if header and (not existing or
+                       (existing[0] != header and header[:len(existing[0])] == list(existing[0]))):
             self._send("PUT", f"{SHEETS_API}/{self.spreadsheet_id}/values/{tab}!A1",
                        params={"valueInputOption": "RAW"},
                        json={"values": [header]}).raise_for_status()
@@ -239,10 +244,13 @@ def publish_open_tab(client, spreadsheet_id: str, tab: str, findings, changed_ch
     return merged
 
 
+# `pages_removed` sits AFTER `detail`, which reads oddly and is deliberate: Summary is append-only
+# history, so a column inserted mid-header would re-point every row already written — `detail` on a
+# 2026-08 row would be read as the new column. New columns go on the end, always.
 SUMMARY_HEADER = ["run_started", "run_finished", "brand", "status", "pages_audited",
                   "errors", "warnings", "info", "new", "resolved", "rule_changed",
                   "untriaged_errors", "oldest_untriaged_days", "css_status", "sitemap_partial",
-                  "duration_s", "detail"]
+                  "duration_s", "detail", "pages_removed"]
 
 
 def summary_row(*, brand: str, status: str, started: str, finished: str = "", pages: int = 0,
@@ -256,7 +264,7 @@ def summary_row(*, brand: str, status: str, started: str, finished: str = "", pa
             str(c.get("ERROR", 0)), str(c.get("WARNING", 0)), str(c.get("INFO", 0)),
             str(d.get("new", 0)), str(d.get("resolved", 0)), str(d.get("rule_changed", 0)),
             str(untriaged[0]), str(untriaged[1]), css_status, str(bool(sitemap_partial)),
-            str(duration_s), detail]
+            str(duration_s), detail, str(d.get("pages_removed", 0))]
 
 
 def digest_line(brand: str, delta: dict, untriaged: tuple[int, int]) -> str:
